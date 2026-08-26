@@ -20,8 +20,9 @@ jobs:
           fetch-depth: 0
 
       - name: Move lighting controls into Visuals toolbar
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           p = Path('src/electron.renderer/display/LightPreview.hx')
@@ -89,6 +90,7 @@ jobs:
           replacement = replacement.replace('\\t', '\t')
           s = s[:start] + replacement + s[end:]
           p.write_text(s, encoding='utf-8')
+          PY
 
       - name: Commit source patch
         shell: bash

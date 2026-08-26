@@ -287,20 +287,9 @@ class TilesetAtlasComposer {
 			while( pending.length>0 ) {
 				var id = pending.pop();
 				component.push(id);
-				var cx = td.getTileCx(id);
-				var cy = td.getTileCy(id);
-				var neighbors = [
-					td.getTileId(cx-1,cy), td.getTileId(cx+1,cy),
-					td.getTileId(cx,cy-1), td.getTileId(cx,cy+1),
-				];
-				for(n in neighbors)
-					if( n>=0 && n<td.cWid*td.cHei && allowed.exists(n) && !visited.exists(n) ) {
-						// Guard row wrapping for horizontal neighbors.
-						if( dn.M.iabs(td.getTileCx(n)-cx)+dn.M.iabs(td.getTileCy(n)-cy)==1 ) {
-							visited.set(n,true);
-							pending.push(n);
-						}
-					}
+				// Only explicit protected reference groups stay together. Ordinary
+				// neighboring cells are independent so selected and remaining cells
+				// can actually compact into a smaller atlas.
 				if( linked.exists(id) )
 					for(n in linked.get(id))
 						if( allowed.exists(n) && !visited.exists(n) ) {

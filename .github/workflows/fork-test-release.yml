@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ldtk-aseprite-atlas-test-release
+  cancel-in-progress: true
+
 jobs:
   windows-test-release:
     runs-on: windows-latest
@@ -72,9 +76,9 @@ jobs:
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
             "LDtk-1.5.3-Aseprite-Atlas-Composer-win-x64.exe" \
-            --target "feature/aseprite-atlas-composer" \
+            --target "${GITHUB_SHA}" \
             --title "LDtk 1.5.3 - Aseprite + Atlas Composer test build" \
-            --notes "Experimental Windows x64 test build of the RondeI33 LDtk fork. Adds robust .aseprite/.ase tileset loading and a selective Atlas Composer for PNG/GIF/JPEG/Aseprite tilesets. The composer moves chosen tile cells into a generated atlas, compacts remaining source cells into generated remainder atlases, migrates supported LDtk tile references, and refuses migrations that would require one LDtk reference owner to point at two tilesets." \
+            --notes "Experimental Windows x64 test build of the RondeI33 LDtk fork. Adds robust .aseprite/.ase tileset loading and a selective Atlas Composer for PNG/GIF/JPEG/Aseprite tilesets. Pick individual cells from multiple compatible tilesets; selected cells are packed into a generated atlas, remaining cells are compacted into generated remainder atlases under .ldtk-atlas, and supported LDtk references are remapped. Original artist source image files are not overwritten. The composer refuses migrations that would require one LDtk Tile layer, AutoLayer, Enum icon source, or Tile field to point at two tilesets." \
             --prerelease
 
       - name: Upload Actions artifact

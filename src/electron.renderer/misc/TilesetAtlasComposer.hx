@@ -262,7 +262,36 @@ class TilesetAtlasComposer {
 			for(fd in ed.fieldDefs) checkField(fd);
 	}
 
-	static function buildUnits(td:TilesetDef, ids:Array<Int>, groups:Array<Array<Int>>) : Array<PackUnit> {
+	static function buildUnits(td:TilesetDef, ids:Array<Int>, groups:Array<Array<Int>>, preserveWholeShape=false) : Array<PackUnit> {
+		// Destination selections are intentionally kept as ONE shape per source
+		// tileset. Their original relative tile coordinates are preserved,
+		// including any unselected holes inside the bounding box. This may leave
+		// transparent/empty space in the composed atlas, by design. Remainder
+		// atlases still use the compact protected-group packing below.
+		if( preserveWholeShape ) {
+			var clean = validIds(td,ids);
+			if( clean.length==0 ) return [];
+			var minX = 0x3fffffff;
+			var minY = 0x3fffffff;
+			var maxX = -1;
+			var maxY = -1;
+			for(id in clean) {
+				minX = dn.M.imin(minX,td.getTileCx(id));
+				minY = dn.M.imin(minY,td.getTileCy(id));
+				maxX = dn.M.imax(maxX,td.getTileCx(id));
+				maxY = dn.M.imax(maxY,td.getTileCy(id));
+			}
+			return [{
+				sourceUid:td.uid,
+				ids:clean,
+				minX:minX,
+				minY:minY,
+				wid:maxX-minX+1,
+				hei:maxY-minY+1,
+				outX:0,
+				outY:0,
+			}];
+		}
 		var allowed : Map<Int,Bool> = new Map();
 		for(id in ids) allowed.set(id,true);
 
@@ -656,7 +685,7 @@ class TilesetAtlasComposer {
 		var destinationUnits : Array<PackUnit> = [];
 		for(uid in sourceLookup.keys()) {
 			var td = sourceLookup.get(uid);
-			destinationUnits = destinationUnits.concat(buildUnits(td,mapKeys(selectedBySource.get(uid)),groupsBySource.get(uid)));
+			destinationUnits = destinationUnits.concat(buildUnits(td,mapKeys(selectedBySource.get(uid)),groupsBySource.get(uid),true));
 		}
 		var packedDestination = pack(project,grid,destinationUnits,sourceLookup);
 

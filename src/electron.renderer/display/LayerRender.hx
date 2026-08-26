@@ -30,9 +30,7 @@ class LayerRender {
 	static var _animationLastLevelId : Null<Int>;
 
 
-	public function new() {
-		LightPreview.ensure();
-	}
+	public function new() {}
 
 
 	public function dispose() {

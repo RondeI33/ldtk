@@ -1,4 +1,4 @@
-name: Atlas Composer shape-fix release
+name: Atlas Composer remainder-alignment release
 
 on:
   push:
@@ -57,12 +57,12 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path "app/redist" -Filter "LDtk * installer.exe" | Select-Object -First 1
           if (-not $installer) { throw "LDtk Windows installer was not produced" }
-          Copy-Item $installer.FullName "LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-win-x64.exe"
+          Copy-Item $installer.FullName "LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-win-x64.exe"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: shapefix-windows
-          path: LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-win-x64.exe
+          name: alignmentfix-windows
+          path: LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-win-x64.exe
           if-no-files-found: error
 
   macos:
@@ -99,12 +99,12 @@ jobs:
             echo "LDtk macOS DMG was not produced"
             exit 1
           fi
-          cp "$DMG" "LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-macOS-universal.dmg"
+          cp "$DMG" "LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-macOS-universal.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: shapefix-macos
-          path: LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-macOS-universal.dmg
+          name: alignmentfix-macos
+          path: LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-macOS-universal.dmg
           if-no-files-found: error
 
   linux:
@@ -139,12 +139,12 @@ jobs:
             echo "LDtk Linux AppImage was not produced"
             exit 1
           fi
-          cp "$APPIMAGE" "LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-linux-x86_64.AppImage"
+          cp "$APPIMAGE" "LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-linux-x86_64.AppImage"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: shapefix-linux
-          path: LDtk-1.5.3-Aseprite-Atlas-Composer-ShapeFix-linux-x86_64.AppImage
+          name: alignmentfix-linux
+          path: LDtk-1.5.3-Aseprite-Atlas-Composer-AlignmentFix-linux-x86_64.AppImage
           if-no-files-found: error
 
   publish:
@@ -153,7 +153,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: shapefix-*
+          pattern: alignmentfix-*
           merge-multiple: true
           path: dist
 
@@ -163,11 +163,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="aseprite-atlas-composer-shape-fix"
+          TAG="aseprite-atlas-composer-alignment-fix"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "LDtk 1.5.3 - Aseprite + Atlas Composer shape-preserving build" \
-            --notes "Cross-platform test build of the RondeI33 LDtk fork. Atlas Composer now preserves each selected region from a source tileset as one spatial shape, including transparent/empty holes inside its bounding box, instead of independently repacking selected cells. Includes Aseprite/ASE tileset support and selective atlas composition for normal image-backed tilesets. Windows x64, universal macOS (Apple Silicon + Intel), and Linux x86_64 AppImage are included." \
+            --title "LDtk 1.5.3 - Aseprite + Atlas Composer alignment-preserving build" \
+            --notes "Cross-platform test build of the RondeI33 LDtk fork. Atlas Composer preserves the spatial layout of both moved selections and generated remainder tilesets. Removed cells become transparent holes, internal empty rows/columns are not collapsed, and only fully empty outer borders may be trimmed via a uniform offset, so surviving tile shapes and relative alignment remain intact. Includes Aseprite/ASE tileset support and selective atlas composition for normal image-backed tilesets. Windows x64, universal macOS (Apple Silicon + Intel), and Linux x86_64 AppImage are included." \
             --prerelease

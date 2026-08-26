@@ -1,16 +1,16 @@
-name: Lighting Visuals toolbar release
+name: Animated tile preview release
 
 on:
   push:
     branches:
-      - fix/lighting-toolbar-sizing
+      - remove/lighting-keep-animated-tiles
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: ldtk-lighting-visuals-toolbar-release
+  group: ldtk-animated-tile-preview-release
   cancel-in-progress: true
 
 jobs:
@@ -59,12 +59,12 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path "app/redist" -Filter "LDtk * installer.exe" | Select-Object -First 1
           if (-not $installer) { throw "LDtk Windows installer was not produced" }
-          Copy-Item $installer.FullName "LDtk-1.5.3-Lighting-Visuals-Toolbar-win-x64.exe"
+          Copy-Item $installer.FullName "LDtk-1.5.3-Animated-Tiles-win-x64.exe"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: lighting-visuals-windows
-          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-win-x64.exe
+          name: animated-tiles-windows
+          path: LDtk-1.5.3-Animated-Tiles-win-x64.exe
           if-no-files-found: error
 
   macos:
@@ -101,12 +101,12 @@ jobs:
             echo "LDtk macOS DMG was not produced"
             exit 1
           fi
-          cp "$DMG" "LDtk-1.5.3-Lighting-Visuals-Toolbar-macOS-universal.dmg"
+          cp "$DMG" "LDtk-1.5.3-Animated-Tiles-macOS-universal.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: lighting-visuals-macos
-          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-macOS-universal.dmg
+          name: animated-tiles-macos
+          path: LDtk-1.5.3-Animated-Tiles-macOS-universal.dmg
           if-no-files-found: error
 
   linux:
@@ -141,12 +141,12 @@ jobs:
             echo "LDtk Linux AppImage was not produced"
             exit 1
           fi
-          cp "$APPIMAGE" "LDtk-1.5.3-Lighting-Visuals-Toolbar-linux-x86_64.AppImage"
+          cp "$APPIMAGE" "LDtk-1.5.3-Animated-Tiles-linux-x86_64.AppImage"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: lighting-visuals-linux
-          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-linux-x86_64.AppImage
+          name: animated-tiles-linux
+          path: LDtk-1.5.3-Animated-Tiles-linux-x86_64.AppImage
           if-no-files-found: error
 
   publish:
@@ -155,7 +155,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: lighting-visuals-*
+          pattern: animated-tiles-*
           merge-multiple: true
           path: dist
 
@@ -165,11 +165,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="lighting-visuals-toolbar"
+          TAG="animated-tile-preview"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "LDtk 1.5.3 - Lighting Visuals Toolbar" \
-            --notes "Corrected cross-platform prerelease of the RondeI33 LDtk fork. Lighting controls are inside LDtk's native Visuals tool strip and now use the editor's native 24x24 .icon sizing and native .active state styling, fixing the oversized vertical controls introduced by the previous build. Controls remain U (Unlit), L (Lit), S (Lit + Shadows), and LR (low-resolution preview). The intrusive floating lighting panel remains removed. Includes animated tile preview, Aseprite/ASE support, Atlas Composer, and Unity-style 2D lighting preview features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
+            --title "LDtk 1.5.3 - Animated Tile Preview" \
+            --notes "Cross-platform prerelease of the RondeI33 LDtk fork with active-level animated tile preview. The custom lighting-preview feature and its Visuals controls have been removed. Animated tiles remain active-level-only, use ordinary tile customData animation metadata, and keep PNG/layer exports deterministic. Includes the existing Aseprite/ASE support and Atlas Composer fork features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
             --prerelease

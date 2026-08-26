@@ -103,7 +103,7 @@ class AtlasComposer extends ui.Modal {
 				sources.push({tilesetUid:uid,tileIds:ids.copy()});
 		}
 		if( sources.length==0 ) {
-			new Warning("Choose at least one tile first.");
+			new Warning(L.t._("Choose at least one tile first."));
 			return;
 		}
 
@@ -111,7 +111,7 @@ class AtlasComposer extends ui.Modal {
 		if( requested.length==0 ) requested="CombinedTileset";
 
 		try {
-			new LastChance("Compose tilesets",project);
+			new LastChance(L.t._("Compose tilesets"),project);
 			var result = TilesetAtlasComposer.compose(project,requested,sources);
 			var dest = project.defs.getTilesetDef(result.destinationUid);
 			if( dest!=null ) {
@@ -125,7 +125,7 @@ class AtlasComposer extends ui.Modal {
 		}
 		catch(e:Dynamic) {
 			App.LOG.error(e);
-			new Warning("Atlas composition stopped before source definitions were removed:\n\n"+Std.string(e));
+			new Warning(L.t._("Atlas composition stopped before source definitions were removed:\n\n::error::", {error:Std.string(e)}));
 		}
 	}
 }

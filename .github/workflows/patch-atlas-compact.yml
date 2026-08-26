@@ -1,0 +1,41 @@
+name: Patch Atlas Composer compaction
+
+on:
+  push:
+    branches:
+      - feature/aseprite-atlas-composer
+    paths:
+      - .github/workflows/patch-atlas-compact.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/aseprite-atlas-composer
+          fetch-depth: 0
+
+      - name: Keep only protected reference groups together
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/electron.renderer/misc/TilesetAtlasComposer.hx')
+          text = p.read_text(encoding='utf-8')
+          old = '''\t\t\twhile( pending.length>0 ) {\n\t\t\t\tvar id = pending.pop();\n\t\t\t\tcomponent.push(id);\n\t\t\t\tvar cx = td.getTileCx(id);\n\t\t\t\tvar cy = td.getTileCy(id);\n\t\t\t\tvar neighbors = [\n\t\t\t\t\ttd.getTileId(cx-1,cy), td.getTileId(cx+1,cy),\n\t\t\t\t\ttd.getTileId(cx,cy-1), td.getTileId(cx,cy+1),\n\t\t\t\t];\n\t\t\t\tfor(n in neighbors)\n\t\t\t\t\tif( n>=0 && n<td.cWid*td.cHei && allowed.exists(n) && !visited.exists(n) ) {\n\t\t\t\t\t\t// Guard row wrapping for horizontal neighbors.\n\t\t\t\t\t\tif( dn.M.iabs(td.getTileCx(n)-cx)+dn.M.iabs(td.getTileCy(n)-cy)==1 ) {\n\t\t\t\t\t\t\tvisited.set(n,true);\n\t\t\t\t\t\t\tpending.push(n);\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\tif( linked.exists(id) )\n'''
+          new = '''\t\t\twhile( pending.length>0 ) {\n\t\t\t\tvar id = pending.pop();\n\t\t\t\tcomponent.push(id);\n\t\t\t\t// Only explicit protected reference groups stay together. Ordinary\n\t\t\t\t// neighboring cells are independent so selected and remaining cells\n\t\t\t\t// can actually compact into a smaller atlas.\n\t\t\t\tif( linked.exists(id) )\n'''
+          if old not in text:
+              raise SystemExit('Expected buildUnits neighbor block not found')
+          p.write_text(text.replace(old,new,1),encoding='utf-8')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/electron.renderer/misc/TilesetAtlasComposer.hx
+          git commit -m "Compact unprotected atlas cells independently"
+          git push origin HEAD:feature/aseprite-atlas-composer

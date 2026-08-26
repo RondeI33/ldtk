@@ -15,9 +15,6 @@ class Boot extends hxd.App {
 		Assets.init();
 		Lang.init();
 
-		// Fork features: robust Aseprite loading + selective Atlas Composer.
-		misc.ForkFeatures.install();
-
 		new App();
 	}
 

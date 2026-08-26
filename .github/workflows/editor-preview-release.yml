@@ -3,7 +3,7 @@ name: Lighting Visuals toolbar release
 on:
   push:
     branches:
-      - feature/lighting-visuals-toolbar
+      - fix/lighting-toolbar-sizing
   workflow_dispatch:
 
 permissions:
@@ -171,5 +171,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "LDtk 1.5.3 - Lighting Visuals Toolbar" \
-            --notes "Cross-platform prerelease of the RondeI33 LDtk fork. The intrusive floating lighting panel has been removed. Lighting controls now live directly in LDtk's native Visuals tool strip as compact U (Unlit), L (Lit), S (Lit + Shadows), and LR (low-resolution preview) buttons with tooltips and active-state highlighting. Unlit is the lighting-off state, so there is no redundant master checkbox. Lighting remains active-level-only, stock-LDtk-project-compatible, camera-culled and dirty-redrawn. Includes the existing animated tile preview, Aseprite/ASE support, Atlas Composer, and Unity-style 2D lighting preview features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
+            --notes "Corrected cross-platform prerelease of the RondeI33 LDtk fork. Lighting controls are inside LDtk's native Visuals tool strip and now use the editor's native 24x24 .icon sizing and native .active state styling, fixing the oversized vertical controls introduced by the previous build. Controls remain U (Unlit), L (Lit), S (Lit + Shadows), and LR (low-resolution preview). The intrusive floating lighting panel remains removed. Includes animated tile preview, Aseprite/ASE support, Atlas Composer, and Unity-style 2D lighting preview features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
             --prerelease

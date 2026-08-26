@@ -1,0 +1,52 @@
+name: Fix Atlas Composer remainder alignment
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/fix-atlas-remainder-alignment.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Preserve remainder tileset alignment
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/electron.renderer/misc/TilesetAtlasComposer.hx')
+          text = path.read_text(encoding='utf-8')
+
+          old_call = 'var units = buildUnits(old,remaining,groupsBySource.get(uid));'
+          new_call = 'var units = buildUnits(old,remaining,groupsBySource.get(uid),true);'
+          if old_call not in text:
+              raise SystemExit('Expected remainder packing call was not found')
+          text = text.replace(old_call, new_call, 1)
+
+          old_comment = '''\t\t// Destination selections are intentionally kept as ONE shape per source\n\t\t// tileset. Their original relative tile coordinates are preserved,\n\t\t// including any unselected holes inside the bounding box. This may leave\n\t\t// transparent/empty space in the composed atlas, by design. Remainder\n\t\t// atlases still use the compact protected-group packing below.'''
+          new_comment = '''\t\t// Shape-preserving mode keeps a whole set of cells at their original\n\t\t// relative coordinates. Empty holes inside the bounding box stay empty.\n\t\t// This is used both for destination selections and for remainder atlases:\n\t\t// remainders may trim fully empty outer rows/columns, but never collapse\n\t\t// internal gaps or rearrange surviving cells.'''
+          if old_comment in text:
+              text = text.replace(old_comment, new_comment, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/fix-atlas-remainder-alignment.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/electron.renderer/misc/TilesetAtlasComposer.hx .github/workflows/fix-atlas-remainder-alignment.yml
+          git commit -m "Preserve Atlas Composer remainder alignment"
+          git push origin HEAD:master

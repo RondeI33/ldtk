@@ -1,0 +1,66 @@
+from pathlib import Path
+
+p = Path('src/electron.renderer/display/LightPreview.hx')
+s = p.read_text(encoding='utf-8')
+
+start_marker = '\tstatic function _ensureUi(ed:page.Editor) {'
+end_marker = '\tstatic function _syncRootTransform(ed:page.Editor) {'
+start = s.index(start_marker)
+end = s.index(end_marker, start)
+
+replacement = '''\tstatic function _ensureUi(ed:page.Editor) {
+\t\tif( _jUi!=null && _jUi.length>0 && _jUi.first().parents().length>0 )
+\t\t\treturn;
+
+\t\tvar visuals = ed.jEditOptions.find('ul.visuals');
+\t\tif( visuals.length==0 )
+\t\t\treturn;
+
+\t\t// Keep the lighting controls inside LDtk's native Visuals tool strip.
+\t\t// Unlit is the lighting-off state, so there is no redundant master checkbox.
+\t\tvisuals.find('li.forkLighting').remove();
+\t\tvisuals.append('<li class="forkLighting forkLightingMode" data-mode="0" title="**Lighting: Unlit** Disable the lighting preview for the active level." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">U</div></li>');
+\t\tvisuals.append('<li class="forkLighting forkLightingMode" data-mode="1" title="**Lighting: Lit** Preview active-level lights without projected shadows." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">L</div></li>');
+\t\tvisuals.append('<li class="forkLighting forkLightingMode" data-mode="2" title="**Lighting: Lit + Shadows** Preview active-level lights with approximate 2D shadow casters." tip="right"><div style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">S</div></li>');
+\t\tvisuals.append('<li class="forkLighting forkLightingLowRes" title="**Low-resolution lighting preview** Toggle the cheaper reduced-resolution lighting preview." tip="right"><div style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">LR</div></li>');
+
+\t\t_jUi = visuals.find('li.forkLighting');
+\t\tJsTools.parseComponents(_jUi);
+
+\t\t_jUi.filter('.forkLightingMode').click(function(ev) {
+\t\t\tvar v = Std.parseInt(new J(ev.currentTarget).attr('data-mode'));
+\t\t\tif( v!=null )
+\t\t\t\t_mode = v;
+\t\t\t_enabled = true;
+\t\t\t_updateUiState();
+\t\t\t_lastSignature = null;
+\t\t});
+\t\t_jUi.filter('.forkLightingLowRes').click(function(_) {
+\t\t\t_lowRes = !_lowRes;
+\t\t\t_updateUiState();
+\t\t\t_lastSignature = null;
+\t\t});
+\t\t_updateUiState();
+\t}
+
+\tstatic function _updateUiState() {
+\t\tif( _jUi==null )
+\t\t\treturn;
+
+\t\t_jUi.css('opacity', '0.48');
+\t\t_jUi.css('box-shadow', 'none');
+\t\tvar activeMode = _jUi.filter('[data-mode="'+_mode+'"]');
+\t\tactiveMode.css('opacity', '1');
+\t\tactiveMode.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
+
+\t\tvar lowRes = _jUi.filter('.forkLightingLowRes');
+\t\tif( _lowRes ) {
+\t\t\tlowRes.css('opacity', '1');
+\t\t\tlowRes.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
+\t\t}
+\t}
+
+'''
+
+s = s[:start] + replacement + s[end:]
+p.write_text(s, encoding='utf-8')

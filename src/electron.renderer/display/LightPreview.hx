@@ -118,10 +118,10 @@ class LightPreview {
 		// Keep the lighting controls inside LDtk's native Visuals tool strip.
 		// Unlit is the lighting-off state, so there is no redundant master checkbox.
 		visuals.find('li.forkLighting').remove();
-		visuals.append('<li class="forkLighting forkLightingMode" data-mode="0" title="**Lighting: Unlit** Disable the lighting preview for the active level." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">U</div></li>');
-		visuals.append('<li class="forkLighting forkLightingMode" data-mode="1" title="**Lighting: Lit** Preview active-level lights without projected shadows." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">L</div></li>');
-		visuals.append('<li class="forkLighting forkLightingMode" data-mode="2" title="**Lighting: Lit + Shadows** Preview active-level lights with approximate 2D shadow casters." tip="right"><div style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">S</div></li>');
-		visuals.append('<li class="forkLighting forkLightingLowRes" title="**Low-resolution lighting preview** Toggle the cheaper reduced-resolution lighting preview." tip="right"><div style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">LR</div></li>');
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="0" title="**Lighting: Unlit** Disable the lighting preview for the active level." tip="right"><div class="icon" style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;">U</div></li>');
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="1" title="**Lighting: Lit** Preview active-level lights without projected shadows." tip="right"><div class="icon" style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;">L</div></li>');
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="2" title="**Lighting: Lit + Shadows** Preview active-level lights with approximate 2D shadow casters." tip="right"><div class="icon" style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;">S</div></li>');
+		visuals.append('<li class="forkLighting forkLightingLowRes" title="**Low-resolution lighting preview** Toggle the cheaper reduced-resolution lighting preview." tip="right"><div class="icon" style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;">LR</div></li>');
 
 		_jUi = visuals.find('li.forkLighting');
 		JsTools.parseComponents(_jUi);
@@ -146,17 +146,11 @@ class LightPreview {
 		if( _jUi==null )
 			return;
 
-		_jUi.css('opacity', '0.48');
-		_jUi.css('box-shadow', 'none');
-		var activeMode = _jUi.filter('[data-mode="'+_mode+'"]');
-		activeMode.css('opacity', '1');
-		activeMode.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
-
-		var lowRes = _jUi.filter('.forkLightingLowRes');
-		if( _lowRes ) {
-			lowRes.css('opacity', '1');
-			lowRes.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
-		}
+		// Use LDtk's native Visuals active state and its fixed 24x24 icon box.
+		_jUi.removeClass('active');
+		_jUi.filter('[data-mode="'+_mode+'"]').addClass('active');
+		if( _lowRes )
+			_jUi.filter('.forkLightingLowRes').addClass('active');
 	}
 
 	static function _syncRootTransform(ed:page.Editor) {

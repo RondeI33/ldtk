@@ -1,0 +1,76 @@
+name: Apply lighting toolbar sizing fix
+
+on:
+  push:
+    branches:
+      - fix/lighting-toolbar-sizing
+    paths:
+      - .github/workflows/apply-lighting-toolbar-sizing-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/lighting-toolbar-sizing
+          fetch-depth: 0
+
+      - name: Fix native Visuals sizing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/electron.renderer/display/LightPreview.hx')
+          s = p.read_text(encoding='utf-8')
+
+          replacements = {
+              '<div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">U</div>': '<div class="icon" style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;">U</div>',
+              '<div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">L</div>': '<div class="icon" style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;">L</div>',
+              '<div style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">S</div>': '<div class="icon" style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;">S</div>',
+              '<div style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">LR</div>': '<div class="icon" style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;">LR</div>',
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'Expected toolbar glyph markup not found: {old}')
+              s = s.replace(old, new, 1)
+
+          start_marker = '\tstatic function _updateUiState() {'
+          end_marker = '\tstatic function _syncRootTransform(ed:page.Editor) {'
+          start = s.index(start_marker)
+          end = s.index(end_marker, start)
+          replacement = '''\tstatic function _updateUiState() {
+          \t\tif( _jUi==null )
+          \t\t\treturn;
+
+          \t\t// Use LDtk's own Visuals active-state styling instead of custom sizing/CSS.
+          \t\t_jUi.removeClass('active');
+          \t\t_jUi.filter('[data-mode="'+_mode+'"]').addClass('active');
+          \t\tif( _lowRes )
+          \t\t\t_jUi.filter('.forkLightingLowRes').addClass('active');
+          \t}
+
+'''
+          replacement = replacement.replace('          \t', '\t')
+          s = s[:start] + replacement + s[end:]
+
+          if 'forkLighting' not in s or 'width:100%;height:100%' in '\n'.join(line for line in s.splitlines() if 'forkLighting' in line):
+              raise SystemExit('Sizing fix validation failed')
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit fix and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-lighting-toolbar-sizing-fix.yml
+          git add src/electron.renderer/display/LightPreview.hx
+          git commit -m "Fix lighting Visuals toolbar sizing"
+          git push origin HEAD:fix/lighting-toolbar-sizing

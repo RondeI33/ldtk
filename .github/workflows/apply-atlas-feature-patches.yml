@@ -1,0 +1,54 @@
+name: Apply atlas feature integration patches
+
+on:
+  push:
+    branches:
+      - feature/aseprite-atlas-composer
+    paths:
+      - .github/workflows/apply-atlas-feature-patches.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/aseprite-atlas-composer
+          fetch-depth: 0
+
+      - name: Patch LDtk integration points
+        shell: python
+        run: |
+          from pathlib import Path
+
+          project_path = Path('src/electron.renderer/data/Project.hx')
+          text = project_path.read_text(encoding='utf-8')
+          old = '''\t\t\t\tvar bytes = NT.readFileBytes(absPath);\n\t\t\t\tApp.LOG.add("cache", " -> identified as "+dn.Identify.getType(bytes));\n\t\t\t\tvar base64 = haxe.crypto.Base64.encode(bytes);\n\t\t\t\tApp.LOG.add("cache", " -> base64 "+base64.length);\n\t\t\t\tvar pixels = dn.ImageDecoder.decodePixels(bytes);\n\t\t\t\tif( pixels==null ) {\n\t\t\t\t\tApp.LOG.error('Failed to decode pixels: $relPath (identified as ${dn.Identify.getType(bytes)}, err=${dn.ImageDecoder.lastError})');\n\t\t\t\t\tthrow "decodePixels failed";\n\t\t\t\t}\n\t\t\t\tApp.LOG.add("cache", " -> pixels "+pixels.width+"x"+pixels.height);\n\t\t\t\tpixels.convert(RGBA);\n\t\t\t\tvar texture = h3d.mat.Texture.fromPixels(pixels);\n\t\t\t\timageCache.set( relPath, {\n\t\t\t\t\tfileName: dn.FilePath.extractFileWithExt(relPath),\n\t\t\t\t\trelPath: relPath,\n\t\t\t\t\tbytes: bytes,\n\t\t\t\t\tbase64: base64,\n'''
+          new = '''\t\t\t\tvar bytes = NT.readFileBytes(absPath);\n\t\t\t\tApp.LOG.add("cache", " -> identified as "+dn.Identify.getType(bytes));\n\t\t\t\tvar pixels = dn.ImageDecoder.decodePixels(bytes);\n\t\t\t\tif( pixels==null && misc.AsepriteTools.isAsepritePath(relPath) ) {\n\t\t\t\t\tApp.LOG.warning('Native Aseprite decode failed for $relPath; trying the installed Aseprite CLI.');\n\t\t\t\t\tpixels = misc.AsepriteTools.decodePixels(absPath);\n\t\t\t\t}\n\t\t\t\tif( pixels==null ) {\n\t\t\t\t\tApp.LOG.error('Failed to decode pixels: $relPath (identified as ${dn.Identify.getType(bytes)}, err=${dn.ImageDecoder.lastError})');\n\t\t\t\t\tthrow "decodePixels failed";\n\t\t\t\t}\n\t\t\t\tApp.LOG.add("cache", " -> pixels "+pixels.width+"x"+pixels.height);\n\t\t\t\tpixels.convert(RGBA);\n\t\t\t\t// Cached image HTML is always emitted as data:image/png. For Aseprite\n\t\t\t\t// sources, cache PNG bytes instead of the original .aseprite container.\n\t\t\t\tvar renderBytes = misc.AsepriteTools.isAsepritePath(relPath) ? pixels.clone().toPNG() : bytes;\n\t\t\t\tvar base64 = haxe.crypto.Base64.encode(renderBytes);\n\t\t\t\tApp.LOG.add("cache", " -> base64 "+base64.length);\n\t\t\t\tvar texture = h3d.mat.Texture.fromPixels(pixels);\n\t\t\t\timageCache.set( relPath, {\n\t\t\t\t\tfileName: dn.FilePath.extractFileWithExt(relPath),\n\t\t\t\t\trelPath: relPath,\n\t\t\t\t\tbytes: renderBytes,\n\t\t\t\t\tbase64: base64,\n'''
+          if old not in text:
+              raise SystemExit('Project.hx image loader integration point not found')
+          project_path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          panel_path = Path('src/electron.renderer/ui/modal/panel/EditTilesetDefs.hx')
+          text = panel_path.read_text(encoding='utf-8')
+          old = '''\t\t// Create quick search\n\t\tsearch = new ui.QuickSearch( jList );\n'''
+          new = '''\t\t// Selectively compose tile cells from multiple image-backed tilesets.\n\t\tjModalAndMask.find(".mainList button.atlasComposer").click( function(_) {\n\t\t\tnew ui.modal.dialog.AtlasComposer();\n\t\t});\n\n\t\t// Create quick search\n\t\tsearch = new ui.QuickSearch( jList );\n'''
+          if old not in text:
+              raise SystemExit('EditTilesetDefs.hx integration point not found')
+          panel_path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+      - name: Commit integration patches
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/electron.renderer/data/Project.hx src/electron.renderer/ui/modal/panel/EditTilesetDefs.hx
+          git commit -m "Integrate Aseprite fallback and Atlas Composer UI"
+          git push origin HEAD:feature/aseprite-atlas-composer

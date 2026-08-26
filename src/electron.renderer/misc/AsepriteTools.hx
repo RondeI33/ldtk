@@ -43,7 +43,7 @@ class AsepriteTools {
 
 		if( NT.isWindows() ) {
 			var pf:String = env.ProgramFiles;
-			var pf86:String = env["ProgramFiles(x86)"];
+			var pf86:String = Reflect.field(env,"ProgramFiles(x86)");
 			var local:String = env.LOCALAPPDATA;
 			if( pf!=null ) candidates.push(path.join(pf, "Aseprite", "Aseprite.exe"));
 			if( pf86!=null ) candidates.push(path.join(pf86, "Aseprite", "Aseprite.exe"));

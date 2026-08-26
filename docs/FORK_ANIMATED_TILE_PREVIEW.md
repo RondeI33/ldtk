@@ -2,6 +2,8 @@
 
 This fork can animate tiles directly in the LDtk editor while the level containing them is active.
 
+The custom lighting-preview feature that was previously bundled with this fork has been removed; this feature is independent and remains enabled.
+
 The preview is intentionally editor-only:
 
 - only the currently active level is animated;

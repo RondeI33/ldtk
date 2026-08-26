@@ -1,16 +1,16 @@
-name: Lighting + animated tile preview release
+name: Lighting Visuals toolbar release
 
 on:
   push:
     branches:
-      - feature/editor-preview-lighting-animated-tiles
+      - feature/lighting-visuals-toolbar
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: ldtk-editor-preview-release
+  group: ldtk-lighting-visuals-toolbar-release
   cancel-in-progress: true
 
 jobs:
@@ -59,12 +59,12 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path "app/redist" -Filter "LDtk * installer.exe" | Select-Object -First 1
           if (-not $installer) { throw "LDtk Windows installer was not produced" }
-          Copy-Item $installer.FullName "LDtk-1.5.3-Lighting-Animated-Tiles-win-x64.exe"
+          Copy-Item $installer.FullName "LDtk-1.5.3-Lighting-Visuals-Toolbar-win-x64.exe"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: editor-preview-windows
-          path: LDtk-1.5.3-Lighting-Animated-Tiles-win-x64.exe
+          name: lighting-visuals-windows
+          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-win-x64.exe
           if-no-files-found: error
 
   macos:
@@ -101,12 +101,12 @@ jobs:
             echo "LDtk macOS DMG was not produced"
             exit 1
           fi
-          cp "$DMG" "LDtk-1.5.3-Lighting-Animated-Tiles-macOS-universal.dmg"
+          cp "$DMG" "LDtk-1.5.3-Lighting-Visuals-Toolbar-macOS-universal.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: editor-preview-macos
-          path: LDtk-1.5.3-Lighting-Animated-Tiles-macOS-universal.dmg
+          name: lighting-visuals-macos
+          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-macOS-universal.dmg
           if-no-files-found: error
 
   linux:
@@ -141,12 +141,12 @@ jobs:
             echo "LDtk Linux AppImage was not produced"
             exit 1
           fi
-          cp "$APPIMAGE" "LDtk-1.5.3-Lighting-Animated-Tiles-linux-x86_64.AppImage"
+          cp "$APPIMAGE" "LDtk-1.5.3-Lighting-Visuals-Toolbar-linux-x86_64.AppImage"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: editor-preview-linux
-          path: LDtk-1.5.3-Lighting-Animated-Tiles-linux-x86_64.AppImage
+          name: lighting-visuals-linux
+          path: LDtk-1.5.3-Lighting-Visuals-Toolbar-linux-x86_64.AppImage
           if-no-files-found: error
 
   publish:
@@ -155,7 +155,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: editor-preview-*
+          pattern: lighting-visuals-*
           merge-multiple: true
           path: dist
 
@@ -165,11 +165,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="lighting-animated-tile-preview"
+          TAG="lighting-visuals-toolbar"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "LDtk 1.5.3 - Lighting + Animated Tile Preview" \
-            --notes "Cross-platform prerelease of the RondeI33 LDtk fork. Adds active-level animated tile preview and a lightweight Unity-style 2D lighting authoring preview. Animated tiles use ordinary tile customData metadata and update only while their level is active; hidden/inactive levels stay static and PNG/layer exports remain deterministic. Lighting uses ordinary stock-compatible LDtk Entity fields, supports Unlit/Lit/Lit + Shadows modes, Point/Freeform/Sprite/Global preview types, Unity-unit radius conversion, color/intensity/falloff/angles, camera culling, dirty redraws, low-resolution preview, and approximate rectangular shadow-caster entities. No fork-only project JSON is required, so the same .ldtk remains editable in stock LDtk. Unity remains the final renderer. Includes the existing Aseprite/ASE and Atlas Composer fork features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
+            --title "LDtk 1.5.3 - Lighting Visuals Toolbar" \
+            --notes "Cross-platform prerelease of the RondeI33 LDtk fork. The intrusive floating lighting panel has been removed. Lighting controls now live directly in LDtk's native Visuals tool strip as compact U (Unlit), L (Lit), S (Lit + Shadows), and LR (low-resolution preview) buttons with tooltips and active-state highlighting. Unlit is the lighting-off state, so there is no redundant master checkbox. Lighting remains active-level-only, stock-LDtk-project-compatible, camera-culled and dirty-redrawn. Includes the existing animated tile preview, Aseprite/ASE support, Atlas Composer, and Unity-style 2D lighting preview features. Windows x64, universal macOS, and Linux x86_64 AppImage are included." \
             --prerelease

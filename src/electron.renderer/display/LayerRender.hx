@@ -329,7 +329,6 @@ class LayerRender {
 					found = true;
 					break;
 				}
-			}
 		}
 		return found ? best : 250;
 	}
@@ -410,7 +409,7 @@ class LayerRender {
 
 
 	static var _cachedIdentityVector = new h3d.Vector4(1,1,1,1);
-	public static inline function renderAutoTileInfos(li:data.inst.LayerInstance, td:data.def.TilesetDef, tileInfos, tg:h2d.TileGroup, previewAnimatedTiles:Bool) {
+	public static inline function renderAutoTileInfos(li:data.inst.LayerInstance, td:data.def.TilesetDef, tileInfos, tg:h2d.TileGroup, previewAnimatedTiles=false) {
 		_cachedIdentityVector.a = tileInfos.a;
 		@:privateAccess tg.content.addTransform(
 			tileInfos.x + ( ( dn.M.hasBit(tileInfos.flips,0)?1:0 ) + li.def.tilePivotX ) * li.def.gridSize + li.pxTotalOffsetX,
@@ -424,7 +423,7 @@ class LayerRender {
 	}
 
 
-	public static inline function renderGridTile(li:data.inst.LayerInstance, td:data.def.TilesetDef, tileInf:data.DataTypes.GridTileInfos, cx:Int, cy:Int, tg:h2d.TileGroup, previewAnimatedTiles:Bool) {
+	public static inline function renderGridTile(li:data.inst.LayerInstance, td:data.def.TilesetDef, tileInf:data.DataTypes.GridTileInfos, cx:Int, cy:Int, tg:h2d.TileGroup, previewAnimatedTiles=false) {
 		var t = _getPreviewTileById(td, tileInf.tileId, previewAnimatedTiles);
 		t.setCenterRatio(li.def.tilePivotX, li.def.tilePivotY);
 		var sx = M.hasBit(tileInf.flips, 0) ? -1 : 1;

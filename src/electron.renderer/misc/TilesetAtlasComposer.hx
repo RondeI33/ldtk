@@ -263,11 +263,11 @@ class TilesetAtlasComposer {
 	}
 
 	static function buildUnits(td:TilesetDef, ids:Array<Int>, groups:Array<Array<Int>>, preserveWholeShape=false) : Array<PackUnit> {
-		// Destination selections are intentionally kept as ONE shape per source
-		// tileset. Their original relative tile coordinates are preserved,
-		// including any unselected holes inside the bounding box. This may leave
-		// transparent/empty space in the composed atlas, by design. Remainder
-		// atlases still use the compact protected-group packing below.
+		// Shape-preserving mode keeps a whole set of cells at their original
+		// relative coordinates. Empty holes inside the bounding box stay empty.
+		// This is used both for destination selections and for remainder atlases:
+		// remainders may trim fully empty outer rows/columns, but never collapse
+		// internal gaps or rearrange surviving cells.
 		if( preserveWholeShape ) {
 			var clean = validIds(td,ids);
 			if( clean.length==0 ) return [];
@@ -707,7 +707,7 @@ class TilesetAtlasComposer {
 			var remainder : Null<TilesetDef> = null;
 			var remainingMap : Map<Int,Int> = new Map();
 			if( remaining.length>0 ) {
-				var units = buildUnits(old,remaining,groupsBySource.get(uid));
+				var units = buildUnits(old,remaining,groupsBySource.get(uid),true);
 				var packed = pack(project,grid,units,sourceLookup);
 				remainingMap = packed.mappings.get(uid);
 				var tmpId = uniqueIdentifier(project,old.identifier+"_Remainder");

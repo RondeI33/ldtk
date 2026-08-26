@@ -108,29 +108,34 @@ class LightPreview {
 	}
 
 	static function _ensureUi(ed:page.Editor) {
-		if( _jUi!=null && _jUi.parents().length>0 )
+		if( _jUi!=null && _jUi.length>0 && _jUi.first().parents().length>0 )
 			return;
 
-		_jUi = new J('<div class="forkLightPreview"/ >');
-		_jUi.attr('style', 'position:fixed;right:14px;top:58px;z-index:10000;background:rgba(18,18,22,.92);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:7px 9px;color:#fff;font:12px sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.35);user-select:none;');
-		_jUi.append('<label style="display:block;margin-bottom:5px"><input class="lightingEnabled" type="checkbox" checked> Lighting preview</label>');
-		_jUi.append('<div class="modes" style="display:flex;gap:4px"><button data-mode="0">Unlit</button><button data-mode="1">Lit</button><button data-mode="2">Lit + Shadows</button></div>');
-		_jUi.append('<label style="display:block;margin-top:5px"><input class="lowRes" type="checkbox" checked> Low-res preview</label>');
-		_jUi.append('<div style="opacity:.62;margin-top:3px">Active level only</div>');
-		_jUi.appendTo(App.ME.jBody);
+		var visuals = ed.jEditOptions.find('ul.visuals');
+		if( visuals.length==0 )
+			return;
 
-		_jUi.find('input.lightingEnabled').change(function(_) {
-			_enabled = _jUi.find('input.lightingEnabled').is(':checked');
-			_lastSignature = null;
-		});
-		_jUi.find('input.lowRes').change(function(_) {
-			_lowRes = _jUi.find('input.lowRes').is(':checked');
-			_lastSignature = null;
-		});
-		_jUi.find('button[data-mode]').click(function(ev) {
+		// Keep the lighting controls inside LDtk's native Visuals tool strip.
+		// Unlit is the lighting-off state, so there is no redundant master checkbox.
+		visuals.find('li.forkLighting').remove();
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="0" title="**Lighting: Unlit** Disable the lighting preview for the active level." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">U</div></li>');
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="1" title="**Lighting: Lit** Preview active-level lights without projected shadows." tip="right"><div style="font:bold 10px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">L</div></li>');
+		visuals.append('<li class="forkLighting forkLightingMode" data-mode="2" title="**Lighting: Lit + Shadows** Preview active-level lights with approximate 2D shadow casters." tip="right"><div style="font:bold 9px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">S</div></li>');
+		visuals.append('<li class="forkLighting forkLightingLowRes" title="**Low-resolution lighting preview** Toggle the cheaper reduced-resolution lighting preview." tip="right"><div style="font:bold 8px sans-serif;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">LR</div></li>');
+
+		_jUi = visuals.find('li.forkLighting');
+		JsTools.parseComponents(_jUi);
+
+		_jUi.filter('.forkLightingMode').click(function(ev) {
 			var v = Std.parseInt(new J(ev.currentTarget).attr('data-mode'));
 			if( v!=null )
 				_mode = v;
+			_enabled = true;
+			_updateUiState();
+			_lastSignature = null;
+		});
+		_jUi.filter('.forkLightingLowRes').click(function(_) {
+			_lowRes = !_lowRes;
 			_updateUiState();
 			_lastSignature = null;
 		});
@@ -140,8 +145,18 @@ class LightPreview {
 	static function _updateUiState() {
 		if( _jUi==null )
 			return;
-		_jUi.find('button[data-mode]').css('opacity', '0.55');
-		_jUi.find('button[data-mode="'+_mode+'"]').css('opacity', '1');
+
+		_jUi.css('opacity', '0.48');
+		_jUi.css('box-shadow', 'none');
+		var activeMode = _jUi.filter('[data-mode="'+_mode+'"]');
+		activeMode.css('opacity', '1');
+		activeMode.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
+
+		var lowRes = _jUi.filter('.forkLightingLowRes');
+		if( _lowRes ) {
+			lowRes.css('opacity', '1');
+			lowRes.css('box-shadow', 'inset 0 0 0 2px rgba(255,255,255,.72)');
+		}
 	}
 
 	static function _syncRootTransform(ed:page.Editor) {

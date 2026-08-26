@@ -30,7 +30,9 @@ class LayerRender {
 	static var _animationLastLevelId : Null<Int>;
 
 
-	public function new() {}
+	public function new() {
+		LightPreview.ensure();
+	}
 
 
 	public function dispose() {
@@ -329,6 +331,7 @@ class LayerRender {
 					found = true;
 					break;
 				}
+			}
 		}
 		return found ? best : 250;
 	}

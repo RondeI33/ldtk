@@ -88,7 +88,8 @@ class AsepriteTools {
 		var os:Dynamic = js.Syntax.code("require('os')");
 		var path:Dynamic = js.Syntax.code("require('path')");
 		var cp:Dynamic = js.Syntax.code("require('child_process')");
-		var tmp = path.join(os.tmpdir(), 'ldtk-aseprite-${Date.now().getTime()}-${Std.random(999999)}.png');
+		var tmp:String = path.join(os.tmpdir(), 'ldtk-aseprite-${Date.now().getTime()}-${Std.random(999999)}.png');
+		var out : Null<hxd.Pixels> = null;
 
 		try {
 			// --sheet also supports animated Aseprite documents. For a normal
@@ -99,27 +100,25 @@ class AsepriteTools {
 				"--sheet-type", "horizontal",
 			], { stdio:"pipe", windowsHide:true });
 
-			if( !NT.fileExists(tmp) ) {
+			if( !NT.fileExists(tmp) )
 				App.LOG.error("Aseprite CLI did not create the temporary PNG.");
-				return null;
+			else {
+				var pngBytes = NT.readFileBytes(tmp);
+				var pixels = dn.ImageDecoder.decodePixels(pngBytes);
+				if( pixels==null )
+					App.LOG.error("Aseprite CLI created a PNG, but LDtk could not decode it.");
+				else {
+					pixels.convert(RGBA);
+					out = pixels;
+				}
 			}
-
-			var pngBytes = NT.readFileBytes(tmp);
-			var pixels = dn.ImageDecoder.decodePixels(pngBytes);
-			if( pixels==null ) {
-				App.LOG.error("Aseprite CLI created a PNG, but LDtk could not decode it.");
-				return null;
-			}
-			pixels.convert(RGBA);
-			return pixels;
 		}
 		catch(e:Dynamic) {
 			App.LOG.error("Aseprite CLI fallback failed: "+Std.string(e));
-			return null;
 		}
-		finally {
-			if( NT.fileExists(tmp) )
-				NT.removeFile(tmp);
-		}
+
+		if( NT.fileExists(tmp) )
+			NT.removeFile(tmp);
+		return out;
 	}
 }

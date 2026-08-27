@@ -1,9 +1,9 @@
 package misc;
 
 /**
- * Fallback Aseprite loader used when the native heaps-aseprite decoder cannot
- * decode a newer .aseprite/.ase file. The original source file remains the
- * LDtk asset path; this helper only exports a temporary PNG for decoding.
+ * Helpers for importing .aseprite/.ase files through the installed Aseprite
+ * command line interface when LDtk needs functionality that the native decoder
+ * cannot provide (newer file versions, layer enumeration, selective flattening).
  */
 class AsepriteTools {
 	static var cachedExecutable : Null<String>;
@@ -64,11 +64,123 @@ class AsepriteTools {
 		for(exe in candidates)
 			if( canRun(exe) ) {
 				cachedExecutable = exe;
-				App.LOG.fileOp('Using Aseprite CLI fallback: $exe');
+				App.LOG.fileOp('Using Aseprite CLI: $exe');
 				return exe;
 			}
 
 		return null;
+	}
+
+	/**
+	 * Return leaf Aseprite layers as CLI-compatible paths (eg. "Body/Ink").
+	 * The hierarchy output is parsed so duplicate leaf names in different groups
+	 * remain selectable independently.
+	 */
+	public static function listLayers(absSourcePath:String) : Null<Array<String>> {
+		if( !isAsepritePath(absSourcePath) )
+			return null;
+
+		var exe = findExecutable();
+		if( exe==null )
+			return null;
+
+		try {
+			var cp:Dynamic = js.Syntax.code("require('child_process')");
+			var raw:String = cp.execFileSync(exe, [
+				"-b",
+				"--list-layer-hierarchy",
+				absSourcePath,
+			], { encoding:"utf8", windowsHide:true });
+
+			var layers : Array<String> = [];
+			var groups : Array<String> = [];
+			for(rawLine in raw.split("\n")) {
+				var line = StringTools.rtrim(StringTools.replace(rawLine,"\r",""));
+				if( StringTools.trim(line).length==0 )
+					continue;
+
+				var trimmed = StringTools.ltrim(line);
+				var indent = line.length-trimmed.length;
+				var depth = Std.int(indent/2);
+				while( groups.length>depth )
+					groups.pop();
+
+				if( StringTools.endsWith(trimmed,"/") ) {
+					var groupName = StringTools.trim(trimmed.substr(0,trimmed.length-1));
+					if( groups.length==depth )
+						groups.push(groupName);
+					else
+						groups[depth] = groupName;
+				}
+				else {
+					var pathParts = groups.copy();
+					pathParts.push(StringTools.trim(trimmed));
+					layers.push(pathParts.join("/"));
+				}
+			}
+			return layers;
+		}
+		catch(e:Dynamic) {
+			App.LOG.error("Could not list Aseprite layers: "+Std.string(e));
+			return null;
+		}
+	}
+
+	/**
+	 * Flatten only the selected Aseprite layers into an LDtk-owned PNG. The
+	 * artist's source file is never modified. A stable layer-selection hash keeps
+	 * repeated imports deterministic while allowing multiple variants.
+	 */
+	public static function exportSelectedLayers(project:data.Project, relSourcePath:String, layers:Array<String>) : String {
+		if( layers==null || layers.length==0 )
+			throw "Choose at least one Aseprite layer.";
+		if( !isAsepritePath(relSourcePath) )
+			throw "The selected source is not an Aseprite file.";
+
+		var exe = findExecutable();
+		if( exe==null )
+			throw "Aseprite layer import requires the Aseprite application/CLI to be installed.";
+
+		var absSourcePath = project.makeAbsoluteFilePath(relSourcePath);
+		if( absSourcePath==null || !NT.fileExists(absSourcePath) )
+			throw "Aseprite source file was not found.";
+
+		var path:Dynamic = js.Syntax.code("require('path')");
+		var fs:Dynamic = js.Syntax.code("require('fs')");
+		var cp:Dynamic = js.Syntax.code("require('child_process')");
+		var outDir:String = path.join(project.getProjectDir(), ".ldtk-aseprite");
+		fs.mkdirSync(outDir, { recursive:true });
+
+		var base = dn.FilePath.extractFileName(relSourcePath);
+		if( base==null || base.length==0 )
+			base = "aseprite";
+		base = ~/[^A-Za-z0-9_-]+/g.replace(base,"_");
+		var signature = haxe.crypto.Md5.encode(relSourcePath+"|"+layers.join("|")).substr(0,10);
+		var absOutput:String = path.join(outDir, base+"-"+signature+".png");
+
+		var args : Array<String> = ["-b"];
+		for(layer in layers) {
+			args.push("--layer");
+			args.push(layer);
+		}
+		args.push(absSourcePath);
+		args.push("--sheet");
+		args.push(absOutput);
+		args.push("--sheet-type");
+		args.push("horizontal");
+
+		try {
+			cp.execFileSync(exe, args, { stdio:"pipe", windowsHide:true });
+		}
+		catch(e:Dynamic) {
+			throw "Aseprite could not export the selected layers: "+Std.string(e);
+		}
+
+		if( !NT.fileExists(absOutput) )
+			throw "Aseprite did not create the selected-layer PNG.";
+
+		App.LOG.fileOp('Flattened ${layers.length} Aseprite layer(s) to $absOutput');
+		return project.makeRelativeFilePath(absOutput);
 	}
 
 	/**

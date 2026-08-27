@@ -17,6 +17,11 @@ replace(
     '''\t\t.rightColumn {\n\t\t\toverflow: hidden;\n\t\t\tdisplay: grid;\n''',
     '''\t\t.rightColumn {\n\t\t\tmin-height: 0;\n\t\t\toverflow-x: hidden;\n\t\t\toverflow-y: auto;\n\t\t\tdisplay: grid;\n'''
 )
+replace(
+    'app/assets/css/app.min.css',
+    '.window.panel.entityDefs .content .rightColumn{overflow:hidden;display:grid;grid-template-rows:-webkit-min-content auto;grid-template-rows:min-content auto}',
+    '.window.panel.entityDefs .content .rightColumn{min-height:0;overflow-x:hidden;overflow-y:auto;display:grid;grid-template-rows:-webkit-min-content auto;grid-template-rows:min-content auto}'
+)
 
 # Put a dedicated variable-preview toggle immediately below Zen mode in Visuals.
 replace(

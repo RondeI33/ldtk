@@ -16,6 +16,7 @@ class Project {
 	var nextUid = 0;
 	public var iid(default,null) : String;
 	public var defs : Definitions;
+	public var forkConfig : ForkConfig; // not stored in LDtk JSON
 	public var worlds : Array<World> = [];
 	var dummyWorldIid : String;
 
@@ -71,6 +72,7 @@ class Project {
 		levelNamePattern = DEFAULT_LEVEL_NAME_PATTERN;
 
 		defs = new Definitions(this);
+		forkConfig = new ForkConfig(this);
 	}
 
 	public inline function getProjectDir() {

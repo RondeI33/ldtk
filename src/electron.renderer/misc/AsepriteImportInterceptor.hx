@@ -35,9 +35,9 @@ class AsepriteImportInterceptor {
 
 				var layers = AsepriteTools.listLayers(absPath);
 				if( layers==null || layers.length==0 ) {
-					new ui.modal.dialog.Warning(
+					new ui.modal.dialog.Warning(Lang.untranslated(
 						"LDtk could not read the Aseprite layer list. Layer-selective importing requires the Aseprite application/CLI to be installed and accessible."
-					);
+					));
 					return;
 				}
 
@@ -60,7 +60,7 @@ class AsepriteImportInterceptor {
 					}
 					catch(e:Dynamic) {
 						App.LOG.error(e);
-						new ui.modal.dialog.Warning("Aseprite layer import failed:\n\n"+Std.string(e));
+						new ui.modal.dialog.Warning(Lang.untranslated("Aseprite layer import failed:\n\n"+Std.string(e)));
 					}
 				});
 			});

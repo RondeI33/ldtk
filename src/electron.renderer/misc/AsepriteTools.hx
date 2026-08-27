@@ -129,7 +129,9 @@ class AsepriteTools {
 	/**
 	 * Flatten only the selected Aseprite layers into an LDtk-owned PNG. The
 	 * artist's source file is never modified. A stable layer-selection hash keeps
-	 * repeated imports deterministic while allowing multiple variants.
+	 * repeated imports deterministic while allowing multiple variants. The hash
+	 * is stored in the directory, not the PNG filename, so LDtk keeps the source
+	 * Aseprite filename as the auto-generated tileset identifier.
 	 */
 	public static function exportSelectedLayers(project:data.Project, relSourcePath:String, layers:Array<String>) : String {
 		if( layers==null || layers.length==0 )
@@ -148,15 +150,15 @@ class AsepriteTools {
 		var path:Dynamic = js.Syntax.code("require('path')");
 		var fs:Dynamic = js.Syntax.code("require('fs')");
 		var cp:Dynamic = js.Syntax.code("require('child_process')");
-		var outDir:String = path.join(project.getProjectDir(), ".ldtk-aseprite");
-		fs.mkdirSync(outDir, { recursive:true });
 
 		var base = dn.FilePath.extractFileName(relSourcePath);
 		if( base==null || base.length==0 )
 			base = "aseprite";
 		base = ~/[^A-Za-z0-9_-]+/g.replace(base,"_");
 		var signature = haxe.crypto.Md5.encode(relSourcePath+"|"+layers.join("|")).substr(0,10);
-		var absOutput:String = path.join(outDir, base+"-"+signature+".png");
+		var outDir:String = path.join(project.getProjectDir(), ".ldtk-aseprite", signature);
+		fs.mkdirSync(outDir, { recursive:true });
+		var absOutput:String = path.join(outDir, base+".png");
 
 		var args : Array<String> = ["-b"];
 		for(layer in layers) {

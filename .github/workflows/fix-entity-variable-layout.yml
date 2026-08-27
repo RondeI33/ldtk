@@ -1,0 +1,54 @@
+name: Fix Entity Variables editor layout
+
+on:
+  push:
+    branches:
+      - feature/auto-place-sub-entities
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch entity definition layout
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          scss = Path('app/assets/css/app.scss')
+          s = scss.read_text()
+          old = '''\t\t.rightColumn {\n\t\t\tmin-height: 0;\n\t\t\toverflow-x: hidden;\n\t\t\toverflow-y: auto;\n\t\t\tdisplay: grid;\n\t\t\tgrid-template-rows: min-content auto;\n\t\t\t.entityForm {\n\t\t\t\tmargin-bottom: 16px;\n\t\t\t}\n\t\t}\n'''
+          new = '''\t\t.rightColumn {\n\t\t\tmin-height: 0;\n\t\t\toverflow-x: hidden;\n\t\t\toverflow-y: auto;\n\t\t\tdisplay: block;\n\t\t\tpadding-right: 4px;\n\n\t\t\t.entityForm {\n\t\t\t\tmargin-bottom: 16px;\n\t\t\t}\n\n\t\t\t.fieldDefsForm {\n\t\t\t\theight: 55vh;\n\t\t\t\tmin-height: 360px;\n\t\t\t\tmax-height: 650px;\n\t\t\t\tmargin-bottom: 16px;\n\t\t\t}\n\t\t}\n'''
+          if old not in s:
+              raise SystemExit('SCSS layout anchor not found')
+          scss.write_text(s.replace(old, new, 1))
+
+          css = Path('app/assets/css/app.min.css')
+          s = css.read_text()
+          old = '.window.panel.entityDefs .content .rightColumn{min-height:0;overflow-x:hidden;overflow-y:auto;display:grid;grid-template-rows:-webkit-min-content auto;grid-template-rows:min-content auto}.window.panel.entityDefs .content .rightColumn .entityForm{margin-bottom:16px}'
+          new = '.window.panel.entityDefs .content .rightColumn{min-height:0;overflow-x:hidden;overflow-y:auto;display:block;padding-right:4px}.window.panel.entityDefs .content .rightColumn .entityForm{margin-bottom:16px}.window.panel.entityDefs .content .rightColumn .fieldDefsForm{height:55vh;min-height:360px;max-height:650px;margin-bottom:16px}'
+          if old not in s:
+              raise SystemExit('minified CSS layout anchor not found')
+          css.write_text(s.replace(old, new, 1))
+          PY
+
+          git diff --check
+          grep -F '.rightColumn .fieldDefsForm' app/assets/css/app.min.css >/dev/null
+          grep -A15 -F '.rightColumn {' app/assets/css/app.scss | grep -F 'display: block;' >/dev/null
+
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/fix-entity-variable-layout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/assets/css/app.scss app/assets/css/app.min.css .github/workflows/fix-entity-variable-layout.yml
+          git commit -m 'Restore Entity Variables settings layout'
+          git push

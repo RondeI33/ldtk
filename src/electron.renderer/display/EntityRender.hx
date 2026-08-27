@@ -292,23 +292,28 @@ class EntityRender extends dn.Process {
 
 	public function renderFields() {
 
+		above.removeChildren();
+		center.removeChildren();
+		beneath.removeChildren();
 		fieldGraphics.clear();
 
 		// Attach fields
 		var color = ei.getSmartColor(false);
 		var ctx : display.FieldInstanceRender.FieldRenderContext = EntityCtx(fieldGraphics, ei, ld);
-		FieldInstanceRender.renderFields(
-			ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Above && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
-			color, ctx, above
-		);
-		FieldInstanceRender.renderFields(
-			ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Center && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
-			color, ctx, center
-		);
-		FieldInstanceRender.renderFields(
-			ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Beneath && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
-			color, ctx, beneath
-		);
+		if( Editor.ME.showVariablePreviews ) {
+			FieldInstanceRender.renderFields(
+				ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Above && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
+				color, ctx, above
+			);
+			FieldInstanceRender.renderFields(
+				ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Center && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
+				color, ctx, center
+			);
+			FieldInstanceRender.renderFields(
+				ei.def.fieldDefs.filter( fd->fd.editorDisplayPos==Beneath && ei._project.forkConfig.isFieldVisible(ei,fd) ).map( fd->ei.getFieldInstance(fd,true) ),
+				color, ctx, beneath
+			);
+		}
 
 
 		// Render ref links from entities in different levels

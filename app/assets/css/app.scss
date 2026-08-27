@@ -10266,7 +10266,9 @@ $patternSize : 32px;
 		}
 
 		.rightColumn {
-			overflow: hidden;
+			min-height: 0;
+			overflow-x: hidden;
+			overflow-y: auto;
 			display: grid;
 			grid-template-rows: min-content auto;
 			.entityForm {

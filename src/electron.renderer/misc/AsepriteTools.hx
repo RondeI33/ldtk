@@ -1,5 +1,10 @@
 package misc;
 
+private typedef AsepriteGeneratedImport = {
+	var sourceRelPath : String;
+	var layers : Array<String>;
+}
+
 /**
  * Helpers for importing .aseprite/.ase files through the installed Aseprite
  * command line interface when LDtk needs functionality that the native decoder
@@ -8,6 +13,8 @@ package misc;
 class AsepriteTools {
 	static var cachedExecutable : Null<String>;
 	static var executableLookupDone = false;
+	static inline var GENERATED_DIR = ".ldtk-aseprite";
+	static inline var GENERATED_CONFIG = "import.json";
 
 	public static function isAsepritePath(path:Null<String>) : Bool {
 		if( path==null )
@@ -126,6 +133,55 @@ class AsepriteTools {
 		}
 	}
 
+	static function getConfigPath(project:data.Project, relGeneratedPath:String) : Null<String> {
+		if( relGeneratedPath==null )
+			return null;
+		var normalized = StringTools.replace(relGeneratedPath,"\\","/");
+		if( normalized.indexOf(GENERATED_DIR+"/")<0 )
+			return null;
+		var absGenerated = project.makeAbsoluteFilePath(relGeneratedPath);
+		if( absGenerated==null )
+			return null;
+		var path:Dynamic = js.Syntax.code("require('path')");
+		return path.join(path.dirname(absGenerated), GENERATED_CONFIG);
+	}
+
+	/** Returns the source/layer mapping for an LDtk-generated Aseprite PNG. */
+	public static function getGeneratedImport(project:data.Project, relGeneratedPath:String) : Null<AsepriteGeneratedImport> {
+		var configPath = getConfigPath(project, relGeneratedPath);
+		if( configPath==null || !NT.fileExists(configPath) )
+			return null;
+		try {
+			var raw:Dynamic = haxe.Json.parse(NT.readFileString(configPath));
+			var source:Dynamic = Reflect.field(raw,"sourceRelPath");
+			var rawLayers:Dynamic = Reflect.field(raw,"layers");
+			if( source==null || rawLayers==null || !Std.isOfType(rawLayers,Array) )
+				return null;
+			var layers : Array<String> = [];
+			for(v in (cast rawLayers:Array<Dynamic>))
+				if( v!=null ) layers.push(Std.string(v));
+			if( layers.length==0 )
+				return null;
+			return {
+				sourceRelPath: Std.string(source),
+				layers: layers,
+			};
+		}
+		catch(e:Dynamic) {
+			App.LOG.warning("Could not read Aseprite generated-import metadata: "+Std.string(e));
+			return null;
+		}
+	}
+
+	/** Re-export an existing generated PNG with its originally selected layers. */
+	public static function regenerateGenerated(project:data.Project, relGeneratedPath:String) : Bool {
+		var config = getGeneratedImport(project, relGeneratedPath);
+		if( config==null )
+			return false;
+		var generated = exportSelectedLayers(project, config.sourceRelPath, config.layers);
+		return project.makeAbsoluteFilePath(generated)==project.makeAbsoluteFilePath(relGeneratedPath);
+	}
+
 	/**
 	 * Flatten only the selected Aseprite layers into an LDtk-owned PNG. The
 	 * artist's source file is never modified. A stable layer-selection hash keeps
@@ -156,7 +212,7 @@ class AsepriteTools {
 			base = "aseprite";
 		base = ~/[^A-Za-z0-9_-]+/g.replace(base,"_");
 		var signature = haxe.crypto.Md5.encode(relSourcePath+"|"+layers.join("|")).substr(0,10);
-		var outDir:String = path.join(project.getProjectDir(), ".ldtk-aseprite", signature);
+		var outDir:String = path.join(project.getProjectDir(), GENERATED_DIR, signature);
 		fs.mkdirSync(outDir, { recursive:true });
 		var absOutput:String = path.join(outDir, base+".png");
 
@@ -180,6 +236,13 @@ class AsepriteTools {
 
 		if( !NT.fileExists(absOutput) )
 			throw "Aseprite did not create the selected-layer PNG.";
+
+		var configPath:String = path.join(outDir, GENERATED_CONFIG);
+		var configJson = haxe.Json.stringify({
+			sourceRelPath: relSourcePath,
+			layers: layers,
+		}, null, "  ");
+		fs.writeFileSync(configPath, configJson, { encoding:"utf8" });
 
 		App.LOG.fileOp('Flattened ${layers.length} Aseprite layer(s) to $absOutput');
 		return project.makeRelativeFilePath(absOutput);

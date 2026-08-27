@@ -1,0 +1,32 @@
+name: Clean duplicate UI fix release
+
+on:
+  push:
+    branches:
+      - feature/auto-place-sub-entities
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/auto-place-sub-entities
+          fetch-depth: 0
+
+      - name: Remove duplicate release and cleanup workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete "entity-ui-preview-fix" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          rm -f .github/workflows/cleanup-duplicate-ui-release.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/cleanup-duplicate-ui-release.yml
+          git commit -m "Clean duplicate UI fix release workflow"
+          git push origin HEAD:feature/auto-place-sub-entities

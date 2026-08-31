@@ -161,6 +161,7 @@ class EntityTool extends tool.LayerTool<Int> {
 							case DiscardOldOnes:
 								while( all.length>=curEntityDef.maxCount ) {
 									var otherEi = all.shift();
+									addForkTouched(project.forkConfig.eraseEntityStamps(otherEi));
 									otherEi._li.removeEntityInstance( otherEi );
 									editor.ge.emit( EntityInstanceRemoved(otherEi) );
 								}
@@ -175,6 +176,7 @@ class EntityTool extends tool.LayerTool<Int> {
 							case MoveLastOne:
 								if( all.length>=curEntityDef.maxCount && all.length>0 ) {
 									var otherEi = all.pop();
+									addForkTouched(project.forkConfig.eraseEntityStamps(otherEi));
 									otherEi._li.removeEntityInstance(otherEi);
 									curLayerInstance.entityInstances.push(otherEi);
 									editor.levelRender.invalidateLayer(curLayerInstance);

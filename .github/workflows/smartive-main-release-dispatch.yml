@@ -1,0 +1,34 @@
+name: Dispatch Smartive release from main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - app/package.json
+      - docs/SMARTIVE_CHANGELOG.md
+      - .github/workflows/ldtk-smartive-1.0.0-release.yml
+      - .github/workflows/smartive-main-release-dispatch.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: smartive-main-release-dispatch
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start release workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run ldtk-smartive-1.0.0-release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f force_rebuild=true

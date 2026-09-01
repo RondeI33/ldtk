@@ -1,3 +1,21 @@
+# 1.0.1
+
+## Intuitive fork authoring UI
+
+- Replaced the normal raw-JSON workflow for fork-only entity appearance overrides with structured editor controls.
+- Added visual replacement tile/sprite picking with field/value conditions, optional width/height overrides, pivot controls, and color overrides.
+- Added structured tile-stamp authoring with target tile-layer selection, field/value conditions, visual tile pickers, grid offsets, and flip controls.
+- Added structured conditional field-visibility rules with typed trigger values.
+- Added structured conditional enum filtering with selectable allowed enum values.
+- Kept the existing Auto Children editor unchanged.
+- Kept `<project>.ldtk-fork.json` fully compatible with existing projects and retained the raw JSON editor as an Advanced JSON fallback.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.0
 
 ## First LDTK-Smartive release

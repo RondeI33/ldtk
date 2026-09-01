@@ -1,6 +1,8 @@
-# 1.0.0 - First LDTK-Smartive release
+# 1.0.0
 
-## Smartive versioning
+## First LDTK-Smartive release
+
+### Smartive versioning
 
 - Started an independent LDTK-Smartive release line at `1.0.0`.
 - The application, installers, release titles, and update metadata now use the Smartive version.
@@ -9,14 +11,14 @@
 - Added Windows update metadata so installed Windows builds can detect and install later Smartive releases.
 - macOS and Linux builds check the Smartive GitHub releases page for later versions.
 
-## Fork features included
+### Fork features included
 
 - Auto-place configured child entities when a parent entity is created.
 - Apply configured child offsets and automatically populate compatible parent `EntityRef` fields.
 - Import `.aseprite` tilesets with a layer picker so gameplay art can be selected without normal-map, emission, or other auxiliary layers.
 - Include the cumulative editor-preview, animated-tile, atlas-composer, and authoring-tool changes currently present in the fork branch.
 
-## Builds
+### Builds
 
 - Windows x64 installer.
 - Universal macOS DMG.

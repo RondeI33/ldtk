@@ -27,7 +27,7 @@ const png = await sharp(svgPath, { density: 192 })
 fs.writeFileSync(path.join(buildAssetsDir, "icon.png"), png);
 fs.writeFileSync(path.join(appAssetsDir, "appIcon.png"), png);
 
-const ico = png2icons.createICO(png, png2icons.BICUBIC, 0, false);
+const ico = png2icons.createICO(png, png2icons.BICUBIC, 0, false, true);
 if (!ico) {
 	throw new Error("Failed to generate Windows icon.ico from Smartive logo");
 }

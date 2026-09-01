@@ -7,6 +7,11 @@
 	"author": "Sebastien Benard",
 	"description": "LDTK-Smartive 2D level editor",
 	"homepage": "https://github.com/RondeI33/ldtk",
+	"keywords": [
+		"ldtk",
+		"level-editor",
+		"smartive"
+	],
 	"scripts": {
 		"start": "electron .",
 		"compile": "cd ..  &&  haxe main.hxml  &&  haxe renderer.hxml",

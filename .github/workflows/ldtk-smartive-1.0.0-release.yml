@@ -6,6 +6,8 @@ on:
       - feature/auto-place-sub-entities
     paths:
       - app/package.json
+      - docs/SMARTIVE_CHANGELOG.md
+      - .github/workflows/ldtk-smartive-1.0.0-release.yml
   workflow_dispatch:
     inputs:
       force_rebuild:
@@ -18,8 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  # This fixed group also cancels the original one-off 1.0.0 workflow run.
-  group: ldtk-smartive-1.0.0-release
+  group: ldtk-smartive-release
   cancel-in-progress: true
 
 jobs:
@@ -248,7 +249,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          APPIMAGE=$(find app/redist -maxdepth 1 -type f -name "LDTK-Smartive-${SMARTIVE_VERSION}-linux-x64.AppImage" | head -n 1)
+          APPIMAGE=$(find app/redist -maxdepth 1 -type f -name "LDTK-Smartive-${SMARTIVE_VERSION}-linux-*.AppImage" | head -n 1)
           if [ -z "$APPIMAGE" ]; then
             find app/redist -maxdepth 1 -type f -print
             echo "LDTK-Smartive Linux AppImage was not produced"

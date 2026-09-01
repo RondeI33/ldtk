@@ -1,3 +1,21 @@
+# 1.0.2
+
+## Smartive branding
+
+- Replaced the upstream LDtk logo in the repository README with the supplied LDTK-Smartive artwork.
+- Replaced the in-app application icon with the Smartive logo.
+- Replaced the Windows executable, installer, and uninstaller icons with the Smartive logo.
+- Replaced the macOS application icon with the Smartive logo.
+- Added an explicit Smartive PNG icon for Linux AppImage builds.
+- Updated Electron Builder configuration so Windows, macOS, and Linux packages consistently use the fork branding.
+- Fixed the stale macOS test-package workflow so it recognizes current LDTK-Smartive DMG filenames.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.1
 
 ## Intuitive fork authoring UI

@@ -1,5 +1,5 @@
 {
-	"appId": "com.deepnight.ldtk",
+	"appId": "com.rondei33.ldtk-smartive",
 	"artifactName": "${productName} ${version} installer.${ext}",
 
 	"directories": {
@@ -25,14 +25,14 @@
 	"fileAssociations": [
 		{
 			"ext": "ldtk",
-			"name": "LDTK Project File",
+			"name": "LDTK-Smartive Project File",
 			"mimeType": "application/json",
 			"icon": "project.ico",
 			"role": "Editor"
 		},
 		{
 			"ext": "ldtkl",
-			"name": "LDTK Level File",
+			"name": "LDTK-Smartive Level File",
 			"mimeType": "application/json",
 			"icon": "level.ico",
 			"role": "Editor"
@@ -41,7 +41,7 @@
 
 	"nsis": {
 		"oneClick": true,
-		"shortcutName": "LDtk"
+		"shortcutName": "LDTK-Smartive"
 	},
 
 	"win": {

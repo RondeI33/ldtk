@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -13,7 +13,10 @@
 		"smartive"
 	],
 	"scripts": {
+		"branding": "node scripts/materialize-smartive-branding.mjs",
+		"prestart": "npm run branding",
 		"start": "electron .",
+		"precompile": "npm run branding",
 		"compile": "cd ..  &&  haxe main.hxml  &&  haxe renderer.hxml",
 		"doc": "cd ..  &&  haxe doc.hxml",
 		"pack-prepare": "npm run doc  &&  npm run compile",
@@ -48,6 +51,8 @@
 	},
 	"devDependencies": {
 		"electron": "^24.1.2",
-		"electron-builder": "^23.6.0"
+		"electron-builder": "^23.6.0",
+		"png2icons": "^2.0.1",
+		"sharp": "^0.35.4"
 	}
 }

@@ -17,6 +17,7 @@ class Boot extends hxd.App {
 		misc.AsepriteImportInterceptor.install();
 
 		new App();
+		ui.ForkStructuredAuthoring.install();
 	}
 
 	override function update(deltaTime:Float) {

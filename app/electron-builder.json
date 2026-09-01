@@ -1,11 +1,20 @@
 {
 	"appId": "com.rondei33.ldtk-smartive",
-	"artifactName": "${productName} ${version} installer.${ext}",
+	"artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
 
 	"directories": {
 		"buildResources": "buildAssets",
 		"output": "redist"
 	},
+
+	"publish": [
+		{
+			"provider": "github",
+			"owner": "RondeI33",
+			"repo": "ldtk",
+			"releaseType": "release"
+		}
+	],
 
 	"extraFiles": [
 		"extraFiles/embedAtlas",
@@ -45,9 +54,11 @@
 	},
 
 	"win": {
-		"target": "nsis",
-		"publish": ["github"]
+		"target": "nsis"
 	},
 
-	"mac": {}
+	"mac": {},
+	"linux": {
+		"target": "AppImage"
+	}
 }

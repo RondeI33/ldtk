@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1248 1248" role="img" aria-labelledby="title desc">
+  <title id="title">LDTK-Smartive logo</title>
+  <desc id="desc">Yellow L-shaped editor block with green close panel and red menu panel on a dark background.</desc>
+  <defs>
+    <radialGradient id="bg" cx="42%" cy="46%" r="78%">
+      <stop offset="0" stop-color="#1c2429"/>
+      <stop offset="1" stop-color="#0d1215"/>
+    </radialGradient>
+    <linearGradient id="yellow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff31b"/>
+      <stop offset=".55" stop-color="#ffd900"/>
+      <stop offset="1" stop-color="#ffc900"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2=".85" y2="1">
+      <stop offset="0" stop-color="#87cd50"/>
+      <stop offset=".52" stop-color="#70b642"/>
+      <stop offset="1" stop-color="#60a73c"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b94f43"/>
+      <stop offset=".58" stop-color="#a74439"/>
+      <stop offset="1" stop-color="#963b34"/>
+    </linearGradient>
+    <linearGradient id="yellowInset" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b29300"/>
+      <stop offset="1" stop-color="#d2af00"/>
+    </linearGradient>
+    <linearGradient id="greenInset" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f7626"/>
+      <stop offset="1" stop-color="#468f2e"/>
+    </linearGradient>
+    <linearGradient id="redInset" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#652a27"/>
+      <stop offset="1" stop-color="#7b302c"/>
+    </linearGradient>
+    <filter id="panelShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+    <filter id="recess" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="-2" stdDeviation="2.5" flood-color="#000" flood-opacity=".68"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#dcff93" flood-opacity=".28"/>
+    </filter>
+  </defs>
+
+  <rect width="1248" height="1248" fill="url(#bg)"/>
+  <path d="M1128 0H1248V120Z" fill="#050708" opacity=".92"/>
+
+  <!-- Yellow L panel -->
+  <path d="M63 63H394V854H535V1184H63Z" fill="url(#yellow)" stroke="#736c00" stroke-width="2" filter="url(#panelShadow)"/>
+  <rect x="109" y="298" width="241" height="68" rx="1" fill="url(#yellowInset)" stroke="#a28600" stroke-width="3" filter="url(#recess)"/>
+  <rect x="116" y="870" width="255" height="252" fill="url(#yellowInset)" stroke="#b29400" stroke-width="3" filter="url(#recess)"/>
+  <rect x="168" y="922" width="151" height="149" fill="url(#yellow)" stroke="#f4cc00" stroke-width="3" filter="url(#panelShadow)"/>
+
+  <!-- Green close panel -->
+  <path d="M458 63H1093L1185 158V548H458Z" fill="url(#green)" stroke="#225b2a" stroke-width="2" filter="url(#panelShadow)"/>
+  <path d="M458 63H525V548H458Z" fill="#36b951" opacity=".72"/>
+  <path d="M458 63H1093L1135 106H458Z" fill="#c4e57c" opacity=".55"/>
+  <path d="M695 150L831 286L967 150L1009 194L874 329L1009 465L967 508L831 372L695 508L652 465L788 329L652 194Z" fill="url(#greenInset)" stroke="#275b20" stroke-width="2" filter="url(#recess)"/>
+
+  <!-- Red menu panel -->
+  <path d="M458 604H1184V1184H586V792H458Z" fill="url(#red)" stroke="#722c2b" stroke-width="2" filter="url(#panelShadow)"/>
+  <path d="M458 604H585V792H458Z" fill="#802d36" opacity=".73"/>
+  <rect x="678" y="714" width="407" height="72" fill="url(#redInset)" stroke="#702923" stroke-width="3" filter="url(#recess)"/>
+  <rect x="678" y="861" width="407" height="70" fill="url(#redInset)" stroke="#702923" stroke-width="3" filter="url(#recess)"/>
+  <rect x="678" y="1007" width="407" height="70" fill="url(#redInset)" stroke="#702923" stroke-width="3" filter="url(#recess)"/>
+</svg>

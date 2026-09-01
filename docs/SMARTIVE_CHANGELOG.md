@@ -1,3 +1,21 @@
+# 1.0.2
+
+## Smartive branding
+
+- Replaced the upstream LDtk branding in the repository README with the LDTK-Smartive logo.
+- Added `app/buildAssets/smartive-logo.svg` as the single editable Smartive logo source.
+- Added automatic branding generation before starting or compiling the app.
+- Windows builds now generate and use a Smartive `icon.ico`, including the NSIS installer/uninstaller icon.
+- macOS builds now generate and use a Smartive `icon.icns`.
+- Linux builds now generate and use a Smartive `icon.png`.
+- The in-app `appIcon.png` is generated from the same logo so desktop builds stay visually consistent.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.1
 
 ## Intuitive fork authoring UI

@@ -1,17 +1,20 @@
-![](https://github.com/deepnight/ldtk/blob/master/app/assets/appIcon.png)
+<p align="center">
+  <img src="app/assets/appIcon.png" alt="LDTK-Smartive logo" width="320">
+</p>
 
-**Level Designer Toolkit** (*LDtk*) is a **modern**, **efficient** and **open-source** 2D level editor with a strong focus on user-friendliness.
+# LDTK-Smartive
 
-Links: [Official website](https://ldtk.io/) | [Haxe API (on GitHub)](https://github.com/deepnight/ldtk-haxe-api)
+**LDTK-Smartive** is a fork of **Level Designer Toolkit (LDtk)** focused on `.aseprite` workflows, advanced tileset/editor tooling, and fork-specific authoring features while keeping normal LDtk project compatibility.
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/deepnight/ldtk?color=%23dca&label=%E2%AD%90)](https://github.com/deepnight/ldtk)
-[![GitHub All Releases](https://img.shields.io/github/downloads/deepnight/ldtk/total?color=%2389b&label=Downloads)](https://github.com/deepnight/ldtk/releases/latest)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/deepnight/ldtk/test-windows.yml?label=LDtk%20build)](https://github.com/deepnight/ldtk/actions/workflows/test-windows.yml)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/deepnight/ldtk-haxe-api/unitTests.yml?label=Unit%20tests)](https://github.com/deepnight/ldtk-haxe-api/actions/workflows/unitTests.yml)
+Links: [Latest Smartive release](https://github.com/RondeI33/ldtk/releases/latest) | [Smartive releases](https://github.com/RondeI33/ldtk/releases) | [Upstream LDtk](https://ldtk.io/) | [Haxe API](https://github.com/deepnight/ldtk-haxe-api)
 
-# Getting LDtk latest version
+[![GitHub Repo stars](https://img.shields.io/github/stars/RondeI33/ldtk?color=%23dca&label=%E2%AD%90)](https://github.com/RondeI33/ldtk)
+[![GitHub All Releases](https://img.shields.io/github/downloads/RondeI33/ldtk/total?color=%2389b&label=Downloads)](https://github.com/RondeI33/ldtk/releases/latest)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/RondeI33/ldtk/test-windows.yml?branch=master&label=Smartive%20build)](https://github.com/RondeI33/ldtk/actions/workflows/test-windows.yml)
 
-Visit [LDtk.io](https://ldtk.io) to get latest version.
+# Getting LDTK-Smartive latest version
+
+Download the latest Windows, macOS, or Linux build from the [LDTK-Smartive releases page](https://github.com/RondeI33/ldtk/releases/latest).
 
 # Building from source
 
@@ -102,7 +105,7 @@ nw app/nwjs
 
 # Contributing
 
-You can read the general Pull Request guidelines here:
+You can read the upstream Pull Request guidelines here:
 https://github.com/deepnight/ldtk/wiki#pull-request-guidelines
 
 # Related tools & licences

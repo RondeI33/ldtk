@@ -1,6 +1,7 @@
 {
 	"name": "ldtk-smartive",
 	"version": "1.0.0",
+	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
 	"author": "Sebastien Benard",

@@ -173,14 +173,14 @@ class Const {
 	];
 
 	public static inline function getNicePalette() {
-		return App.ME.settings.v.colorBlind ? NICE_PALETTE_COLORBLIND : NICE_PALETTE_COLORBLIND;
+		return App.ME.settings.v.colorBlind ? NICE_PALETTE_COLORBLIND : NICE_PALETTE;
 	}
 
 	public static function suggestNiceColor(useds:Array<dn.Col>) : dn.Col {
 		var useCounts = new Map();
 		inline function _incUseCount(c:dn.Col) {
 			if( useCounts.exists(c) )
-				useCounts.set(c,c);
+				useCounts.set(c, useCounts.get(c)+1);
 			else
 				useCounts.set(c, 1);
 		}

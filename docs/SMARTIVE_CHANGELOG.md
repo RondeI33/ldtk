@@ -1,3 +1,20 @@
+# 1.0.3
+
+## Restore LDtk JSON compatibility
+
+- Fixed the regression where the Smartive application version `1.0.2` could be written into LDtk project `jsonVersion`.
+- Smartive release version and LDtk JSON compatibility version are now guarded as separate version tracks.
+- `.ldtk` and `.ldtkl` compatibility stays on LDtk JSON version `1.5.3` while the application release moves to `1.0.3`.
+- Added a lower-bound guard so a Smartive `1.0.x` value cannot silently become the LDtk project schema version again.
+- Opening and saving a project with a poisoned Smartive-era `jsonVersion` restores the canonical LDtk compatibility version through the existing project load normalization.
+- Restores compatibility with LDtkUnity and other importers requiring LDtk JSON `1.5.x`.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.2
 
 ## Smartive branding

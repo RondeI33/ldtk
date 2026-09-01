@@ -42,16 +42,24 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Rename universal macOS installer
+      - name: Locate universal Smartive macOS installer
         shell: bash
         run: |
           set -euo pipefail
-          DMG=$(find app/redist -maxdepth 1 -type f -name 'LDtk*installer.dmg' | head -n 1)
+          VERSION=$(node -p "require('./app/package.json').version")
+          DMG=$(find app/redist -maxdepth 1 -type f -name "LDTK-Smartive-${VERSION}-mac-*.dmg" | head -n 1)
           if [ -z "$DMG" ]; then
-            echo "No macOS DMG was produced"
+            echo "No LDTK-Smartive macOS DMG was produced"
+            find app/redist -maxdepth 1 -type f -print
             exit 1
           fi
-          cp "$DMG" "LDtk-1.5.3-Aseprite-Atlas-Composer-macOS-universal.dmg"
+          OUT="LDTK-Smartive-${VERSION}-mac-universal.dmg"
+          if [ "$DMG" != "$OUT" ]; then
+            cp "$DMG" "$OUT"
+          else
+            cp "$DMG" "./$OUT"
+          fi
+          echo "SMARTIVE_MAC_DMG=$OUT" >> "$GITHUB_ENV"
 
       - name: Add macOS build to test release
         if: github.event_name != 'pull_request'
@@ -60,17 +68,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="aseprite-atlas-composer-test"
+          TAG="smartive-master-test"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" \
-              "LDtk-1.5.3-Aseprite-Atlas-Composer-macOS-universal.dmg" \
-              --clobber
+            gh release upload "$TAG" "$SMARTIVE_MAC_DMG" --clobber
           else
             gh release create "$TAG" \
-              "LDtk-1.5.3-Aseprite-Atlas-Composer-macOS-universal.dmg" \
+              "$SMARTIVE_MAC_DMG" \
               --target "master" \
-              --title "LDtk 1.5.3 - Aseprite + Atlas Composer test build" \
-              --notes "Experimental test build of the RondeI33 LDtk fork with robust Aseprite tileset support and the selective Atlas Composer. This release includes the universal macOS DMG for both Apple Silicon and Intel Macs." \
+              --title "LDTK-Smartive master test build" \
+              --notes "Automated universal macOS test build of the current LDTK-Smartive master branch." \
               --prerelease
           fi
 
@@ -78,4 +84,4 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: mac-distribution
-          path: LDtk-1.5.3-Aseprite-Atlas-Composer-macOS-universal.dmg
+          path: LDTK-Smartive-*-mac-universal.dmg

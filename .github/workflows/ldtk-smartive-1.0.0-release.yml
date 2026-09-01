@@ -1,0 +1,175 @@
+name: LDTK-Smartive 1.0.0 release
+
+on:
+  push:
+    branches:
+      - feature/auto-place-sub-entities
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ldtk-smartive-1.0.0-release
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+
+      - name: Install Haxe libraries
+        shell: bash
+        run: |
+          haxelib install uuid --quiet
+          haxelib git castle https://github.com/ncannasse/castle
+          haxelib git heaps https://github.com/deepnight/heaps.git
+          haxelib git hxnodejs https://github.com/HaxeFoundation/hxnodejs.git
+          haxelib git electron https://github.com/tong/hxelectron.git
+          haxelib git heaps-aseprite https://github.com/AustinEast/heaps-aseprite.git
+          haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git --always
+          haxelib git deepnightLibs https://github.com/deepnight/deepnightLibs.git --always
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Compile fork
+        working-directory: app
+        run: npm run compile
+
+      - name: Package Windows x64
+        working-directory: app
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder build --win --x64 --publish never
+
+      - name: Rename Windows installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "app/redist" -Filter "*.exe" | Where-Object { $_.Name -like "*installer.exe" } | Select-Object -First 1
+          if (-not $installer) { throw "LDTK-Smartive Windows installer was not produced" }
+          Copy-Item $installer.FullName "LDTK-Smartive-1.0.0-win-x64.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ldtk-smartive-1.0.0-windows
+          path: LDTK-Smartive-1.0.0-win-x64.exe
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+
+      - run: haxe setup.hxml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Package universal macOS
+        working-directory: app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run pack-macos
+
+      - name: Rename macOS installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG=$(find app/redist -maxdepth 1 -type f -name '*installer.dmg' | head -n 1)
+          if [ -z "$DMG" ]; then
+            echo "LDTK-Smartive macOS DMG was not produced"
+            exit 1
+          fi
+          cp "$DMG" "LDTK-Smartive-1.0.0-macOS-universal.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ldtk-smartive-1.0.0-macos
+          path: LDTK-Smartive-1.0.0-macOS-universal.dmg
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+
+      - run: haxe setup.hxml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install
+
+      - name: Package Linux x86_64 AppImage
+        working-directory: app
+        run: npm run pack-linux-x86
+
+      - name: Rename Linux AppImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(find app/redist -maxdepth 1 -type f -name '*installer.AppImage' | head -n 1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "LDTK-Smartive Linux AppImage was not produced"
+            exit 1
+          fi
+          cp "$APPIMAGE" "LDTK-Smartive-1.0.0-linux-x86_64.AppImage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ldtk-smartive-1.0.0-linux
+          path: LDTK-Smartive-1.0.0-linux-x86_64.AppImage
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ldtk-smartive-1.0.0-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish LDTK-Smartive 1.0.0 prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="ldtk-smartive-v1.0.0"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "LDTK-Smartive 1.0.0" \
+            --notes "Cross-platform prerelease of LDTK-Smartive 1.0.0, built from the feature/auto-place-sub-entities branch. Includes auto-place sub-entities and all cumulative changes currently present in this LDtk fork. The application and installers are branded as LDTK-Smartive 1.0.0. Includes Windows x64, universal macOS, and Linux x86_64 AppImage builds." \
+            --prerelease

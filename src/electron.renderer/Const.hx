@@ -193,16 +193,7 @@ class Const {
 				return c;
 
 		// Pick least used nice color
-		var pick = getNicePalette()[0];
-		var leastUses = useCounts.get(pick);
-		for(c in getNicePalette()) {
-			var count = useCounts.get(c);
-			if( count<leastUses ) {
-				pick = c;
-				leastUses = count;
-			}
-		}
-		return pick;
+		return dn.DecisionHelper.optimizedPick( getNicePalette(), (c)->-useCounts.get(c) );
 	}
 
 	public static var AUTO_LAYER_ANYTHING = 1000001;

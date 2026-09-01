@@ -26,9 +26,11 @@ Replace the generated `TODO` changelog line before publishing. The release workf
 
 ## Publish
 
-Commit the version and changelog changes, then push `feature/auto-place-sub-entities`.
+Commit the version and changelog changes on a feature branch, then merge that branch into the default `master` branch.
 
-The release workflow reads the version from `app/package.json`, validates it, and publishes only when the corresponding stable tag does not already exist. Releases use tags such as:
+The release workflow runs from `master`, reads the version from `app/package.json`, validates it, and publishes only when the corresponding stable tag does not already exist. It is triggered when the application version, Smartive changelog, or release workflow changes on `master`. This also means a changelog-only correction can restart a release that previously failed validation.
+
+Releases use tags such as:
 
 ```text
 v1.0.0
@@ -41,6 +43,6 @@ Each release contains:
 
 - Windows x64 installer, `latest.yml`, and blockmap metadata for automatic updates.
 - Universal macOS DMG.
-- Linux x64 AppImage.
+- Linux x86_64 AppImage.
 
 A manual workflow dispatch can force a rebuild of the current version when an interrupted or damaged release must be replaced. Normal development commits do not create releases unless the package version or its changelog section changes.

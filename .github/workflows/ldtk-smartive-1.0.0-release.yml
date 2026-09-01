@@ -3,7 +3,7 @@ name: LDTK-Smartive release
 on:
   push:
     branches:
-      - feature/auto-place-sub-entities
+      - master
     paths:
       - app/package.json
       - docs/SMARTIVE_CHANGELOG.md

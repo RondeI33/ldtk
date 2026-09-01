@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/assets/appIcon.png" alt="LDTK-Smartive logo" width="320">
+  <img src="app/buildAssets/smartive-logo.svg" alt="LDTK-Smartive logo" width="360">
 </p>
 
 # LDTK-Smartive
@@ -12,6 +12,16 @@ Links: [Latest Smartive release](https://github.com/RondeI33/ldtk/releases/lates
 [![GitHub All Releases](https://img.shields.io/github/downloads/RondeI33/ldtk/total?color=%2389b&label=Downloads)](https://github.com/RondeI33/ldtk/releases/latest)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/RondeI33/ldtk/test-windows.yml?branch=master&label=Smartive%20build)](https://github.com/RondeI33/ldtk/actions/workflows/test-windows.yml)
 
+## Downloads
+
+The same Smartive logo is used as the application and installer icon on every desktop build.
+
+| Platform | Build |
+| --- | --- |
+| **Windows** | [Windows x64 installer](https://github.com/RondeI33/ldtk/releases/latest) |
+| **macOS** | [Universal macOS DMG](https://github.com/RondeI33/ldtk/releases/latest) |
+| **Linux** | [Linux x64 AppImage](https://github.com/RondeI33/ldtk/releases/latest) |
+
 # Getting LDTK-Smartive latest version
 
 Download the latest Windows, macOS, or Linux build from the [LDTK-Smartive releases page](https://github.com/RondeI33/ldtk/releases/latest).
@@ -20,48 +30,47 @@ Download the latest Windows, macOS, or Linux build from the [LDTK-Smartive relea
 
 ## Requirements
 
- - **[Haxe compiler](https://haxe.org)**: you need an up-to-date and working Haxe install  to build LDtk.
- - **[NPM](https://nodejs.org/en/download/)**: this package manager is used for various install and packaging scripts. It is packaged with NodeJS.
+ - **[Haxe compiler](https://haxe.org)**: you need an up-to-date and working Haxe install to build LDtk.
+ - **[NPM](https://nodejs.org/en/download/)**: this package manager is used for install, branding, and packaging scripts. It is packaged with NodeJS.
 
 ## Installing required stuff
 
- - Open a command line **in the `ldtk` root dir**,
+ - Open a command line **in the `ldtk` root dir**.
  - Install required Haxe libs:
  ```
  haxe setup.hxml
  ```
- - Install Electron locally and other dependencies through NPM (**IMPORTANT**: you need to be in the `app` dir):
+ - Install Electron and Node dependencies from the `app` directory:
  ```
  cd app
  npm i
  ```
 
-## Compiling *master* branch
+## Compiling `master`
 
-First, from the root of the repo, build the electron **Main**:
-
-```
-haxe main.debug.hxml
-```
-
-This should create a `app/assets/main.js` file.
-
-Then, build the electron **Renderer**:
+From the `app` directory run:
 
 ```
-haxe renderer.debug.hxml
+npm run compile
 ```
 
-This should create `app/assets/js/renderer.js`.
+The compile command first materializes the Smartive branding assets from `app/buildAssets/smartive-logo.svg`, generating:
+
+- `app/assets/appIcon.png`
+- `app/buildAssets/icon.ico` for Windows
+- `app/buildAssets/icon.icns` for macOS
+- `app/buildAssets/icon.png` for Linux
+
+It then compiles the Electron Main and Renderer Haxe targets.
 
 ## Compiling another branch
 
 If you want to try a future version of LDtk, you can checkout branches named `dev-x.y.z` where x.y.z is version number.
 
 **IMPORTANT**:
- - these *dev* branches might be unstables, or even broken. Therefore, it's not recommended to use, unless you plan to add or fix something on LDtk.
+ - these *dev* branches might be unstable, or even broken. Therefore, it's not recommended to use them unless you plan to add or fix something on LDtk.
  - because *dev* branches might change quickly, you will need to update haxelibs often.
- - you will need to switch the *LDtk haxe API* to the **same** branch as LDtk repo. (adapt the branch name below accordingly):
+ - you will need to switch the *LDtk haxe API* to the **same** branch as LDtk. (adapt the branch name below accordingly):
 
 ```
 haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git dev-0.6.0
@@ -74,6 +83,8 @@ From a command line in the `app` folder, run:
 ```
 npm run start
 ```
+
+`npm run start` also regenerates the Smartive app icon before Electron starts.
 
 ## Running inside Hide (as an editor plugin)
 

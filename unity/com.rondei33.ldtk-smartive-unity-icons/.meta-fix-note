@@ -1,0 +1,1 @@
+Unity UPM package metadata is committed so immutable PackageCache installs do not try to generate .meta files.

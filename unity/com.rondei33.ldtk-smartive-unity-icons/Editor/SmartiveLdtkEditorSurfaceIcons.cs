@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
@@ -15,7 +14,6 @@ namespace LDTKSmartive.UnityIcons.Editor
             "LDtkComponentLevel"
         };
 
-        private static MethodInfo _getIconMethod;
         private static bool _projectRefreshQueued;
         private static bool _hierarchyRefreshQueued;
 
@@ -24,6 +22,7 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += RefreshAll;
             EditorApplication.projectChanged += QueueProjectRefresh;
             EditorApplication.hierarchyChanged += QueueHierarchyRefresh;
+            EditorApplication.projectWindowItemOnGUI += DrawProjectWindowIcon;
             EditorApplication.hierarchyWindowItemOnGUI += DrawHierarchyWindowIcon;
             Selection.selectionChanged += RefreshSelection;
         }
@@ -45,8 +44,8 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += () =>
             {
                 _projectRefreshQueued = false;
-                RefreshProjectAssetsAndImporters();
-                RefreshSelection();
+                RefreshImporterIcons();
+                ClearAllLdtkObjectIcons();
                 EditorApplication.RepaintProjectWindow();
             };
         }
@@ -62,48 +61,51 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += () =>
             {
                 _hierarchyRefreshQueued = false;
-                ClearLegacySceneObjectIcons();
+                ClearAllLdtkObjectIcons();
                 EditorApplication.RepaintHierarchyWindow();
+                SceneView.RepaintAll();
             };
         }
 
         private static void RefreshAll()
         {
-            RefreshProjectAssetsAndImporters();
-            ClearLegacySceneObjectIcons();
+            RefreshImporterIcons();
+            ClearAllLdtkObjectIcons();
             RefreshSelection();
             EditorApplication.RepaintProjectWindow();
             EditorApplication.RepaintHierarchyWindow();
-        }
+            SceneView.RepaintAll();
 
-        private static void RefreshProjectAssetsAndImporters()
-        {
-            foreach (string assetPath in AssetDatabase.GetAllAssetPaths())
+            // Run once more after importers/editor caches finish their delayed work.
+            EditorApplication.delayCall += () =>
             {
-                if (SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
-                {
-                    ApplyToAssetAndImporter(assetPath);
-                }
-            }
+                ClearAllLdtkObjectIcons();
+                EditorApplication.RepaintProjectWindow();
+                EditorApplication.RepaintHierarchyWindow();
+                SceneView.RepaintAll();
+            };
         }
 
-        private static void ApplyToAssetAndImporter(string assetPath)
+        private static void RefreshImporterIcons()
         {
-            Texture2D icon = GetIcon();
+            Texture2D icon = SmartiveLdtkAssetIcons.GetIcon();
             if (icon == null)
             {
                 return;
             }
 
-            // This is the native Project-window replacement. Do not also draw a
-            // projectWindowItemOnGUI overlay, because that creates a second icon.
-            SmartiveLdtkAssetIcons.ApplyToAsset(assetPath);
-
-            // Keep the working Smartive icon in the importer/settings Inspector header.
-            AssetImporter importer = AssetImporter.GetAtPath(assetPath);
-            if (importer != null)
+            foreach (string assetPath in AssetDatabase.GetAllAssetPaths())
             {
-                EditorGUIUtility.SetIconForObject(importer, icon);
+                if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+                {
+                    continue;
+                }
+
+                AssetImporter importer = AssetImporter.GetAtPath(assetPath);
+                if (importer != null)
+                {
+                    EditorGUIUtility.SetIconForObject(importer, icon);
+                }
             }
         }
 
@@ -116,10 +118,63 @@ namespace LDTKSmartive.UnityIcons.Editor
             }
 
             string assetPath = AssetDatabase.GetAssetPath(selected);
-            if (SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+            if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
             {
-                ApplyToAssetAndImporter(assetPath);
+                return;
             }
+
+            Texture2D icon = SmartiveLdtkAssetIcons.GetIcon();
+            AssetImporter importer = AssetImporter.GetAtPath(assetPath);
+            if (importer != null && icon != null)
+            {
+                EditorGUIUtility.SetIconForObject(importer, icon);
+            }
+        }
+
+        private static void DrawProjectWindowIcon(string guid, Rect selectionRect)
+        {
+            if (Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+            {
+                return;
+            }
+
+            Texture2D icon = SmartiveLdtkAssetIcons.GetIcon();
+            if (icon == null)
+            {
+                return;
+            }
+
+            Rect iconRect;
+            if (selectionRect.height <= 20f)
+            {
+                float size = Mathf.Min(16f, selectionRect.height);
+                iconRect = new Rect(
+                    selectionRect.x,
+                    selectionRect.y + (selectionRect.height - size) * 0.5f,
+                    size,
+                    size);
+            }
+            else
+            {
+                float maxWidth = Mathf.Max(16f, selectionRect.width - 8f);
+                float maxHeight = Mathf.Max(16f, selectionRect.height - 20f);
+                float size = Mathf.Min(64f, Mathf.Min(maxWidth, maxHeight));
+                iconRect = new Rect(
+                    selectionRect.x + (selectionRect.width - size) * 0.5f,
+                    selectionRect.y + 2f,
+                    size,
+                    size);
+            }
+
+            // Draw exactly in Unity's native icon/thumbnail area. The Smartive PNG is
+            // opaque, so this visually replaces Cammin's icon rather than appearing beside it.
+            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
         }
 
         private static void DrawHierarchyWindowIcon(int instanceId, Rect selectionRect)
@@ -135,15 +190,12 @@ namespace LDTKSmartive.UnityIcons.Editor
                 return;
             }
 
-            Texture2D icon = GetIcon();
+            Texture2D icon = SmartiveLdtkAssetIcons.GetIcon();
             if (icon == null)
             {
                 return;
             }
 
-            // selectionRect.x is Unity's native object-icon slot. Drawing at +16
-            // put Smartive beside the original icon. Drawing here replaces it visually
-            // without assigning an object icon, so no Scene-view gizmo is created.
             float size = Mathf.Min(16f, selectionRect.height);
             Rect iconRect = new Rect(
                 selectionRect.x,
@@ -154,11 +206,27 @@ namespace LDTKSmartive.UnityIcons.Editor
             GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
         }
 
-        private static void ClearLegacySceneObjectIcons()
+        private static void ClearAllLdtkObjectIcons()
         {
-            // Older revisions assigned Smartive directly to GameObjects. Unity then
-            // rendered those icons as Scene-view gizmos. Clear those assignments;
-            // Hierarchy branding is now drawn only in hierarchyWindowItemOnGUI.
+            // Clear persistent imported GameObjects/components left by older package revisions.
+            foreach (string assetPath in AssetDatabase.GetAllAssetPaths())
+            {
+                if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+                {
+                    continue;
+                }
+
+                UnityEngine.Object[] importedObjects = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+                foreach (UnityEngine.Object importedObject in importedObjects)
+                {
+                    if (importedObject is GameObject || importedObject is Component)
+                    {
+                        EditorGUIUtility.SetIconForObject(importedObject, null);
+                    }
+                }
+            }
+
+            // Clear scene instances and their LDtk components as well.
             GameObject[] gameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
             foreach (GameObject gameObject in gameObjects)
             {
@@ -167,14 +235,20 @@ namespace LDTKSmartive.UnityIcons.Editor
                     continue;
                 }
 
-                if (!gameObject.scene.IsValid() || !gameObject.scene.isLoaded)
+                if (!gameObject.scene.IsValid() || !gameObject.scene.isLoaded || !IsAnyLdtkGameObject(gameObject))
                 {
                     continue;
                 }
 
-                if (IsAnyLdtkGameObject(gameObject))
+                EditorGUIUtility.SetIconForObject(gameObject, null);
+
+                Component[] components = gameObject.GetComponents<Component>();
+                foreach (Component component in components)
                 {
-                    EditorGUIUtility.SetIconForObject(gameObject, null);
+                    if (component != null && IsLdtkUnityType(component.GetType()))
+                    {
+                        EditorGUIUtility.SetIconForObject(component, null);
+                    }
                 }
             }
         }
@@ -227,23 +301,6 @@ namespace LDTKSmartive.UnityIcons.Editor
             return string.Equals(typeNamespace, "LDtkUnity", StringComparison.Ordinal)
                 || (!string.IsNullOrEmpty(typeNamespace)
                     && typeNamespace.StartsWith("LDtkUnity.", StringComparison.Ordinal));
-        }
-
-        private static Texture2D GetIcon()
-        {
-            if (_getIconMethod == null)
-            {
-                _getIconMethod = typeof(SmartiveLdtkAssetIcons).GetMethod(
-                    "GetIcon",
-                    BindingFlags.Static | BindingFlags.NonPublic);
-            }
-
-            if (_getIconMethod == null)
-            {
-                return null;
-            }
-
-            return _getIconMethod.Invoke(null, null) as Texture2D;
         }
     }
 }

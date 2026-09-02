@@ -7,6 +7,7 @@
 - Existing LDtk assets are refreshed automatically when the Unity editor package loads.
 - Added a manual **Tools > LDTK-Smartive > Refresh LDtk asset icons** command.
 - Added a Unity Package Manager Git install path and package documentation to the repository README.
+- Replaced the old desktop `.ldtk` project and `.ldtkl` level file-association artwork with the same Smartive application logo on Windows and macOS.
 - The Unity icon package uses the same Smartive logo as the desktop builds.
 - LDtk project JSON compatibility remains `1.5.3`; Smartive application/release versioning remains independent.
 

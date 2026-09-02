@@ -24,7 +24,6 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += RefreshAll;
             EditorApplication.projectChanged += QueueProjectRefresh;
             EditorApplication.hierarchyChanged += QueueHierarchyRefresh;
-            EditorApplication.projectWindowItemOnGUI += DrawProjectWindowIcon;
             EditorApplication.hierarchyWindowItemOnGUI += DrawHierarchyWindowIcon;
             Selection.selectionChanged += RefreshSelection;
         }
@@ -63,6 +62,7 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += () =>
             {
                 _hierarchyRefreshQueued = false;
+                ClearLegacySceneObjectIcons();
                 EditorApplication.RepaintHierarchyWindow();
             };
         }
@@ -70,6 +70,7 @@ namespace LDTKSmartive.UnityIcons.Editor
         private static void RefreshAll()
         {
             RefreshProjectAssetsAndImporters();
+            ClearLegacySceneObjectIcons();
             RefreshSelection();
             EditorApplication.RepaintProjectWindow();
             EditorApplication.RepaintHierarchyWindow();
@@ -94,10 +95,11 @@ namespace LDTKSmartive.UnityIcons.Editor
                 return;
             }
 
-            // Keep the existing asset/importer icon behavior because this is what
-            // makes the Smartive logo appear in the Inspector header.
+            // This is the native Project-window replacement. Do not also draw a
+            // projectWindowItemOnGUI overlay, because that creates a second icon.
             SmartiveLdtkAssetIcons.ApplyToAsset(assetPath);
 
+            // Keep the working Smartive icon in the importer/settings Inspector header.
             AssetImporter importer = AssetImporter.GetAtPath(assetPath);
             if (importer != null)
             {
@@ -120,47 +122,6 @@ namespace LDTKSmartive.UnityIcons.Editor
             }
         }
 
-        private static void DrawProjectWindowIcon(string guid, Rect selectionRect)
-        {
-            if (Event.current.type != EventType.Repaint)
-            {
-                return;
-            }
-
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
-            {
-                return;
-            }
-
-            Texture2D icon = GetIcon();
-            if (icon == null)
-            {
-                return;
-            }
-
-            Rect iconRect;
-            if (selectionRect.height <= 20f)
-            {
-                // Project Browser list mode: cover the normal file icon.
-                iconRect = new Rect(selectionRect.x, selectionRect.y, 16f, 16f);
-            }
-            else
-            {
-                // Project Browser grid mode: draw a proper thumbnail-sized Smartive logo.
-                float availableWidth = Mathf.Max(16f, selectionRect.width - 8f);
-                float availableHeight = Mathf.Max(16f, selectionRect.height - 20f);
-                float size = Mathf.Min(64f, Mathf.Min(availableWidth, availableHeight));
-                iconRect = new Rect(
-                    selectionRect.x + (selectionRect.width - size) * 0.5f,
-                    selectionRect.y + 2f,
-                    size,
-                    size);
-            }
-
-            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
-        }
-
         private static void DrawHierarchyWindowIcon(int instanceId, Rect selectionRect)
         {
             if (Event.current.type != EventType.Repaint)
@@ -180,10 +141,42 @@ namespace LDTKSmartive.UnityIcons.Editor
                 return;
             }
 
-            // Draw only inside the Hierarchy UI. Do NOT call SetIconForObject on
-            // GameObjects because Unity also renders those object icons as Scene-view gizmos.
-            Rect iconRect = new Rect(selectionRect.x + 16f, selectionRect.y, 16f, 16f);
+            // selectionRect.x is Unity's native object-icon slot. Drawing at +16
+            // put Smartive beside the original icon. Drawing here replaces it visually
+            // without assigning an object icon, so no Scene-view gizmo is created.
+            float size = Mathf.Min(16f, selectionRect.height);
+            Rect iconRect = new Rect(
+                selectionRect.x,
+                selectionRect.y + (selectionRect.height - size) * 0.5f,
+                size,
+                size);
+
             GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
+        }
+
+        private static void ClearLegacySceneObjectIcons()
+        {
+            // Older revisions assigned Smartive directly to GameObjects. Unity then
+            // rendered those icons as Scene-view gizmos. Clear those assignments;
+            // Hierarchy branding is now drawn only in hierarchyWindowItemOnGUI.
+            GameObject[] gameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+            foreach (GameObject gameObject in gameObjects)
+            {
+                if (gameObject == null || EditorUtility.IsPersistent(gameObject))
+                {
+                    continue;
+                }
+
+                if (!gameObject.scene.IsValid() || !gameObject.scene.isLoaded)
+                {
+                    continue;
+                }
+
+                if (IsAnyLdtkGameObject(gameObject))
+                {
+                    EditorGUIUtility.SetIconForObject(gameObject, null);
+                }
+            }
         }
 
         private static bool IsHierarchyLdtkRoot(GameObject gameObject)
@@ -208,6 +201,20 @@ namespace LDTKSmartive.UnityIcons.Editor
                     {
                         return true;
                     }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsAnyLdtkGameObject(GameObject gameObject)
+        {
+            Component[] components = gameObject.GetComponents<Component>();
+            foreach (Component component in components)
+            {
+                if (component != null && IsLdtkUnityType(component.GetType()))
+                {
+                    return true;
                 }
             }
 

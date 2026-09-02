@@ -8,6 +8,13 @@ namespace LDTKSmartive.UnityIcons.Editor
     [InitializeOnLoad]
     internal static class SmartiveLdtkEditorSurfaceIcons
     {
+        private static readonly string[] HierarchyRootComponentNames =
+        {
+            "LDtkComponentProject",
+            "LDtkComponentWorld",
+            "LDtkComponentLevel"
+        };
+
         private static MethodInfo _getIconMethod;
         private static bool _projectRefreshQueued;
         private static bool _hierarchyRefreshQueued;
@@ -17,10 +24,12 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += RefreshAll;
             EditorApplication.projectChanged += QueueProjectRefresh;
             EditorApplication.hierarchyChanged += QueueHierarchyRefresh;
+            EditorApplication.projectWindowItemOnGUI += DrawProjectWindowIcon;
+            EditorApplication.hierarchyWindowItemOnGUI += DrawHierarchyWindowIcon;
             Selection.selectionChanged += RefreshSelection;
         }
 
-        [MenuItem("Tools/LDTK-Smartive/Refresh Inspector + Hierarchy icons")]
+        [MenuItem("Tools/LDTK-Smartive/Refresh Project + Inspector + Hierarchy icons")]
         private static void RefreshFromMenu()
         {
             RefreshAll();
@@ -54,8 +63,6 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += () =>
             {
                 _hierarchyRefreshQueued = false;
-                RefreshHierarchyObjects();
-                RefreshSelection();
                 EditorApplication.RepaintHierarchyWindow();
             };
         }
@@ -63,7 +70,6 @@ namespace LDTKSmartive.UnityIcons.Editor
         private static void RefreshAll()
         {
             RefreshProjectAssetsAndImporters();
-            RefreshHierarchyObjects();
             RefreshSelection();
             EditorApplication.RepaintProjectWindow();
             EditorApplication.RepaintHierarchyWindow();
@@ -73,12 +79,10 @@ namespace LDTKSmartive.UnityIcons.Editor
         {
             foreach (string assetPath in AssetDatabase.GetAllAssetPaths())
             {
-                if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+                if (SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
                 {
-                    continue;
+                    ApplyToAssetAndImporter(assetPath);
                 }
-
-                ApplyToAssetAndImporter(assetPath);
             }
         }
 
@@ -90,49 +94,14 @@ namespace LDTKSmartive.UnityIcons.Editor
                 return;
             }
 
+            // Keep the existing asset/importer icon behavior because this is what
+            // makes the Smartive logo appear in the Inspector header.
             SmartiveLdtkAssetIcons.ApplyToAsset(assetPath);
 
             AssetImporter importer = AssetImporter.GetAtPath(assetPath);
             if (importer != null)
             {
                 EditorGUIUtility.SetIconForObject(importer, icon);
-            }
-
-            UnityEngine.Object[] allAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-            foreach (UnityEngine.Object asset in allAssets)
-            {
-                if (asset != null && IsLdtkUnityObject(asset))
-                {
-                    EditorGUIUtility.SetIconForObject(asset, icon);
-                }
-            }
-        }
-
-        private static void RefreshHierarchyObjects()
-        {
-            Texture2D icon = GetIcon();
-            if (icon == null)
-            {
-                return;
-            }
-
-            GameObject[] gameObjects = Resources.FindObjectsOfTypeAll<GameObject>();
-            foreach (GameObject gameObject in gameObjects)
-            {
-                if (gameObject == null || EditorUtility.IsPersistent(gameObject))
-                {
-                    continue;
-                }
-
-                if (!gameObject.scene.IsValid() || !gameObject.scene.isLoaded)
-                {
-                    continue;
-                }
-
-                if (IsLdtkGameObject(gameObject))
-                {
-                    EditorGUIUtility.SetIconForObject(gameObject, icon);
-                }
             }
         }
 
@@ -144,18 +113,6 @@ namespace LDTKSmartive.UnityIcons.Editor
                 return;
             }
 
-            Texture2D icon = GetIcon();
-            if (icon == null)
-            {
-                return;
-            }
-
-            if (selected is GameObject selectedGameObject && IsLdtkGameObject(selectedGameObject))
-            {
-                EditorGUIUtility.SetIconForObject(selectedGameObject, icon);
-                return;
-            }
-
             string assetPath = AssetDatabase.GetAssetPath(selected);
             if (SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
             {
@@ -163,24 +120,94 @@ namespace LDTKSmartive.UnityIcons.Editor
             }
         }
 
-        private static bool IsLdtkUnityObject(UnityEngine.Object asset)
+        private static void DrawProjectWindowIcon(string guid, Rect selectionRect)
         {
-            if (asset is GameObject gameObject)
+            if (Event.current.type != EventType.Repaint)
             {
-                return IsLdtkGameObject(gameObject);
+                return;
             }
 
-            return IsLdtkUnityType(asset.GetType());
+            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
+            {
+                return;
+            }
+
+            Texture2D icon = GetIcon();
+            if (icon == null)
+            {
+                return;
+            }
+
+            Rect iconRect;
+            if (selectionRect.height <= 20f)
+            {
+                // Project Browser list mode: cover the normal file icon.
+                iconRect = new Rect(selectionRect.x, selectionRect.y, 16f, 16f);
+            }
+            else
+            {
+                // Project Browser grid mode: draw a proper thumbnail-sized Smartive logo.
+                float availableWidth = Mathf.Max(16f, selectionRect.width - 8f);
+                float availableHeight = Mathf.Max(16f, selectionRect.height - 20f);
+                float size = Mathf.Min(64f, Mathf.Min(availableWidth, availableHeight));
+                iconRect = new Rect(
+                    selectionRect.x + (selectionRect.width - size) * 0.5f,
+                    selectionRect.y + 2f,
+                    size,
+                    size);
+            }
+
+            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
         }
 
-        private static bool IsLdtkGameObject(GameObject gameObject)
+        private static void DrawHierarchyWindowIcon(int instanceId, Rect selectionRect)
+        {
+            if (Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            GameObject gameObject = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+            if (gameObject == null || !IsHierarchyLdtkRoot(gameObject))
+            {
+                return;
+            }
+
+            Texture2D icon = GetIcon();
+            if (icon == null)
+            {
+                return;
+            }
+
+            // Draw only inside the Hierarchy UI. Do NOT call SetIconForObject on
+            // GameObjects because Unity also renders those object icons as Scene-view gizmos.
+            Rect iconRect = new Rect(selectionRect.x + 16f, selectionRect.y, 16f, 16f);
+            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
+        }
+
+        private static bool IsHierarchyLdtkRoot(GameObject gameObject)
         {
             Component[] components = gameObject.GetComponents<Component>();
             foreach (Component component in components)
             {
-                if (component != null && IsLdtkUnityType(component.GetType()))
+                if (component == null)
                 {
-                    return true;
+                    continue;
+                }
+
+                Type type = component.GetType();
+                if (!IsLdtkUnityType(type))
+                {
+                    continue;
+                }
+
+                foreach (string componentName in HierarchyRootComponentNames)
+                {
+                    if (string.Equals(type.Name, componentName, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
                 }
             }
 

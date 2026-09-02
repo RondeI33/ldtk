@@ -17,13 +17,12 @@ namespace LDTKSmartive.UnityIcons.Editor
         static SmartiveLdtkEditorSurfaceIcons()
         {
             EditorApplication.delayCall += RefreshAll;
-            EditorApplication.projectWindowItemOnGUI += DrawProjectWindowIcon;
             EditorApplication.hierarchyWindowItemOnGUI += DrawHierarchyWindowIcon;
             EditorApplication.projectChanged += QueueRefresh;
             EditorApplication.hierarchyChanged += QueueRefresh;
         }
 
-        [MenuItem("Tools/LDTK-Smartive/Refresh Project + Inspector + Hierarchy icons")]
+        [MenuItem("Tools/LDTK-Smartive/Refresh Inspector + Hierarchy icons")]
         private static void RefreshFromMenu()
         {
             RefreshAll();
@@ -37,7 +36,6 @@ namespace LDTKSmartive.UnityIcons.Editor
         private static void RefreshAll()
         {
             ClearAllLdtkObjectIcons();
-            EditorApplication.RepaintProjectWindow();
             EditorApplication.RepaintHierarchyWindow();
             SceneView.RepaintAll();
 
@@ -45,56 +43,9 @@ namespace LDTKSmartive.UnityIcons.Editor
             EditorApplication.delayCall += () =>
             {
                 ClearAllLdtkObjectIcons();
-                EditorApplication.RepaintProjectWindow();
                 EditorApplication.RepaintHierarchyWindow();
                 SceneView.RepaintAll();
             };
-        }
-
-        private static void DrawProjectWindowIcon(string guid, Rect selectionRect)
-        {
-            if (Event.current.type != EventType.Repaint)
-            {
-                return;
-            }
-
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            if (!SmartiveLdtkAssetIcons.IsSupportedAsset(assetPath))
-            {
-                return;
-            }
-
-            Texture2D icon = SmartiveLdtkAssetIcons.GetIcon();
-            if (icon == null)
-            {
-                return;
-            }
-
-            Rect iconRect;
-            if (selectionRect.height <= 20f)
-            {
-                float size = Mathf.Min(16f, selectionRect.height);
-                iconRect = new Rect(
-                    selectionRect.x,
-                    selectionRect.y + (selectionRect.height - size) * 0.5f,
-                    size,
-                    size);
-            }
-            else
-            {
-                float maxWidth = Mathf.Max(16f, selectionRect.width - 8f);
-                float maxHeight = Mathf.Max(16f, selectionRect.height - 20f);
-                float size = Mathf.Min(64f, Mathf.Min(maxWidth, maxHeight));
-                iconRect = new Rect(
-                    selectionRect.x + (selectionRect.width - size) * 0.5f,
-                    selectionRect.y + 2f,
-                    size,
-                    size);
-            }
-
-            // This is only a Project-browser visual replacement. No icon is assigned
-            // to the imported object, so it cannot create a Scene-view gizmo.
-            GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true);
         }
 
         private static void DrawHierarchyWindowIcon(int instanceId, Rect selectionRect)

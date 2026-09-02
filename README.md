@@ -16,6 +16,16 @@ Links: [Latest Smartive release](https://github.com/RondeI33/ldtk/releases/lates
 
 Download the latest Windows, macOS, or Linux build from the [LDTK-Smartive releases page](https://github.com/RondeI33/ldtk/releases/latest).
 
+## Smartive icons inside Unity
+
+If you use LDtk projects in Unity, install the editor-only Smartive icon package through Unity Package Manager using this Git URL:
+
+```
+https://github.com/RondeI33/ldtk.git?path=/unity/com.rondei33.ldtk-smartive-unity-icons#master
+```
+
+The package keeps the normal LDtkUnity/Cammin importer intact and replaces its old Project-window artwork with the LDTK-Smartive logo for `.ldtk`, `.ldtkl`, and `.ldtka` assets. Existing assets are refreshed automatically; a manual **Tools > LDTK-Smartive > Refresh LDtk asset icons** command is also available.
+
 # Building from source
 
 ## Requirements

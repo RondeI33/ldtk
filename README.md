@@ -121,11 +121,11 @@ https://github.com/deepnight/ldtk/wiki#pull-request-guidelines
 # Related tools & licences
 
  - Tileset images: see [README](app/extraFiles/samples/README.md) in samples
- - Haxe: https://haxe.org
+ - Haxe: https://haxe.org/
  - Heaps.io: https://heaps.io/
  - Electron: https://www.electronjs.org/
  - JQuery: https://jquery.com
- - MarkedJS: https://marked.js.org/
+ - MarkedJS: https://github.com/markedjs/marked
  - SVG icons from https://material.io
  - Default palette: "*Endesga32*" by Endesga (https://lospec.com/palette-list/endesga-32)
  - Default color blind palette: "*Colorblind 16*" by FilipWorks (https://github.com/filipworksdev/colorblind-palette-16)

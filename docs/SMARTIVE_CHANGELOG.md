@@ -1,3 +1,22 @@
+# 1.0.4
+
+## Smartive Unity asset icons
+
+- Added an editor-only Unity package in this repository that applies the LDTK-Smartive logo to `.ldtk`, `.ldtkl`, and `.ldtka` assets in the Unity Project window.
+- The integration runs after asset imports so it replaces the old LDtkUnity/Cammin project-file artwork without replacing or modifying the importer itself.
+- Existing LDtk assets are refreshed automatically when the Unity editor package loads.
+- Added a manual **Tools > LDTK-Smartive > Refresh LDtk asset icons** command.
+- Added a Unity Package Manager Git install path and package documentation to the repository README.
+- The Unity icon package uses the same Smartive logo as the desktop builds.
+- LDtk project JSON compatibility remains `1.5.3`; Smartive application/release versioning remains independent.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+- LDTK-Smartive Unity icon integration package.
+
 # 1.0.3
 
 ## Restore LDtk JSON compatibility

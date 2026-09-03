@@ -17,6 +17,7 @@ class Boot extends hxd.App {
 		misc.AsepriteImportInterceptor.install();
 
 		new App();
+		new misc.SmartiveEditorBridge();
 		ui.ForkStructuredAuthoring.install();
 	}
 

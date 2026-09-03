@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",

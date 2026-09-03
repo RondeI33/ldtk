@@ -18,14 +18,16 @@ class ProjectLoader {
 	var onError : LoadingError->Void;
 	var needReSaving = false;
 	var fixedLevelPaths : Array<String> = [];
+	var strict = false;
 
-	public function new(filePath:String, onLoad, onError) {
+	public function new(filePath:String, onLoad, onError, strict=false) {
 		log = new dn.Log();
 		log.tagColors.set(tag, "#ff43b7");
 		log.onAdd = (e)->App.LOG.addLogEntry(e);
 
 		this.onLoad = onLoad;
 		this.onError = onError;
+		this.strict = strict;
 		var fp = dn.FilePath.fromFile(filePath);
 		var fileName = fp.fileWithExt;
 
@@ -105,6 +107,19 @@ class ProjectLoader {
 							null;
 						}
 						#end
+					if( p!=null && strict ) {
+						// ForkConfig.load() is intentionally forgiving for normal interactive opening.
+						// Reload must be atomic, so validate the sidecar immediately before loading it.
+						var sidecar = p.forkConfig.getPath();
+						if( NT.fileExists(sidecar) ) {
+							try haxe.Json.parse( NT.readFileString(sidecar) )
+							catch(err:Dynamic) {
+								p = null;
+								error( ProjectInit('Invalid fork sidecar "$sidecar": '+Std.string(err)) );
+								return;
+							}
+						}
+					}
 					if( p!=null )
 						p.forkConfig.load();
 			}
@@ -114,6 +129,8 @@ class ProjectLoader {
 		progress.addOp({
 			label: "Loading levels...",
 			cb: ()->{
+				if( p==null )
+					return;
 				if( p.externalLevels ) {
 					var extPath = p.makeAbsoluteFilePath( p.getRelExternalFilesDir() );
 					if( !NT.fileExists(extPath) ) {
@@ -122,14 +139,22 @@ class ProjectLoader {
 						return;
 					}
 
+					var levelProgress : ui.modal.Progress = null;
+
 					// Load external level files
 					function _failedLevel(w:data.World, idx:Int, err:String) {
 						log.error(err);
+						if( strict ) {
+							if( levelProgress!=null )
+								levelProgress.cancel();
+							error( ProjectInit(err) );
+							return;
+						}
 						w.levels.splice(idx,1);
 						w.createLevel(idx);
 					}
 
-					var levelProgress = new ui.modal.Progress(L.t._("::file::: Levels...", {file:fileName}), ()->done(p));
+					levelProgress = new ui.modal.Progress(L.t._("::file::: Levels...", {file:fileName}), null, ()->done(p));
 					log.add(tag, "Loading external levels...");
 					for(w in p.worlds) {
 						var idx = 0;
@@ -163,7 +188,7 @@ class ProjectLoader {
 										w.levels[curIdx] = l;
 									}
 									catch(e:Dynamic) {
-										_failedLevel(w, curIdx, "Error while parsing level file "+l.externalRelPath);
+										_failedLevel(w, curIdx, "Error while parsing level file "+l.externalRelPath+": "+Std.string(e));
 									}
 								}
 							});
@@ -181,13 +206,17 @@ class ProjectLoader {
 		// Init quick level access
 		progress.addOp({
 			label: "Init quick level access...",
-			cb: ()->p.resetQuickLevelAccesses(),
+			cb: ()->if( p!=null ) p.resetQuickLevelAccesses(),
 		});
 
 	}
 
 
 	function done(p:data.Project) {
+		// External levels replace the lightweight level objects after the outer progress ran,
+		// so refresh IID/UID lookup maps again before exposing the completed project.
+		p.resetQuickLevelAccesses();
+
 		if( needReSaving ) {
 			log.add(tag, "Project file was created using an older version of LDtk, re-saving is recommended to upgrade it.");
 			for(w in p.worlds)

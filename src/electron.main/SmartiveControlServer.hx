@@ -87,10 +87,9 @@ class SmartiveControlServer {
 	static function sendJson(res:Dynamic, status:Int, payload:Dynamic) {
 		if( res==null )
 			return;
-		var body = Std.isOfType(payload,String) ? cast payload : haxe.Json.stringify(payload);
+		var body : String = Std.isOfType(payload,String) ? cast payload : haxe.Json.stringify(payload);
 		res.writeHead(status, {
 			"Content-Type": "application/json; charset=utf-8",
-			"Content-Length": untyped __js__("Buffer.byteLength")(body),
 		});
 		res.end(body);
 	}

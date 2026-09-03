@@ -1,6 +1,7 @@
 private typedef PendingControlRequest = {
 	var response : Dynamic;
 	var timer : haxe.Timer;
+	var promptOnUnsaved : Bool;
 }
 
 class SmartiveControlServer {
@@ -108,8 +109,18 @@ class SmartiveControlServer {
 				sendJson(p.response, 500, { error:"editor response timeout" });
 			}
 		}, 29000);
-		pending.set(id, { response:res, timer:timer });
-		mainWindow.webContents.send("smartiveControlRequest", id, kind, force);
+
+		// `force:true` from automation is intentionally NOT allowed to discard editor state.
+		// It is downgraded to the normal safe reload request. If that request is refused
+		// because the editor is dirty, completeRendererRequest opens the same confirmation
+		// dialog as the human File > Reload action.
+		var promptOnUnsaved = kind=="reload" && force;
+		pending.set(id, {
+			response: res,
+			timer: timer,
+			promptOnUnsaved: promptOnUnsaved,
+		});
+		mainWindow.webContents.send("smartiveControlRequest", id, kind, promptOnUnsaved ? false : force);
 	}
 
 	public static function completeRendererRequest(id:Int, status:Int, json:String) {
@@ -120,6 +131,16 @@ class SmartiveControlServer {
 		p.timer.stop();
 		if( json==null || json.length==0 )
 			json = haxe.Json.stringify({ error:"empty editor response" });
+
+		if( p.promptOnUnsaved && status==200 && mainWindow!=null && !mainWindow.isDestroyed() ) {
+			try {
+				var payload : Dynamic = haxe.Json.parse(json);
+				if( Reflect.field(payload,"reloaded")==false && Reflect.field(payload,"refused")=="unsavedChanges" )
+					mainWindow.webContents.send("smartiveManualReload");
+			}
+			catch(_:Dynamic) {}
+		}
+
 		sendJson(p.response, status, json);
 	}
 

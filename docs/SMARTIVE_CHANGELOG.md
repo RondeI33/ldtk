@@ -1,3 +1,24 @@
+# 1.0.5
+
+## Reload project from disk
+
+- Added a per-process HTTP control server bound only to `127.0.0.1` on an ephemeral port, with a random 32-byte token and per-PID control file under `~/.ldtk-smartive/control/`.
+- Added the `GET /status` and `POST /reload` contract used by `ldtk-mcp`. Dirty projects still return `refused: "unsavedChanges"`; an MCP `force:true` request can no longer silently discard editor state and instead triggers the in-editor **Save and reload / Discard and reload / Cancel** dialog.
+- Added atomic project reload using the normal project loader, including external `.ldtkl` levels and the Smartive `.ldtk-fork.json` sidecar.
+- Added strict reload validation so a missing or malformed external level/sidecar aborts the reload without replacing the project currently open in the editor.
+- Reload preserves the selected world/level, layer, world depth, camera position/zoom, world-view mode, and existing layer-tool/palette state when those objects still exist.
+- Reload clears stale level undo/redo timelines by going through the normal project-selection initialization path.
+- Added **File > Reload project from disk** with `Ctrl/Cmd + Shift + R`; `Ctrl/Cmd + R` remains the Electron window reload shortcut.
+- Added a three-way unsaved-changes dialog: **Save and reload / Discard and reload / Cancel**, with Cancel focused by default.
+- Added debounced project-file watching for `.ldtk`, external `.ldtkl`, and `.ldtk-fork.json`, with own-save suppression and a non-invasive Reload/Ignore warning banner.
+- Added `LDTK_SMARTIVE_CONTROL_DIR` support for isolated control-server tests.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.4
 
 ## Smartive Unity asset icons

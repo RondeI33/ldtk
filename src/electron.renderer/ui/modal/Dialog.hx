@@ -63,7 +63,7 @@ class Dialog extends ui.Modal {
 	}
 
 
-	public function addButton(label:LocaleString, ?className:String, cb:Void->Void) : js.jquery.JQuery {
+	public function addButton(label:Dynamic, ?className:String, cb:Void->Void) : js.jquery.JQuery {
 		var b = new J("<button/>");
 		jButtons.show().append(b);
 		b.attr("type","button");

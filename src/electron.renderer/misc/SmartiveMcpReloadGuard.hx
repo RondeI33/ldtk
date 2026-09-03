@@ -51,7 +51,7 @@ class SmartiveMcpReloadGuard {
 		var dialog = new ui.modal.Dialog(null,"smartiveReloadProject");
 		dialog.jContent.text("An external tool requested a project reload, but the editor has unsaved changes. What do you want to do?");
 
-		dialog.addButton("Save and reload","save",function() {
+		dialog.addButton(L.t._("Save and reload"),"save",function() {
 			dialog.close();
 			ed.onSave(false,null,function() {
 				if( page.Editor.ME!=ed || ed.destroyed ) {
@@ -66,7 +66,7 @@ class SmartiveMcpReloadGuard {
 			});
 		});
 
-		dialog.addButton("Discard and reload","warning",function() {
+		dialog.addButton(L.t._("Discard and reload"),"warning",function() {
 			dialog.close();
 			if( page.Editor.ME!=ed || ed.destroyed )
 				reply(requestId,409,{ error:"no project open" });
@@ -74,7 +74,7 @@ class SmartiveMcpReloadGuard {
 				performReload(requestId,ed);
 		});
 
-		var cancel = dialog.addButton("Cancel","cancel",function() {
+		var cancel = dialog.addButton(L.t._("Cancel"),"cancel",function() {
 			dialog.close();
 			refusedUnsaved(requestId,path);
 		});

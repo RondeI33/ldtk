@@ -368,7 +368,7 @@ class SmartiveEditorBridge extends dn.Process {
 					callback(false,"Failed to activate reloaded project: "+Std.string(err));
 				}
 			},
-			function(err:ui.LoadingError) {
+			function(err:ui.ProjectLoader.LoadingError) {
 				reloadInProgress = false;
 				suppressDiskChangesUntil = haxe.Timer.stamp()+1.0;
 				callback(false,loadingErrorToString(err));
@@ -389,7 +389,7 @@ class SmartiveEditorBridge extends dn.Process {
 		callback(true,null);
 	}
 
-	static function loadingErrorToString(err:ui.LoadingError) {
+	static function loadingErrorToString(err:ui.ProjectLoader.LoadingError) {
 		return switch err {
 			case ProjectNotFound: "project file not found";
 			case ExternalDirMissing(relPath): 'external level directory missing: $relPath';

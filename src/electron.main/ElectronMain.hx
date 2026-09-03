@@ -157,7 +157,7 @@ class ElectronMain {
 
 	static function enableAppMenu() {
 		var fileSubmenu : Array<Dynamic> = [];
-		fileSubmenu.push({
+		fileSubmenu.push(cast {
 			label: "Reload project from disk",
 			accelerator: "CmdOrCtrl+Shift+R",
 			click: function() {
@@ -165,11 +165,11 @@ class ElectronMain {
 					mainWindow.webContents.send("smartiveManualReload");
 			},
 		});
-		fileSubmenu.push({ type:"separator" });
-		fileSubmenu.push({ role:"quit" });
+		fileSubmenu.push(cast { type:"separator" });
+		fileSubmenu.push(cast { role:"quit" });
 
 		var viewSubmenu : Array<Dynamic> = [];
-		viewSubmenu.push({
+		viewSubmenu.push(cast {
 			label: "Reload window",
 			accelerator: "CmdOrCtrl+R",
 			click: function() {
@@ -178,7 +178,7 @@ class ElectronMain {
 			},
 		});
 		#if debug
-		viewSubmenu.push({
+		viewSubmenu.push(cast {
 			label: "Dev tools",
 			click: function() mainWindow.webContents.toggleDevTools(),
 			accelerator: "CmdOrCtrl+Shift+I",
@@ -186,10 +186,10 @@ class ElectronMain {
 		#end
 
 		var template : Array<Dynamic> = [
-			{ label:"File", submenu:fileSubmenu },
-			{ label:"View", submenu:viewSubmenu },
+			cast { label:"File", submenu:fileSubmenu },
+			cast { label:"View", submenu:viewSubmenu },
 		];
 
-		mainWindow.setMenu( electron.main.Menu.buildFromTemplate(template) );
+		mainWindow.setMenu( electron.main.Menu.buildFromTemplate(cast template) );
 	}
 }

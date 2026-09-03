@@ -156,42 +156,38 @@ class ElectronMain {
 
 
 	static function enableAppMenu() {
+		var fileSubmenu : Array<Dynamic> = [];
+		fileSubmenu.push({
+			label: "Reload project from disk",
+			accelerator: "CmdOrCtrl+Shift+R",
+			click: function() {
+				if( mainWindow!=null )
+					mainWindow.webContents.send("smartiveManualReload");
+			},
+		});
+		fileSubmenu.push({ type:"separator" });
+		fileSubmenu.push({ role:"quit" });
+
+		var viewSubmenu : Array<Dynamic> = [];
+		viewSubmenu.push({
+			label: "Reload window",
+			accelerator: "CmdOrCtrl+R",
+			click: function() {
+				if( mainWindow!=null )
+					mainWindow.reload();
+			},
+		});
+		#if debug
+		viewSubmenu.push({
+			label: "Dev tools",
+			click: function() mainWindow.webContents.toggleDevTools(),
+			accelerator: "CmdOrCtrl+Shift+I",
+		});
+		#end
+
 		var template : Array<Dynamic> = [
-			{
-				label: "File",
-				submenu: cast [
-					{
-						label: "Reload project from disk",
-						accelerator: "CmdOrCtrl+Shift+R",
-						click: function() {
-							if( mainWindow!=null )
-								mainWindow.webContents.send("smartiveManualReload");
-						},
-					},
-					{ type:"separator" },
-					{ role:"quit" },
-				]
-			},
-			{
-				label: "View",
-				submenu: cast [
-					{
-						label: "Reload window",
-						accelerator: "CmdOrCtrl+R",
-						click: function() {
-							if( mainWindow!=null )
-								mainWindow.reload();
-						},
-					},
-					#if debug
-					{
-						label: "Dev tools",
-						click: function() mainWindow.webContents.toggleDevTools(),
-						accelerator: "CmdOrCtrl+Shift+I",
-					},
-					#end
-				]
-			},
+			{ label:"File", submenu:fileSubmenu },
+			{ label:"View", submenu:viewSubmenu },
 		];
 
 		mainWindow.setMenu( electron.main.Menu.buildFromTemplate(template) );

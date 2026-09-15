@@ -1,3 +1,23 @@
+# 1.0.6
+
+## Neighbour-driven entity appearance
+
+- Added structured **Auto orientation from IntGrid neighbours** controls for existing appearance rules; no raw sidecar JSON is required.
+- Appearance rules can now resolve from **Floor**, **Ceiling**, **Left wall**, **Right wall**, **Background wall**, or **Air**.
+- Added deterministic priority when multiple surfaces are valid: **Floor → Ceiling → Left → Right → Background → Air**.
+- Neighbour checks can target a chosen IntGrid layer and either any non-empty value or one specific IntGrid value.
+- The winning rule writes its normal field/value condition into the entity instance, so exported `.ldtk` data and Unity importers can read the resolved orientation without understanding Smartive-only metadata.
+- Entity position is never snapped or moved by this system. Moving an entity away from a surface leaves it where it was placed and allows an optional **Air** rule to become active.
+- Neighbour probes use the authored entity rectangle rather than appearance-overridden size/pivot values, preventing sprite variants from feeding back into their own attachment detection.
+- Resolution is limited to the active level and uses cached per-entity results; appearance layers are invalidated only when the resolved rule changes.
+- Existing field-driven appearance rules remain compatible and continue to use the same Smartive sidecar format.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.5
 
 ## Reload project from disk

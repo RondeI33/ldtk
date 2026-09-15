@@ -92,6 +92,23 @@ class NeighbourAppearanceAuthoring {
 		return out;
 	}
 
+	static function hideManagedRulesInGenericEditor(jRoot:js.jquery.JQuery, ed:data.def.EntityDef) {
+		// The generic Smartive editor still owns ordinary appearance overrides. These five
+		// generated rules are intentionally authored only through this dedicated panel, so
+		// hide their corresponding generic cards while leaving all manual rules untouched.
+		var sections = jRoot.find("section");
+		for(si in 0...sections.length) {
+			var section = sections.eq(si);
+			if( section.find("h3").first().text()!="Sprite / appearance overrides" )
+				continue;
+			var cards = section.children("div");
+			for(i in 0...ed.appearanceOverrides.length)
+				if( i<cards.length && isManaged(ed.appearanceOverrides[i]) )
+					cards.eq(i).hide();
+			return;
+		}
+	}
+
 	static function findRule(ed:data.def.EntityDef, probe:String) : Dynamic {
 		for(rule in ed.appearanceOverrides) {
 			var cfg = getDyn(rule,misc.NeighbourAppearanceRuntime.META_FIELD);
@@ -331,6 +348,7 @@ class NeighbourAppearanceAuthoring {
 		section.append('<p class="help">Automatically selects a sprite variant from nearby IntGrid geometry. It <strong>never snaps or moves the entity</strong>: away from side/floor/ceiling contact it stays exactly where placed and uses the background/floating variant.</p>');
 
 		var rules = getManagedRules(ed);
+		hideManagedRulesInGenericEditor(jRoot,ed);
 		if( rules.length==0 ) {
 			var layers = getIntGridDefs();
 			if( layers.length==0 )

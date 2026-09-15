@@ -1,3 +1,25 @@
+# 1.0.6
+
+## Auto surface appearance from IntGrid neighbours
+
+- Added a dedicated **Auto surface appearance** authoring section for entity definitions; no raw fork JSON is required.
+- Added five automatic visual states: **Background wall / floating**, **Left wall**, **Right wall**, **Ceiling**, and **Floor**.
+- The resolver samples a selected IntGrid layer and chooses the visual from real edge contact with the entity's authored bounds.
+- The feature never snaps, moves, or repositions entities. An entity placed away from floor, ceiling, or side-wall contact stays exactly where it was placed and uses the background/floating visual.
+- Added optional filtering of which non-zero IntGrid values count as solid geometry; with no values selected, every non-zero IntGrid value counts.
+- Added dedicated tileset/tile pickers for all five visual variants while continuing to use the existing `appearanceOverrides` rendering pipeline.
+- Managed neighbour rules are hidden from the generic appearance-rule editor so they are edited only in the dedicated surface UI; manually authored appearance overrides remain available there.
+- Added deterministic overlap handling: the edge with the strongest contact wins; exact ties resolve as Floor → Ceiling → Left wall → Right wall.
+- The resolved state is written to a normal LDtk enum field named `SmartiveSurface` (or a compatible suffixed name when necessary), so Unity and other stock LDtk importers can read the result.
+- Fork-only neighbour configuration remains in `<project>.ldtk-fork.json`; no Smartive-only keys are injected into stock `.ldtk` project JSON.
+- Resolution is limited to entities in the currently active level and refreshes automatically while editing, including after entity movement or IntGrid changes.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.5
 
 ## Reload project from disk

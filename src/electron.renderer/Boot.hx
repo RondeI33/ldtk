@@ -20,6 +20,8 @@ class Boot extends hxd.App {
 		var smartiveBridge : Dynamic = new misc.SmartiveEditorBridge();
 		new misc.SmartiveMcpReloadGuard(smartiveBridge);
 		ui.ForkStructuredAuthoring.install();
+		misc.NeighbourAppearanceRuntime.install();
+		ui.NeighbourAppearanceAuthoring.install();
 	}
 
 	override function update(deltaTime:Float) {

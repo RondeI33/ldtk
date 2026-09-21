@@ -1,3 +1,19 @@
+# 1.0.10
+
+## Linked AutoLayer selection preview
+
+- Completed multi-layer drag preview for projects where an **IntGrid** layer drives one or more separate **AutoLayer** layers.
+- Dragging a selection now renders the linked AutoLayer tiles from their existing auto-tile cache instead of showing only the IntGrid cell-color/gray rectangle.
+- Linked AutoLayer preview respects normal layer visibility and uses the same `LayerRender` auto-tile rendering helper as the scene.
+- Retains the 1.0.9 multi-layer flip behavior: selected manual **Tiles** and **IntGrid** cells are mirrored together around one shared selection axis.
+- Existing `C_FlipX` / `C_FlipY` commands and all user-customized shortcut mappings remain unchanged.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.9
 
 ## Full multi-layer scene flip and visual drag preview

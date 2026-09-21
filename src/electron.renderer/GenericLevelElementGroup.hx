@@ -275,7 +275,20 @@ class GenericLevelElementGroup {
 		}
 
 		function getTileGhostGroup(li:data.inst.LayerInstance, td:data.def.TilesetDef) : Null<h2d.TileGroup> {
-			if( td==null || !td.isAtlasLoaded() )
+			if( td==null )
+				return null;
+
+			// A non-active layer can be visible/selected before its atlas has been
+			// touched by the active tool. Force the same project image cache load
+			// here so multi-layer preview does not degrade to a gray fallback.
+			if( !td.isAtlasLoaded() ) {
+				if( td.embedAtlas!=null )
+					editor.project.getOrLoadEmbedImage(td.embedAtlas);
+				else if( td.relPath!=null )
+					editor.project.getOrLoadImage(td.relPath);
+			}
+
+			if( !td.isAtlasLoaded() )
 				return null;
 
 			if( !tileGroups.exists(li.layerDefUid) )

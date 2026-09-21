@@ -852,6 +852,123 @@ class GenericLevelElementGroup {
 	}
 
 
+	public function hasFlippableTiles() {
+		for(ge in elements)
+			switch ge {
+				case GridCell(li, cx, cy):
+					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) )
+						return true;
+
+				case _:
+			}
+		return false;
+	}
+
+
+	public function flipSelectedTiles(horizontal:Bool) : Array<data.inst.LayerInstance> {
+		var layerBounds : Map<Int,Dynamic> = new Map();
+
+		// Build independent bounds for every tile layer represented in the
+		// selection. This preserves the scene-authored arrangement instead of
+		// reconstructing it from tileset source positions.
+		for(ge in elements)
+			switch ge {
+				case GridCell(li, cx, cy):
+					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
+						var key = li.layerDefUid;
+						var b = layerBounds.get(key);
+						if( b==null )
+							layerBounds.set(key, {
+								minCx: cx,
+								maxCx: cx,
+								minCy: cy,
+								maxCy: cy,
+							});
+						else {
+							b.minCx = M.imin(b.minCx, cx);
+							b.maxCx = M.imax(b.maxCx, cx);
+							b.minCy = M.imin(b.minCy, cy);
+							b.maxCy = M.imax(b.maxCy, cy);
+						}
+					}
+
+				case _:
+			}
+
+		var flipBit = horizontal ? 1 : 2;
+		var pending : Array<Dynamic> = [];
+
+		// Snapshot first so swapping/mirroring cells cannot destroy source data.
+		for(i in 0...elements.length)
+			switch elements[i] {
+				case GridCell(li, cx, cy):
+					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
+						var b = layerBounds.get(li.layerDefUid);
+						var targetCx = horizontal ? b.minCx+b.maxCx-cx : cx;
+						var targetCy = horizontal ? cy : b.minCy+b.maxCy-cy;
+						var tiles = [
+							for(t in li.getGridTileStack(cx,cy))
+								{ tileId:t.tileId, flips:t.flips }
+						];
+
+						pending.push({
+							elementIdx: i,
+							li: li,
+							cx: cx,
+							cy: cy,
+							targetCx: targetCx,
+							targetCy: targetCy,
+							tiles: tiles,
+						});
+					}
+
+				case _:
+			}
+
+		if( pending.length==0 )
+			return [];
+
+		var changedLayers : Map<Int,data.inst.LayerInstance> = new Map();
+
+		// Remove every source cell before inserting mirrored cells, otherwise
+		// symmetric positions would overwrite one another.
+		for(c in pending) {
+			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
+			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			c.li.removeAllGridTiles(c.cx, c.cy, false);
+			changedLayers.set(c.li.layerDefUid, c.li);
+		}
+
+		for(c in pending) {
+			var stack : Array<Dynamic> = c.tiles;
+			var stacking = stack.length>1 || App.ME.settings.v.tileStacking;
+			for(t in stack)
+				c.li.addGridTile(
+					c.targetCx,
+					c.targetCy,
+					t.tileId,
+					t.flips ^ flipBit,
+					stacking,
+					false
+				);
+
+			elements[c.elementIdx] = GridCell(c.li, c.targetCx, c.targetCy);
+		}
+
+		var affectedLayers = [];
+		for(li in changedLayers) {
+			editor.ge.emit( LayerInstanceChangedGlobally(li) );
+			editor.levelRender.invalidateLayer(li);
+			affectedLayers.push(li);
+		}
+
+		clearGhost();
+		invalidateBounds();
+		invalidateSelectRender();
+		return affectedLayers;
+	}
+
+
 	@:allow(tool.SelectionTool)
 	function decrementAllFieldArrayIdxAbove(f:data.inst.FieldInstance, above:Int) {
 		for(i in 0...elements.length)

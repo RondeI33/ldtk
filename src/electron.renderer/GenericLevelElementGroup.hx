@@ -260,6 +260,36 @@ class GenericLevelElementGroup {
 			return tileGroups.get(li.layerDefUid);
 		}
 
+		function renderAutoTilesAt(li:data.inst.LayerInstance, cx:Int, cy:Int) : Bool {
+			if( li==null || !editor.levelRender.isLayerVisible(li) || !li.def.isAutoLayer() || !li.isValid(cx,cy) )
+				return false;
+
+			var td = li.getTilesetDef();
+			if( td==null || !td.isAtlasLoaded() )
+				return false;
+
+			if( li.autoTilesCache==null )
+				li.applyAllRules();
+
+			var tg = getTileGhostGroup(li, td);
+			if( tg==null || li.autoTilesCache==null )
+				return false;
+
+			var rendered = false;
+			var coordId = li.coordId(cx,cy);
+			li.def.iterateActiveRulesInDisplayOrder(li, (r)->{
+				if( li.autoTilesCache.exists(r.uid) ) {
+					var byCoord = li.autoTilesCache.get(r.uid);
+					if( byCoord.exists(coordId) )
+						for(tileInfos in byCoord.get(coordId)) {
+							display.LayerRender.renderAutoTileInfos(li, td, tileInfos, tg, false);
+							rendered = true;
+						}
+				}
+			});
+			return rendered;
+		}
+
 		for(ge in elements) {
 			switch ge {
 				case null:
@@ -268,32 +298,16 @@ class GenericLevelElementGroup {
 					if( li.hasAnyGridValue(cx,cy) )
 						switch li.def.type {
 							case IntGrid:
-								var td = li.getTilesetDef();
-								var renderedAutoTiles = false;
+								// Render both auto-rules owned by the IntGrid itself and any
+								// separate visible AutoLayer that uses this IntGrid as source.
+								// The latter is the common case where the old drag ghost was
+								// only a solid IntGrid/gray rectangle.
+								var renderedAutoTiles = renderAutoTilesAt(li, cx, cy);
+								for(other in editor.curLevel.layerInstances)
+									if( other!=li && other.def.type==AutoLayer && other.def.autoSourceLayerDefUid==li.layerDefUid )
+										renderedAutoTiles = renderAutoTilesAt(other, cx, cy) || renderedAutoTiles;
 
-								// If this IntGrid drives auto-tiles, render the exact cached
-								// visual result for this selected source cell.
-								if( li.def.isAutoLayer() && td!=null && td.isAtlasLoaded() ) {
-									if( li.autoTilesCache==null )
-										li.applyAllRules();
-
-									var tg = getTileGhostGroup(li, td);
-									if( tg!=null && li.autoTilesCache!=null ) {
-										var coordId = li.coordId(cx,cy);
-										li.def.iterateActiveRulesInDisplayOrder(li, (r)->{
-											if( li.autoTilesCache.exists(r.uid) ) {
-												var byCoord = li.autoTilesCache.get(r.uid);
-												if( byCoord.exists(coordId) )
-													for(tileInfos in byCoord.get(coordId)) {
-														display.LayerRender.renderAutoTileInfos(li, td, tileInfos, tg, false);
-														renderedAutoTiles = true;
-													}
-											}
-										});
-									}
-								}
-
-								// Plain IntGrid layers still use their authored cell color.
+								// Truly plain IntGrid layers still use their authored cell color.
 								if( !renderedAutoTiles ) {
 									ghost.lineStyle();
 									ghost.beginFill( li.getIntGridColorAt(cx,cy) );

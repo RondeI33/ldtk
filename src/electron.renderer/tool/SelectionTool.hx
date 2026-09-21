@@ -280,13 +280,15 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function onMouseMove(ev:hxd.Event, m:Coords) {
-		super.onMouseMove(ev,m);
-
-		// Start moving elements only after a small elapsed mouse distance
+		// Start moving before Tool.onMouseMove() calls useAt(). This makes the
+		// first movement event past the drag threshold render the selection ghost
+		// immediately instead of waiting for another mouse-move event.
 		if( isRunning() && button==0 && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
 			group.onMoveStart();
 			moveStarted = true;
 		}
+
+		super.onMouseMove(ev,m);
 
 		if( isRunning() )
 			ev.cancel = true;

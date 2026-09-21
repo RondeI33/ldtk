@@ -1,3 +1,20 @@
+# 1.0.7
+
+## Flip copied scene selections
+
+- Tile groups selected directly in the level scene can now use the existing horizontal and vertical flip commands, matching the workflow available for tiles picked from a tileset.
+- Scene-selection flips mirror the selected tile layout in place and toggle the corresponding per-tile flip bits, so copied arrangements keep the expected visual orientation.
+- Tile stacks are preserved and the flipped selection remains selected after the operation.
+- Selection flips are recorded in the normal level history, so Undo/Redo continues to work.
+- Existing `C_FlipX` and `C_FlipY` commands are reused without changing their bindings, preserving user-customized shortcuts.
+- When no flippable scene selection is active, the existing tileset/spritesheet flip behavior is unchanged.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.6
 
 ## Neighbour-driven entity appearance

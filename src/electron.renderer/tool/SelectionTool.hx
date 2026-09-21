@@ -5,6 +5,8 @@ class SelectionTool extends Tool<Int> {
 	var startedOverSelecton = false;
 	var movePreview : h2d.Graphics;
 	var isCopy = false;
+	var dragFlipX = false;
+	var dragFlipY = false;
 	var group : GenericLevelElementGroup;
 
 	public function new() {
@@ -222,6 +224,9 @@ class SelectionTool extends Tool<Int> {
 
 	override function startUsing(ev:hxd.Event, m:Coords, ?extraParam:String) {
 		isCopy = App.ME.isCtrlCmdDown() && App.ME.isAltDown();
+		dragFlipX = false;
+		dragFlipY = false;
+		group.resetGhostFlip();
 		moveStarted = false;
 		startedOverSelecton = false;
 		editor.clearSpecialTool();
@@ -300,21 +305,30 @@ class SelectionTool extends Tool<Int> {
 	}
 
 
-	public inline function canFlipSelection() return !isRunning() && group.hasFlippableGridContent();
+	public inline function canFlipSelection() return group.hasFlippableGridContent() && ( !isRunning() || moveStarted );
 
 	override function onAppCommand(cmd:AppCommand) {
 		super.onAppCommand(cmd);
-
-		if( !canFlipSelection() )
-			return;
 
 		var horizontal : Null<Bool> = switch cmd {
 			case C_FlipX: true;
 			case C_FlipY: false;
 			case _: null;
 		}
-		if( horizontal==null )
+		if( horizontal==null || !canFlipSelection() )
 			return;
+
+		// While actively dragging, flip only the live ghost. The actual level
+		// data is transformed at drop time so move/copy + Undo remain atomic.
+		if( isRunning() && moveStarted ) {
+			if( horizontal )
+				dragFlipX = !dragFlipX;
+			else
+				dragFlipY = !dragFlipY;
+
+			group.setGhostFlip(dragFlipX, dragFlipY);
+			return;
+		}
 
 		var changedLayers = group.flipSelectedGridContent(horizontal);
 		if( changedLayers.length>0 ) {
@@ -323,7 +337,6 @@ class SelectionTool extends Tool<Int> {
 			N.quick(horizontal ? "Selection X-flipped" : "Selection Y-flipped");
 		}
 	}
-
 
 	override function onKeyPress(keyId:Int) {
 		super.onKeyPress(keyId);
@@ -383,8 +396,11 @@ class SelectionTool extends Tool<Int> {
 		super.stopUsing(m);
 
 		movePreview.clear();
-		if( moveStarted )
+		if( moveStarted ) {
 			group.onMoveEnd();
+			dragFlipX = false;
+			dragFlipY = false;
+		}
 		else {
 			if( startedOverSelecton && group.isOveringSelection(m) ) {
 				// Extend selection when re-selecting entity/points
@@ -414,12 +430,27 @@ class SelectionTool extends Tool<Int> {
 		if( any() && isRunning() && moveStarted ) {
 			// Moving a selection
 			if( isOnStop ) {
-				// Move actual data
+				// Move/copy actual data first.
 				var changedLayers = group.moveSelecteds(origin, m, isCopy);
+
+				function addChanged(lis:Array<data.inst.LayerInstance>) {
+					for(li in lis)
+						if( changedLayers.indexOf(li)<0 )
+							changedLayers.push(li);
+				}
+
+				// Commit the same transient flips that were shown by the live ghost.
+				// For copies this transforms the new copy only; the source stays intact.
+				if( dragFlipX )
+					addChanged( group.flipSelectedGridContent(true) );
+				if( dragFlipY )
+					addChanged( group.flipSelectedGridContent(false) );
+
 				for(li in changedLayers)
 					if( li!=curLayerInstance )
 						editor.levelRender.invalidateLayer(li); // cur is invalidated by Tool
-				editor.curLevelTimeline.saveLayerStates(changedLayers);
+				if( changedLayers.length>0 )
+					editor.curLevelTimeline.saveLayerStates(changedLayers);
 				editor.invalidateResizeTool();
 
 				return changedLayers.length>0;

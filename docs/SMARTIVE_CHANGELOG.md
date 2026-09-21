@@ -1,3 +1,22 @@
+# 1.0.12
+
+## Flip scene selections while dragging
+
+- `X` and `Y` can now be used while a scene selection is actively being held and dragged.
+- Pressing a flip command updates the live multi-layer ghost immediately without mutating the level underneath the cursor.
+- Releasing the mouse first moves/copies the selection and then commits the same queued horizontal/vertical flips to the dropped selection.
+- Copy-drag + flip transforms only the new copy; the original selection remains unchanged.
+- Move/copy plus any live X/Y flips are stored as one Undo/Redo history operation.
+- Pressing the same axis again while still dragging toggles that temporary flip back off.
+- Existing `C_FlipX` / `C_FlipY` commands are reused, so default and user-customized shortcut mappings are unchanged.
+- Retains the 1.0.11 multi-layer ghost sorting, overlay suppression, and inactive-atlas loading fixes.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.11
 
 ## Multi-layer selection ghost sorting fix

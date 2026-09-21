@@ -1,3 +1,21 @@
+# 1.0.9
+
+## Full multi-layer scene flip and visual drag preview
+
+- Scene-selection X/Y flip now transforms both manual **Tiles** cells and selected **IntGrid** cells, so chunks spanning tile layers and auto-layer source layers flip as one selection.
+- IntGrid values are mirrored spatially and their auto-layer output is regenerated through the normal LDtk layer invalidation path.
+- Manual tile cells continue to toggle their native horizontal/vertical flip bits while moving to their mirrored positions.
+- Drag preview for IntGrid-backed auto-layers now renders the actual cached auto-tiles instead of the old solid cell-color/gray rectangle.
+- Manual tile drag preview now uses the same `LayerRender` tile rendering helper as the scene for consistent pivots, flips, and layer scaling.
+- The existing immediate drag-preview fix from 1.0.8 remains in place.
+- Existing `C_FlipX` and `C_FlipY` commands are reused; shortcut mappings and user customizations are not changed.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.8
 
 ## Multi-layer selection flip and drag preview fixes

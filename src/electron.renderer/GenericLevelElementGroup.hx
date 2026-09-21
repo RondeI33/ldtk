@@ -238,6 +238,28 @@ class GenericLevelElementGroup {
 	function renderGhost() {
 		clearGhost();
 
+		// Tile/auto-tile ghost groups use the same rendering helpers as the
+		// actual layer renderer. This avoids the old IntGrid color-box preview
+		// and keeps pivots, flips and layer scaling consistent with the scene.
+		var tileRoots : Map<Int,h2d.Object> = new Map();
+		var tileGroups : Map<Int,h2d.TileGroup> = new Map();
+
+		function getTileGhostGroup(li:data.inst.LayerInstance, td:data.def.TilesetDef) : Null<h2d.TileGroup> {
+			if( td==null || !td.isAtlasLoaded() )
+				return null;
+
+			if( !tileGroups.exists(li.layerDefUid) ) {
+				var layerRoot = new h2d.Object(ghost);
+				var scale = li.def.getScale();
+				layerRoot.x = li.pxParallaxX - bounds.left - li.pxTotalOffsetX*scale;
+				layerRoot.y = li.pxParallaxY - bounds.top - li.pxTotalOffsetY*scale;
+				layerRoot.setScale(scale);
+				tileRoots.set(li.layerDefUid, layerRoot);
+				tileGroups.set(li.layerDefUid, new h2d.TileGroup(td.getAtlasTile(), layerRoot));
+			}
+			return tileGroups.get(li.layerDefUid);
+		}
+
 		for(ge in elements) {
 			switch ge {
 				case null:
@@ -246,26 +268,62 @@ class GenericLevelElementGroup {
 					if( li.hasAnyGridValue(cx,cy) )
 						switch li.def.type {
 							case IntGrid:
-								ghost.lineStyle();
-								ghost.beginFill( li.getIntGridColorAt(cx,cy) );
-								ghost.drawRect(
-									li.pxParallaxX + cx*li.def.scaledGridSize - bounds.left,
-									li.pxParallaxY + cy*li.def.scaledGridSize - bounds.top,
-									li.def.scaledGridSize,
-									li.def.scaledGridSize
-								);
-								ghost.endFill();
+								var td = li.getTilesetDef();
+								var renderedAutoTiles = false;
+
+								// If this IntGrid drives auto-tiles, render the exact cached
+								// visual result for this selected source cell.
+								if( li.def.isAutoLayer() && td!=null && td.isAtlasLoaded() ) {
+									if( li.autoTilesCache==null )
+										li.applyAllRules();
+
+									var tg = getTileGhostGroup(li, td);
+									if( tg!=null && li.autoTilesCache!=null ) {
+										var coordId = li.coordId(cx,cy);
+										li.def.iterateActiveRulesInDisplayOrder(li, (r)->{
+											if( li.autoTilesCache.exists(r.uid) ) {
+												var byCoord = li.autoTilesCache.get(r.uid);
+												if( byCoord.exists(coordId) )
+													for(tileInfos in byCoord.get(coordId)) {
+														display.LayerRender.renderAutoTileInfos(li, td, tileInfos, tg, false);
+														renderedAutoTiles = true;
+													}
+											}
+										});
+									}
+								}
+
+								// Plain IntGrid layers still use their authored cell color.
+								if( !renderedAutoTiles ) {
+									ghost.lineStyle();
+									ghost.beginFill( li.getIntGridColorAt(cx,cy) );
+									ghost.drawRect(
+										li.pxParallaxX + cx*li.def.scaledGridSize - bounds.left,
+										li.pxParallaxY + cy*li.def.scaledGridSize - bounds.top,
+										li.def.scaledGridSize,
+										li.def.scaledGridSize
+									);
+									ghost.endFill();
+								}
 
 							case Tiles:
 								var td = li.getTilesetDef();
-								if( td!=null && td.isAtlasLoaded() )
-									for( t in li.getGridTileStack(cx,cy) ) {
-										var bmp = new h2d.Bitmap( td.getTileById(t.tileId), ghost );
-										bmp.x = li.pxParallaxX + ( cx + (M.hasBit(t.flips,0)?1:0) ) * li.def.scaledGridSize - bounds.left;
-										bmp.y = li.pxParallaxY + ( cy + (M.hasBit(t.flips,1)?1:0) ) * li.def.scaledGridSize - bounds.top;
-										bmp.scaleX = M.hasBit(t.flips, 0) ? -1 : 1;
-										bmp.scaleY = M.hasBit(t.flips, 1) ? -1 : 1;
-									}
+								var tg = getTileGhostGroup(li, td);
+								if( tg!=null )
+									for(t in li.getGridTileStack(cx,cy))
+										display.LayerRender.renderGridTile(li, td, t, cx, cy, tg, false);
+								else {
+									// Keep a visible fallback if a tileset failed to load.
+									ghost.lineStyle();
+									ghost.beginFill(0x777777, 0.8);
+									ghost.drawRect(
+										li.pxParallaxX + cx*li.def.scaledGridSize - bounds.left,
+										li.pxParallaxY + cy*li.def.scaledGridSize - bounds.top,
+										li.def.scaledGridSize,
+										li.def.scaledGridSize
+									);
+									ghost.endFill();
+								}
 
 							case Entities:
 							case AutoLayer:
@@ -302,6 +360,7 @@ class GenericLevelElementGroup {
 
 		return ghost;
 	}
+
 
 	function getDeltaX(origin:Coords, now:Coords) {
 		return snapToGrid()
@@ -853,12 +912,19 @@ class GenericLevelElementGroup {
 
 
 
-	public function hasFlippableTiles() {
+	public function hasFlippableGridContent() {
 		for(ge in elements)
 			switch ge {
 				case GridCell(li, cx, cy):
-					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) )
-						return true;
+					switch li.def.type {
+						case Tiles:
+							if( li.hasAnyGridTile(cx,cy) )
+								return true;
+						case IntGrid:
+							if( li.hasIntGrid(cx,cy) )
+								return true;
+						case Entities, AutoLayer:
+					}
 
 				case _:
 			}
@@ -866,7 +932,7 @@ class GenericLevelElementGroup {
 	}
 
 
-	function getFlippableTilesBounds() : Null<SelectionBounds> {
+	function getFlippableGridBounds() : Null<SelectionBounds> {
 		var b : Null<SelectionBounds> = null;
 
 		inline function includeRect(left:Float, top:Float, right:Float, bottom:Float) {
@@ -880,17 +946,21 @@ class GenericLevelElementGroup {
 			}
 		}
 
-		// When empty-space selection is enabled, preserve the rectangle the user
-		// actually dragged instead of shrinking the flip axis to occupied cells.
+		// Preserve the authored selection rectangle when empty-space selection
+		// stores one. Otherwise derive one shared visual rectangle from every
+		// selected Tiles + IntGrid cell across all selected layers.
 		for(r in originalRects)
 			includeRect(r.leftPx, r.topPx, r.rightPx+1, r.bottomPx+1);
 
-		// Otherwise derive one shared level-space rectangle from every selected
-		// tile cell across every selected tile layer.
 		for(ge in elements)
 			switch ge {
 				case GridCell(li, cx, cy):
-					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
+					var include = switch li.def.type {
+						case Tiles: li.hasAnyGridTile(cx,cy);
+						case IntGrid: li.hasIntGrid(cx,cy);
+						case Entities, AutoLayer: false;
+					}
+					if( include ) {
 						var grid = li.def.scaledGridSize;
 						var left = li.pxParallaxX + cx*grid;
 						var top = li.pxParallaxY + cy*grid;
@@ -904,66 +974,97 @@ class GenericLevelElementGroup {
 	}
 
 
-	public function flipSelectedTiles(horizontal:Bool) : Array<data.inst.LayerInstance> {
-		var flipBounds = getFlippableTilesBounds();
+	public function flipSelectedGridContent(horizontal:Bool) : Array<data.inst.LayerInstance> {
+		var flipBounds = getFlippableGridBounds();
 		if( flipBounds==null )
 			return [];
 
 		var flipBit = horizontal ? 1 : 2;
-		var pending : Array<Dynamic> = [];
+		var pendingTiles : Array<Dynamic> = [];
+		var pendingIntGrid : Array<Dynamic> = [];
 
-		// Snapshot all selected tile cells before changing any layer. Every layer
-		// is mirrored around the SAME level-space axis, so a multi-layer scene
-		// selection behaves as one visual block.
+		inline function getTarget(li:data.inst.LayerInstance, cx:Int, cy:Int) {
+			var grid = li.def.scaledGridSize;
+			var centerX = li.pxParallaxX + (cx+0.5)*grid;
+			var centerY = li.pxParallaxY + (cy+0.5)*grid;
+			var targetCenterX = horizontal
+				? flipBounds.left + flipBounds.right - centerX
+				: centerX;
+			var targetCenterY = horizontal
+				? centerY
+				: flipBounds.top + flipBounds.bottom - centerY;
+
+			return {
+				cx: M.round( (targetCenterX-li.pxParallaxX)/grid - 0.5 ),
+				cy: M.round( (targetCenterY-li.pxParallaxY)/grid - 0.5 ),
+			};
+		}
+
+		// Snapshot every selected editable grid layer before changing anything.
+		// IntGrid is included because those cells are what drive auto-layer
+		// visuals; previously only manual Tiles layers were transformed.
 		for(i in 0...elements.length)
 			switch elements[i] {
 				case GridCell(li, cx, cy):
-					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
-						var grid = li.def.scaledGridSize;
-						var centerX = li.pxParallaxX + (cx+0.5)*grid;
-						var centerY = li.pxParallaxY + (cy+0.5)*grid;
-						var targetCenterX = horizontal
-							? flipBounds.left + flipBounds.right - centerX
-							: centerX;
-						var targetCenterY = horizontal
-							? centerY
-							: flipBounds.top + flipBounds.bottom - centerY;
+					switch li.def.type {
+						case Tiles:
+							if( li.hasAnyGridTile(cx,cy) ) {
+								var target = getTarget(li,cx,cy);
+								pendingTiles.push({
+									elementIdx: i,
+									li: li,
+									cx: cx,
+									cy: cy,
+									targetCx: target.cx,
+									targetCy: target.cy,
+									tiles: [
+										for(t in li.getGridTileStack(cx,cy))
+											{ tileId:t.tileId, flips:t.flips }
+									],
+								});
+							}
 
-						var targetCx = M.round( (targetCenterX-li.pxParallaxX)/grid - 0.5 );
-						var targetCy = M.round( (targetCenterY-li.pxParallaxY)/grid - 0.5 );
-						var tiles = [
-							for(t in li.getGridTileStack(cx,cy))
-								{ tileId:t.tileId, flips:t.flips }
-						];
+						case IntGrid:
+							if( li.hasIntGrid(cx,cy) ) {
+								var target = getTarget(li,cx,cy);
+								pendingIntGrid.push({
+									elementIdx: i,
+									li: li,
+									cx: cx,
+									cy: cy,
+									targetCx: target.cx,
+									targetCy: target.cy,
+									value: li.getIntGrid(cx,cy),
+								});
+							}
 
-						pending.push({
-							elementIdx: i,
-							li: li,
-							cx: cx,
-							cy: cy,
-							targetCx: targetCx,
-							targetCy: targetCy,
-							tiles: tiles,
-						});
+						case Entities, AutoLayer:
 					}
 
 				case _:
 			}
 
-		if( pending.length==0 )
+		if( pendingTiles.length==0 && pendingIntGrid.length==0 )
 			return [];
 
 		var changedLayers : Map<data.inst.LayerInstance,data.inst.LayerInstance> = [];
 
-		// Remove every source cell first so symmetric cells can swap safely.
-		for(c in pending) {
+		// Remove all sources first so mirrored positions can swap safely.
+		for(c in pendingTiles) {
 			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
 			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeAllGridTiles(c.cx, c.cy, false);
 			changedLayers.set(c.li, c.li);
 		}
+		for(c in pendingIntGrid) {
+			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
+			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			c.li.removeIntGrid(c.cx, c.cy, false);
+			changedLayers.set(c.li, c.li);
+		}
 
-		for(c in pending) {
+		// Reinsert mirrored manual tiles and toggle their actual flip bit.
+		for(c in pendingTiles) {
 			var stack : Array<Dynamic> = c.tiles;
 			var stacking = stack.length>1 || App.ME.settings.v.tileStacking;
 			for(t in stack)
@@ -981,7 +1082,16 @@ class GenericLevelElementGroup {
 				: null;
 		}
 
-		// Garbage collect any selection entries that ended up outside the layer.
+		// IntGrid values have no per-tile flip bit; mirror the cells themselves.
+		// Their auto-layer visuals are regenerated by normal layer invalidation.
+		for(c in pendingIntGrid) {
+			c.li.setIntGrid(c.targetCx, c.targetCy, c.value, false);
+			elements[c.elementIdx] = c.li.isValid(c.targetCx,c.targetCy)
+				? GridCell(c.li, c.targetCx, c.targetCy)
+				: null;
+		}
+
+		// Garbage collect any selection entries that ended up outside a layer.
 		var i = 0;
 		while( i<elements.length )
 			if( elements[i]==null )

@@ -896,8 +896,15 @@ class Editor extends Page {
 				onNavigateShortcut(1, 0, true);
 		}
 
-		if( curTool!=null )
-			curTool.onAppCommand(cmd);
+		if( curTool!=null ) {
+			// Keep flip shortcuts command-driven: user/custom key mappings remain
+			// untouched. When a flippable scene selection exists, the same command
+			// transforms that selection instead of changing the tileset brush state.
+			if( selectionTool.canFlipTiles() && ( cmd==C_FlipX || cmd==C_FlipY ) )
+				selectionTool.onAppCommand(cmd);
+			else
+				curTool.onAppCommand(cmd);
+		}
 	}
 
 

@@ -298,6 +298,31 @@ class SelectionTool extends Tool<Int> {
 	}
 
 
+	public inline function canFlipTiles() return !isRunning() && group.hasFlippableTiles();
+
+	override function onAppCommand(cmd:AppCommand) {
+		super.onAppCommand(cmd);
+
+		if( !canFlipTiles() )
+			return;
+
+		var horizontal : Null<Bool> = switch cmd {
+			case C_FlipX: true;
+			case C_FlipY: false;
+			case _: null;
+		}
+		if( horizontal==null )
+			return;
+
+		var changedLayers = group.flipSelectedTiles(horizontal);
+		if( changedLayers.length>0 ) {
+			editor.curLevelTimeline.saveLayerStates(changedLayers);
+			editor.invalidateResizeTool();
+			N.quick(horizontal ? "Selection X-flipped" : "Selection Y-flipped");
+		}
+	}
+
+
 	override function onKeyPress(keyId:Int) {
 		super.onKeyPress(keyId);
 

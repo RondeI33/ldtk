@@ -300,12 +300,12 @@ class SelectionTool extends Tool<Int> {
 	}
 
 
-	public inline function canFlipTiles() return !isRunning() && group.hasFlippableTiles();
+	public inline function canFlipSelection() return !isRunning() && group.hasFlippableGridContent();
 
 	override function onAppCommand(cmd:AppCommand) {
 		super.onAppCommand(cmd);
 
-		if( !canFlipTiles() )
+		if( !canFlipSelection() )
 			return;
 
 		var horizontal : Null<Bool> = switch cmd {
@@ -316,7 +316,7 @@ class SelectionTool extends Tool<Int> {
 		if( horizontal==null )
 			return;
 
-		var changedLayers = group.flipSelectedTiles(horizontal);
+		var changedLayers = group.flipSelectedGridContent(horizontal);
 		if( changedLayers.length>0 ) {
 			editor.curLevelTimeline.saveLayerStates(changedLayers);
 			editor.invalidateResizeTool();

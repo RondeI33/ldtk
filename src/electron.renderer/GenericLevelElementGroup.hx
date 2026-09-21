@@ -9,6 +9,9 @@ class GenericLevelElementGroup {
 	var selectRender : h2d.Graphics;
 	var arrow : h2d.Graphics;
 	var pointLinks : h2d.Graphics;
+	var ghostLayerStack : Null<h2d.Layers>;
+	var ghostFlipX = false;
+	var ghostFlipY = false;
 	var elements : Array< Null<GenericLevelElement> > = [];
 	var bounds(get,never) : SelectionBounds;
 	var _cachedBounds : SelectionBounds;
@@ -186,6 +189,7 @@ class GenericLevelElementGroup {
 		ghost.visible = false;
 		ghost.clear();
 		ghost.removeChildren();
+		ghostLayerStack = null;
 	}
 
 	function renderSelection() {
@@ -246,8 +250,8 @@ class GenericLevelElementGroup {
 		// Tile/auto-tile ghost groups use the same rendering helpers as the
 		// actual layer renderer. This avoids the old IntGrid color-box preview
 		// and keeps pivots, flips and layer scaling consistent with the scene.
-		var ghostLayers = new h2d.Layers();
-		ghost.addChild(ghostLayers);
+		ghostLayerStack = new h2d.Layers();
+		ghost.addChild(ghostLayerStack);
 		var tileRoots : Map<Int,h2d.Object> = new Map();
 		var tileGroups : Map<Int,h2d.TileGroup> = new Map();
 		var fallbackGraphics : Map<Int,h2d.Graphics> = new Map();
@@ -262,7 +266,7 @@ class GenericLevelElementGroup {
 
 				// Match the scene's actual layer depth instead of relying on selection
 				// iteration order. This is required for multi-layer ghost correctness.
-				ghostLayers.add(layerRoot, editor.project.defs.getLayerDepth(li.def));
+				ghostLayerStack.add(layerRoot, editor.project.defs.getLayerDepth(li.def));
 				tileRoots.set(li.layerDefUid, layerRoot);
 			}
 			return tileRoots.get(li.layerDefUid);
@@ -411,7 +415,42 @@ class GenericLevelElementGroup {
 			ghost.drawRect(r.leftPx-bounds.left, r.topPx-bounds.top, r.rightPx-r.leftPx, r.bottomPx-r.topPx);
 		}
 
+		applyGhostFlipTransform();
 		return ghost;
+	}
+
+
+	function applyGhostFlipTransform() {
+		if( ghostLayerStack==null )
+			return;
+
+		ghostLayerStack.scaleX = ghostFlipX ? -1 : 1;
+		ghostLayerStack.scaleY = ghostFlipY ? -1 : 1;
+		ghostLayerStack.x = 0;
+		ghostLayerStack.y = 0;
+
+		var flipBounds = getFlippableGridBounds();
+		if( flipBounds==null )
+			return;
+
+		// ghostLayerStack uses level-space positions normalized by bounds.left/top.
+		// Mirroring around [L,R] therefore needs translation L+R after a -1 scale.
+		if( ghostFlipX )
+			ghostLayerStack.x = flipBounds.left + flipBounds.right - 2*bounds.left;
+		if( ghostFlipY )
+			ghostLayerStack.y = flipBounds.top + flipBounds.bottom - 2*bounds.top;
+	}
+
+
+	public function setGhostFlip(flipX:Bool, flipY:Bool) {
+		ghostFlipX = flipX;
+		ghostFlipY = flipY;
+		applyGhostFlipTransform();
+	}
+
+
+	public inline function resetGhostFlip() {
+		setGhostFlip(false, false);
 	}
 
 
@@ -507,6 +546,8 @@ class GenericLevelElementGroup {
 
 	public function onMoveEnd() {
 		movingGhost = false;
+		ghostFlipX = false;
+		ghostFlipY = false;
 		clearGhost();
 		arrow.clear();
 		arrow.visible = false;

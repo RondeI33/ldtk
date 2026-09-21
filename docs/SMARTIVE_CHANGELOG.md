@@ -1,3 +1,19 @@
+# 1.0.8
+
+## Multi-layer selection flip and drag preview fixes
+
+- Fixed scene-selection flipping so all selected tile layers are mirrored around one shared level-space axis instead of each layer using its own bounds.
+- Preserved the authored selection rectangle as the flip axis when empty-space selection is enabled, keeping multi-layer arrangements aligned.
+- Restored immediate drag ghost/preview rendering: the preview now appears on the same mouse-move event that crosses the movement threshold.
+- Kept the existing selection, movement, copy, Undo/Redo, and tile-stack behavior intact.
+- Existing `C_FlipX` and `C_FlipY` commands and user-customized shortcut mappings remain unchanged.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.7
 
 ## Flip copied scene selections

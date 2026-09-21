@@ -14,6 +14,7 @@ class GenericLevelElementGroup {
 	var _cachedBounds : SelectionBounds;
 
 	var invalidatedSelectRender = true;
+	var movingGhost = false;
 
 	var originalRects : Array< { leftPx:Float, rightPx:Float, topPx:Float, bottomPx:Float } > = [];
 
@@ -189,6 +190,10 @@ class GenericLevelElementGroup {
 
 	function renderSelection() {
 		selectRender.clear();
+		if( movingGhost ) {
+			selectRender.visible = false;
+			return;
+		}
 		selectRender.visible = true;
 		var c = SELECTION_COLOR;
 		var alpha = 1;
@@ -241,22 +246,53 @@ class GenericLevelElementGroup {
 		// Tile/auto-tile ghost groups use the same rendering helpers as the
 		// actual layer renderer. This avoids the old IntGrid color-box preview
 		// and keeps pivots, flips and layer scaling consistent with the scene.
+		var ghostLayers = new h2d.Layers();
+		ghost.addChild(ghostLayers);
 		var tileRoots : Map<Int,h2d.Object> = new Map();
 		var tileGroups : Map<Int,h2d.TileGroup> = new Map();
+		var fallbackGraphics : Map<Int,h2d.Graphics> = new Map();
 
-		function getTileGhostGroup(li:data.inst.LayerInstance, td:data.def.TilesetDef) : Null<h2d.TileGroup> {
-			if( td==null || !td.isAtlasLoaded() )
-				return null;
-
-			if( !tileGroups.exists(li.layerDefUid) ) {
-				var layerRoot = new h2d.Object(ghost);
+		function getLayerGhostRoot(li:data.inst.LayerInstance) : h2d.Object {
+			if( !tileRoots.exists(li.layerDefUid) ) {
+				var layerRoot = new h2d.Object();
 				var scale = li.def.getScale();
 				layerRoot.x = li.pxParallaxX - bounds.left - li.pxTotalOffsetX*scale;
 				layerRoot.y = li.pxParallaxY - bounds.top - li.pxTotalOffsetY*scale;
 				layerRoot.setScale(scale);
+
+				// Match the scene's actual layer depth instead of relying on selection
+				// iteration order. This is required for multi-layer ghost correctness.
+				ghostLayers.add(layerRoot, editor.project.defs.getLayerDepth(li.def));
 				tileRoots.set(li.layerDefUid, layerRoot);
-				tileGroups.set(li.layerDefUid, new h2d.TileGroup(td.getAtlasTile(), layerRoot));
 			}
+			return tileRoots.get(li.layerDefUid);
+		}
+
+		function getFallbackGraphics(li:data.inst.LayerInstance) : h2d.Graphics {
+			if( !fallbackGraphics.exists(li.layerDefUid) )
+				fallbackGraphics.set(li.layerDefUid, new h2d.Graphics(getLayerGhostRoot(li)));
+			return fallbackGraphics.get(li.layerDefUid);
+		}
+
+		function getTileGhostGroup(li:data.inst.LayerInstance, td:data.def.TilesetDef) : Null<h2d.TileGroup> {
+			if( td==null )
+				return null;
+
+			// A non-active layer can be visible/selected before its atlas has been
+			// touched by the active tool. Force the same project image cache load
+			// here so multi-layer preview does not degrade to a gray fallback.
+			if( !td.isAtlasLoaded() ) {
+				if( td.embedAtlas!=null )
+					editor.project.getOrLoadEmbedImage(td.embedAtlas);
+				else if( td.relPath!=null )
+					editor.project.getOrLoadImage(td.relPath);
+			}
+
+			if( !td.isAtlasLoaded() )
+				return null;
+
+			if( !tileGroups.exists(li.layerDefUid) )
+				tileGroups.set(li.layerDefUid, new h2d.TileGroup(td.getAtlasTile(), getLayerGhostRoot(li)));
 			return tileGroups.get(li.layerDefUid);
 		}
 
@@ -309,15 +345,16 @@ class GenericLevelElementGroup {
 
 								// Truly plain IntGrid layers still use their authored cell color.
 								if( !renderedAutoTiles ) {
-									ghost.lineStyle();
-									ghost.beginFill( li.getIntGridColorAt(cx,cy) );
-									ghost.drawRect(
-										li.pxParallaxX + cx*li.def.scaledGridSize - bounds.left,
-										li.pxParallaxY + cy*li.def.scaledGridSize - bounds.top,
-										li.def.scaledGridSize,
-										li.def.scaledGridSize
+									var gr = getFallbackGraphics(li);
+									gr.lineStyle();
+									gr.beginFill( li.getIntGridColorAt(cx,cy) );
+									gr.drawRect(
+										cx*li.def.gridSize + li.pxTotalOffsetX,
+										cy*li.def.gridSize + li.pxTotalOffsetY,
+										li.def.gridSize,
+										li.def.gridSize
 									);
-									ghost.endFill();
+									gr.endFill();
 								}
 
 							case Tiles:
@@ -327,16 +364,18 @@ class GenericLevelElementGroup {
 									for(t in li.getGridTileStack(cx,cy))
 										display.LayerRender.renderGridTile(li, td, t, cx, cy, tg, false);
 								else {
-									// Keep a visible fallback if a tileset failed to load.
-									ghost.lineStyle();
-									ghost.beginFill(0x777777, 0.8);
-									ghost.drawRect(
-										li.pxParallaxX + cx*li.def.scaledGridSize - bounds.left,
-										li.pxParallaxY + cy*li.def.scaledGridSize - bounds.top,
-										li.def.scaledGridSize,
-										li.def.scaledGridSize
+									// Keep a visible fallback if a tileset failed to load, but
+									// keep it at the correct scene layer depth.
+									var gr = getFallbackGraphics(li);
+									gr.lineStyle();
+									gr.beginFill(0x777777, 0.8);
+									gr.drawRect(
+										cx*li.def.gridSize + li.pxTotalOffsetX,
+										cy*li.def.gridSize + li.pxTotalOffsetY,
+										li.def.gridSize,
+										li.def.gridSize
 									);
-									ghost.endFill();
+									gr.endFill();
 								}
 
 							case Entities:
@@ -461,13 +500,17 @@ class GenericLevelElementGroup {
 	}
 
 	public function onMoveStart() {
+		movingGhost = true;
+		selectRender.visible = false;
 		renderGhost();
 	}
 
 	public function onMoveEnd() {
+		movingGhost = false;
 		clearGhost();
 		arrow.clear();
 		arrow.visible = false;
+		invalidateSelectRender();
 	}
 
 	public function showGhost(origin:Coords, now:Coords, isCopy:Bool) {
@@ -1140,6 +1183,11 @@ class GenericLevelElementGroup {
 	}
 
 	public function onPostUpdate() {
+		if( movingGhost ) {
+			selectRender.visible = false;
+			return;
+		}
+
 		if( invalidatedSelectRender ) {
 			invalidatedSelectRender = false;
 			renderSelection();

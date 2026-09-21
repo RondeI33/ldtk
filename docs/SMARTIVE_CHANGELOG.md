@@ -1,3 +1,20 @@
+# 1.0.11
+
+## Multi-layer selection ghost sorting fix
+
+- Reworked the scene selection ghost to use an internal `h2d.Layers` stack with the same layer depth values as the real level renderer.
+- Multi-layer preview no longer depends on selection iteration order, so stacked tile/auto-layer content keeps the same visual order as the scene.
+- The normal selection overlay is now suppressed for the entire drag lifecycle, preventing its filled selection rectangles from reappearing in `postUpdate()` and covering the real ghost.
+- Non-active selected layer atlases are explicitly loaded before ghost construction, preventing inactive layers from falling back to a solid gray placeholder just because their texture had not been touched by the active tool yet.
+- IntGrid/AutoLayer fallback graphics are attached to their own sorted layer roots instead of being painted globally over the full ghost.
+- Retains the existing multi-layer flip behavior for **Tiles + IntGrid** and keeps all existing/custom `C_FlipX` / `C_FlipY` shortcut mappings unchanged.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.10
 
 ## Linked AutoLayer selection preview

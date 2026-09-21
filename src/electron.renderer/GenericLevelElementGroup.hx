@@ -852,6 +852,7 @@ class GenericLevelElementGroup {
 	}
 
 
+
 	public function hasFlippableTiles() {
 		for(ge in elements)
 			switch ge {
@@ -865,47 +866,71 @@ class GenericLevelElementGroup {
 	}
 
 
-	public function flipSelectedTiles(horizontal:Bool) : Array<data.inst.LayerInstance> {
-		var layerBounds : Map<Int,Dynamic> = new Map();
+	function getFlippableTilesBounds() : Null<SelectionBounds> {
+		var b : Null<SelectionBounds> = null;
 
-		// Build independent bounds for every tile layer represented in the
-		// selection. This preserves the scene-authored arrangement instead of
-		// reconstructing it from tileset source positions.
+		inline function includeRect(left:Float, top:Float, right:Float, bottom:Float) {
+			if( b==null )
+				b = { left:left, top:top, right:right, bottom:bottom };
+			else {
+				b.left = M.fmin(b.left, left);
+				b.top = M.fmin(b.top, top);
+				b.right = M.fmax(b.right, right);
+				b.bottom = M.fmax(b.bottom, bottom);
+			}
+		}
+
+		// When empty-space selection is enabled, preserve the rectangle the user
+		// actually dragged instead of shrinking the flip axis to occupied cells.
+		for(r in originalRects)
+			includeRect(r.leftPx, r.topPx, r.rightPx+1, r.bottomPx+1);
+
+		// Otherwise derive one shared level-space rectangle from every selected
+		// tile cell across every selected tile layer.
 		for(ge in elements)
 			switch ge {
 				case GridCell(li, cx, cy):
 					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
-						var key = li.layerDefUid;
-						var b = layerBounds.get(key);
-						if( b==null )
-							layerBounds.set(key, {
-								minCx: cx,
-								maxCx: cx,
-								minCy: cy,
-								maxCy: cy,
-							});
-						else {
-							b.minCx = M.imin(b.minCx, cx);
-							b.maxCx = M.imax(b.maxCx, cx);
-							b.minCy = M.imin(b.minCy, cy);
-							b.maxCy = M.imax(b.maxCy, cy);
-						}
+						var grid = li.def.scaledGridSize;
+						var left = li.pxParallaxX + cx*grid;
+						var top = li.pxParallaxY + cy*grid;
+						includeRect(left, top, left+grid, top+grid);
 					}
 
 				case _:
 			}
 
+		return b;
+	}
+
+
+	public function flipSelectedTiles(horizontal:Bool) : Array<data.inst.LayerInstance> {
+		var flipBounds = getFlippableTilesBounds();
+		if( flipBounds==null )
+			return [];
+
 		var flipBit = horizontal ? 1 : 2;
 		var pending : Array<Dynamic> = [];
 
-		// Snapshot first so swapping/mirroring cells cannot destroy source data.
+		// Snapshot all selected tile cells before changing any layer. Every layer
+		// is mirrored around the SAME level-space axis, so a multi-layer scene
+		// selection behaves as one visual block.
 		for(i in 0...elements.length)
 			switch elements[i] {
 				case GridCell(li, cx, cy):
 					if( li.def.type==Tiles && li.hasAnyGridTile(cx,cy) ) {
-						var b = layerBounds.get(li.layerDefUid);
-						var targetCx = horizontal ? b.minCx+b.maxCx-cx : cx;
-						var targetCy = horizontal ? cy : b.minCy+b.maxCy-cy;
+						var grid = li.def.scaledGridSize;
+						var centerX = li.pxParallaxX + (cx+0.5)*grid;
+						var centerY = li.pxParallaxY + (cy+0.5)*grid;
+						var targetCenterX = horizontal
+							? flipBounds.left + flipBounds.right - centerX
+							: centerX;
+						var targetCenterY = horizontal
+							? centerY
+							: flipBounds.top + flipBounds.bottom - centerY;
+
+						var targetCx = M.round( (targetCenterX-li.pxParallaxX)/grid - 0.5 );
+						var targetCy = M.round( (targetCenterY-li.pxParallaxY)/grid - 0.5 );
 						var tiles = [
 							for(t in li.getGridTileStack(cx,cy))
 								{ tileId:t.tileId, flips:t.flips }
@@ -928,15 +953,14 @@ class GenericLevelElementGroup {
 		if( pending.length==0 )
 			return [];
 
-		var changedLayers : Map<Int,data.inst.LayerInstance> = new Map();
+		var changedLayers : Map<data.inst.LayerInstance,data.inst.LayerInstance> = [];
 
-		// Remove every source cell before inserting mirrored cells, otherwise
-		// symmetric positions would overwrite one another.
+		// Remove every source cell first so symmetric cells can swap safely.
 		for(c in pending) {
 			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
 			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeAllGridTiles(c.cx, c.cy, false);
-			changedLayers.set(c.li.layerDefUid, c.li);
+			changedLayers.set(c.li, c.li);
 		}
 
 		for(c in pending) {
@@ -952,8 +976,18 @@ class GenericLevelElementGroup {
 					false
 				);
 
-			elements[c.elementIdx] = GridCell(c.li, c.targetCx, c.targetCy);
+			elements[c.elementIdx] = c.li.isValid(c.targetCx,c.targetCy)
+				? GridCell(c.li, c.targetCx, c.targetCy)
+				: null;
 		}
+
+		// Garbage collect any selection entries that ended up outside the layer.
+		var i = 0;
+		while( i<elements.length )
+			if( elements[i]==null )
+				elements.splice(i,1);
+			else
+				i++;
 
 		var affectedLayers = [];
 		for(li in changedLayers) {

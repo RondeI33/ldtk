@@ -1,50 +1,49 @@
 package ui.modal.dialog;
 
 /**
- * Single-layer picker for PSD imports. Group rows are preserved visually so the
- * Photoshop hierarchy remains understandable, but only renderable leaf layers
- * can be chosen as LDtk's visible atlas.
+ * Multi-layer picker for PSD imports. Group rows are preserved visually so the
+ * Photoshop hierarchy remains understandable. Selected renderable leaf layers
+ * are flattened into one cropped LDtk atlas, while every PSD layer remains
+ * exported/indexed separately for future external importers.
  */
 class PsdLayerPicker extends ui.Modal {
 	var allLayers : Array<Dynamic>;
-	var selectedKey : Null<String>;
+	var selected : Map<String,Bool> = new Map();
 	var jRows : js.jquery.JQuery;
 	var jImport : js.jquery.JQuery;
-	var onImport : String->Void;
+	var onImport : Array<String>->Void;
 
-	public function new(sourceRelPath:String, layers:Array<Dynamic>, onImport:String->Void) {
+	public function new(sourceRelPath:String, layers:Array<Dynamic>, onImport:Array<String>->Void) {
 		super();
 		this.allLayers = layers.copy();
 		this.onImport = onImport;
 		addClass("psdLayerPicker");
 		setAnchor(MA_Centered);
 
-		for(layer in allLayers)
-			if( layer.selectable==true && layer.visible==true ) {
-				selectedKey = Std.string(layer.key);
-				break;
-			}
-		if( selectedKey==null )
-			for(layer in allLayers)
-				if( layer.selectable==true ) {
-					selectedKey = Std.string(layer.key);
-					break;
-				}
-
-		jContent.append('<h2><span class="icon layer"></span> Choose PSD layer</h2>');
+		jContent.append('<h2><span class="icon layer"></span> Choose PSD layers</h2>');
 
 		var jHelp = new J('<p class="help"></p>');
-		jHelp.text("Choose the Photoshop layer that LDtk should display as this spritesheet. All readable PSD layers are still exported and indexed for future external importers (for example normal/emission material maps). The PSD source is never modified.");
+		jHelp.text(
+			"Choose one or more Photoshop layers to flatten into the LDtk spritesheet. "+
+			"All readable PSD layers are still exported and indexed separately for future importers "+
+			"(for example color/normal/emission maps). The PSD source is never modified."
+		);
 		jHelp.appendTo(jContent);
 
 		var jSource = new J('<p class="sub" style="margin-bottom:10px"></p>');
 		jSource.text("Source: "+sourceRelPath);
 		jSource.appendTo(jContent);
 
-		jRows = new J('<div style="min-width:460px; max-height:440px; overflow:auto; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08)"></div>');
+		var jTopActions = new J('<div style="display:flex; gap:6px; margin-bottom:8px"></div>');
+		jTopActions.appendTo(jContent);
+		var jAll = new J('<button class="gray">Select all</button>');
+		var jNone = new J('<button class="gray">Select none</button>');
+		jAll.appendTo(jTopActions);
+		jNone.appendTo(jTopActions);
+
+		jRows = new J('<div style="min-width:480px; max-height:440px; overflow:auto; border-top:1px solid rgba(255,255,255,.08); border-bottom:1px solid rgba(255,255,255,.08)"></div>');
 		jRows.appendTo(jContent);
 
-		var radioName = "psdLayer_"+Std.random(999999);
 		for(layer in allLayers) {
 			var depth:Int = layer.depth==null ? 0 : Std.int(layer.depth);
 			var isGroup = layer.isGroup==true;
@@ -52,6 +51,9 @@ class PsdLayerPicker extends ui.Modal {
 			var layerKey = Std.string(layer.key);
 			var layerName = Std.string(layer.name);
 			var layerPath = Std.string(layer.path);
+
+			if( selectable )
+				selected.set(layerKey,layer.visible==true);
 
 			var jRow = new J('<label style="display:flex; align-items:center; gap:8px; padding:7px 8px"></label>');
 			jRow.css("padding-left",(8+depth*18)+"px");
@@ -62,18 +64,15 @@ class PsdLayerPicker extends ui.Modal {
 				jRow.append('<span class="icon layer"></span>');
 			}
 			else {
-				var jRadio = new J('<input type="radio"/>');
-				jRadio.attr("name",radioName);
-				jRadio.prop("disabled",!selectable);
-				jRadio.prop("checked",selectable && selectedKey==layerKey);
-				jRadio.appendTo(jRow);
+				var jCheck = new J('<input type="checkbox"/>');
+				jCheck.prop("disabled",!selectable);
+				jCheck.prop("checked",selectable && selected.get(layerKey)==true);
+				jCheck.appendTo(jRow);
 				if( selectable ) {
 					jRow.css("cursor","pointer");
-					jRadio.change(_->{
-						if( jRadio.prop("checked")==true ) {
-							selectedKey = layerKey;
-							updateState();
-						}
+					jCheck.change(_->{
+						selected.set(layerKey,jCheck.prop("checked")==true);
+						updateState();
 					});
 				}
 			}
@@ -104,16 +103,18 @@ class PsdLayerPicker extends ui.Modal {
 
 		var jActions = new J('<div class="buttons" style="margin-top:14px; display:flex; gap:8px"></div>');
 		jActions.appendTo(jContent);
-		jImport = new J('<button class="positive"><span class="icon layer"></span> Import PSD layer</button>');
+		jImport = new J('<button class="positive"><span class="icon layer"></span> Import selected PSD layers</button>');
 		jImport.appendTo(jActions);
 		var jCancel = new J('<button class="gray">Cancel</button>');
 		jCancel.appendTo(jActions);
 
+		jAll.click(_->setAll(true));
+		jNone.click(_->setAll(false));
 		jCancel.click(_->close());
 		jImport.click(_->{
-			if( selectedKey==null )
+			var picked = getSelectedLayers();
+			if( picked.length==0 )
 				return;
-			var picked = selectedKey;
 			close();
 			onImport(picked);
 		});
@@ -122,11 +123,37 @@ class PsdLayerPicker extends ui.Modal {
 		JsTools.parseComponents(jContent);
 	}
 
+
+	function setAll(v:Bool) {
+		for(layer in allLayers)
+			if( layer.selectable==true )
+				selected.set(Std.string(layer.key),v);
+		jRows.find('input[type="checkbox"]:not(:disabled)').prop("checked",v);
+		updateState();
+	}
+
+
+	function getSelectedLayers() : Array<String> {
+		var out : Array<String> = [];
+		for(layer in allLayers)
+			if( layer.selectable==true ) {
+				var key = Std.string(layer.key);
+				if( selected.exists(key) && selected.get(key)==true )
+					out.push(key);
+			}
+		return out;
+	}
+
+
 	function updateState() {
 		if( jImport==null )
 			return;
-		jImport.prop("disabled",selectedKey==null);
-		if( selectedKey==null )
-			jImport.text("No renderable PSD layer found");
+		var n = getSelectedLayers().length;
+		jImport.prop("disabled",n<=0);
+		jImport.text(
+			n<=0
+				? "Choose at least one PSD layer"
+				: 'Import $n PSD layer${n==1 ? "" : "s"}'
+		);
 	}
 }

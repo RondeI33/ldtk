@@ -1,3 +1,27 @@
+# 1.0.16
+
+## Multi-layer PSD import and gap-free LDtk atlases
+
+- PSD import now supports selecting **one or multiple renderable Photoshop layers** with checkboxes, matching the multi-layer selection workflow used by the Aseprite importer.
+- Visible renderable PSD layers are pre-selected; **Select all** and **Select none** controls are available.
+- Selected PSD layers are flattened together in Photoshop document order into one LDtk display atlas.
+- Fixed PSD tilesets appearing offset, smaller than the selected tile cells, or producing transparent gaps when placing a selected fragment.
+- The cause was the previous LDtk atlas using full PSD document dimensions, including transparent document-space margins and layer offsets.
+- LDtk now receives a dedicated atlas cropped to the **union bounds of the selected PSD layers**, with all selected pixels rebased to the cropped origin.
+- The cropped atlas uses nearest/pixel-preserving canvas rendering with image smoothing disabled.
+- Full-document, pixel-aligned PNG exports for **every renderable PSD leaf layer** are still preserved separately under `.ldtk-psd/.../layers/` for the future Unity color/normal/emission material importer.
+- PSD metadata format v2 stores each selected layer key/path plus the generated display atlas path and its document-space crop bounds, while retaining all per-layer metadata.
+- Multiple different layer selections from the same PSD can coexist as deterministic display variants under `.ldtk-psd/.../display/`.
+- Existing PSD imports created by 1.0.14/1.0.15 remain readable and hot-reloadable. Re-import the PSD once to move an old full-document LDtk atlas to the new cropped display format.
+- Expanded the Electron PSD runtime regression test with a synthetic two-layer 16x16 tileset case that must crop to 32x16 with no transparent seam between tiles.
+- CI also fails if the PSD picker regresses to single-layer radio buttons or if the LDtk atlas stops using cropped bounds.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.15
 
 ## PSD import runtime crash hotfix and regression tests

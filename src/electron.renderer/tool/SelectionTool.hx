@@ -289,7 +289,7 @@ class SelectionTool extends Tool<Int> {
 		// first movement event past the drag threshold render the selection ghost
 		// immediately instead of waiting for another mouse-move event.
 		if( isRunning() && button==0 && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
-			group.onMoveStart();
+			group.onMoveStart(isCopy);
 			moveStarted = true;
 		}
 
@@ -395,6 +395,7 @@ class SelectionTool extends Tool<Int> {
 	override function stopUsing(m:Coords) {
 		super.stopUsing(m);
 
+		var dropTarget = group.getLastDropTargetLevel();
 		movePreview.clear();
 		if( moveStarted ) {
 			group.onMoveEnd();
@@ -423,6 +424,11 @@ class SelectionTool extends Tool<Int> {
 				}
 			}
 		}
+
+		// Cross-level drop becomes the active level only after Tool.stopUsing()
+		// has finished, avoiding a LevelSelected event while the tool is running.
+		if( dropTarget!=null && dropTarget!=editor.curLevel )
+			editor.selectLevel(dropTarget);
 	}
 
 
@@ -430,27 +436,28 @@ class SelectionTool extends Tool<Int> {
 		if( any() && isRunning() && moveStarted ) {
 			// Moving a selection
 			if( isOnStop ) {
-				// Move/copy actual data first.
-				var changedLayers = group.moveSelecteds(origin, m, isCopy);
+				// Commit the captured selection into the level under the cursor.
+				// The source may already be temporarily cut for live move preview.
+				var changedLayers = group.commitDragSnapshot(origin, m, isCopy);
 
 				function addChanged(lis:Array<data.inst.LayerInstance>) {
 					for(li in lis)
-						if( changedLayers.indexOf(li)<0 )
+						if( li!=null && changedLayers.indexOf(li)<0 )
 							changedLayers.push(li);
 				}
 
 				// Commit the same transient flips that were shown by the live ghost.
-				// For copies this transforms the new copy only; the source stays intact.
 				if( dragFlipX )
 					addChanged( group.flipSelectedGridContent(true) );
 				if( dragFlipY )
 					addChanged( group.flipSelectedGridContent(false) );
 
 				for(li in changedLayers)
-					if( li!=curLayerInstance )
-						editor.levelRender.invalidateLayer(li); // cur is invalidated by Tool
+					if( li.level==editor.curLevel )
+						editor.levelRender.invalidateLayer(li);
+
 				if( changedLayers.length>0 )
-					editor.curLevelTimeline.saveLayerStates(changedLayers);
+					editor.saveLayerStatesByLevel(changedLayers);
 				editor.invalidateResizeTool();
 
 				return changedLayers.length>0;

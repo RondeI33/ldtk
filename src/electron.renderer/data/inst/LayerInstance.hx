@@ -725,6 +725,28 @@ class LayerInstance {
 	}
 
 
+	/**
+		Temporarily detach an entity for an in-editor move without unregistering
+		its IID or deleting references to it. Used by multi-level selection drag.
+	**/
+	public function detachEntityInstanceForMove(ei:EntityInstance) {
+		requireType(Entities);
+		return entityInstances.remove(ei);
+	}
+
+	/**
+		Attach an existing entity instance to this layer while preserving its IID
+		and field/reference identity.
+	**/
+	public function attachEntityInstanceForMove(ei:EntityInstance) {
+		requireType(Entities);
+		if( entityInstances.indexOf(ei)<0 )
+			entityInstances.push(ei);
+		ei.reparentToLayer(this);
+	}
+
+
+
 	inline function asyncPaint(cx:Int, cy:Int, col:Col) {
 		if( isValid(cx,cy) && Editor.exists() )
 			Editor.ME.levelRender.asyncPaint(this, cx,cy, col);

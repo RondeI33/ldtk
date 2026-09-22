@@ -1,3 +1,24 @@
+# 1.0.13
+
+## Cross-level selection moves and live cut preview
+
+- Fixed a crash when dragging a multi-layer selection from one level into another level.
+- Selection drag now snapshots the source content before movement, so source and destination `LayerInstance` objects are never mixed inside one move operation.
+- Dropping over another level resolves the matching destination layers by `layerDefUid` and converts positions through world coordinates.
+- Moved entities keep their existing IID and entity references when crossing levels; copied entities still receive a new IID.
+- Selection contents are explicitly deduplicated before movement, preventing repeated remove/transfer attempts for the same entity or grid cell.
+- True move drags now temporarily cut selected **Tiles**, **IntGrid** cells, and selected entities from the source render as soon as dragging begins, so the source hole is visible immediately instead of appearing only after drop.
+- A cancelled/uncommitted drag restores the temporary source cut.
+- Cross-level changed layers are saved to the correct per-level timelines rather than mixing source/target layers in `curLevelTimeline`.
+- The destination level is activated only after `SelectionTool.stopUsing()` has fully completed.
+- Live X/Y flipping while dragging and the multi-layer ghost sorting fixes remain enabled.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.12
 
 ## Flip scene selections while dragging

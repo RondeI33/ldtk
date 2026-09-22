@@ -19,6 +19,14 @@ class GenericLevelElementGroup {
 	var invalidatedSelectRender = true;
 	var movingGhost = false;
 
+	var dragSnapshotActive = false;
+	var dragSourceCut = false;
+	var dragSourceLevel : Null<data.Level>;
+	var lastDropTargetLevel : Null<data.Level>;
+	var dragGridSnapshots : Array<Dynamic> = [];
+	var dragEntitySnapshots : Array<Dynamic> = [];
+	var dragPointSnapshots : Array<Dynamic> = [];
+
 	var originalRects : Array< { leftPx:Float, rightPx:Float, topPx:Float, bottomPx:Float } > = [];
 
 	public function new(?elems:Array<GenericLevelElement>) {
@@ -47,6 +55,13 @@ class GenericLevelElementGroup {
 	}
 
 	public function clear() {
+		if( dragSnapshotActive && dragSourceCut )
+			restoreDragSource();
+		dragSnapshotActive = false;
+		dragSourceCut = false;
+		dragGridSnapshots = [];
+		dragEntitySnapshots = [];
+		dragPointSnapshots = [];
 		elements = [];
 		originalRects = [];
 		clearGhost();
@@ -538,13 +553,28 @@ class GenericLevelElementGroup {
 		return v - bounds.top + ghost.y;
 	}
 
-	public function onMoveStart() {
+	public function onMoveStart(isCopy:Bool) {
+		deduplicateElementsForDrag();
+		captureDragSnapshot();
 		movingGhost = true;
 		selectRender.visible = false;
 		renderGhost();
+
+		// A true move previews the source hole immediately. Copy keeps source.
+		if( !isCopy )
+			cutDragSource();
 	}
 
 	public function onMoveEnd() {
+		// If no drop committed (cancel, focus loss, etc.), restore the temporary cut.
+		if( dragSnapshotActive && dragSourceCut )
+			restoreDragSource();
+
+		dragSnapshotActive = false;
+		dragSourceCut = false;
+		dragGridSnapshots = [];
+		dragEntitySnapshots = [];
+		dragPointSnapshots = [];
 		movingGhost = false;
 		ghostFlipX = false;
 		ghostFlipY = false;
@@ -751,6 +781,392 @@ class GenericLevelElementGroup {
 				return true;
 
 		return false;
+	}
+
+
+	function deduplicateElementsForDrag() {
+		var seen : Map<String,Bool> = new Map();
+		var clean : Array<Null<GenericLevelElement>> = [];
+
+		for(ge in elements) {
+			if( ge==null )
+				continue;
+
+			var key = switch ge {
+				case GridCell(li,cx,cy): 'G:' + li.iid + ':' + cx + ':' + cy;
+				case Entity(li,ei): 'E:' + ei.iid;
+				case PointField(li,ei,fi,arrayIdx): 'P:' + ei.iid + ':' + fi.defUid + ':' + arrayIdx;
+			}
+
+			if( !seen.exists(key) ) {
+				seen.set(key,true);
+				clean.push(ge);
+			}
+		}
+
+		elements = clean;
+		invalidateBounds();
+	}
+
+
+	function captureDragSnapshot() {
+		dragGridSnapshots = [];
+		dragEntitySnapshots = [];
+		dragPointSnapshots = [];
+		dragSourceLevel = null;
+		lastDropTargetLevel = null;
+
+		for(i in 0...elements.length) {
+			var ge = elements[i];
+			if( ge==null )
+				continue;
+
+			switch ge {
+				case GridCell(li,cx,cy):
+					if( dragSourceLevel==null )
+						dragSourceLevel = li.level;
+
+					switch li.def.type {
+						case Tiles:
+							if( li.hasAnyGridTile(cx,cy) )
+								dragGridSnapshots.push({
+									elementIdx:i,
+									li:li,
+									cx:cx,
+									cy:cy,
+									isTiles:true,
+									value:0,
+									tiles:[
+										for(t in li.getGridTileStack(cx,cy))
+											{ tileId:t.tileId, flips:t.flips }
+									],
+								});
+						case IntGrid:
+							if( li.hasIntGrid(cx,cy) )
+								dragGridSnapshots.push({
+									elementIdx:i,
+									li:li,
+									cx:cx,
+									cy:cy,
+									isTiles:false,
+									value:li.getIntGrid(cx,cy),
+									tiles:[],
+								});
+						case Entities, AutoLayer:
+					}
+
+				case Entity(li,ei):
+					if( dragSourceLevel==null )
+						dragSourceLevel = li.level;
+					dragEntitySnapshots.push({
+						elementIdx:i,
+						li:li,
+						ei:ei,
+						x:ei.x,
+						y:ei.y,
+					});
+
+				case PointField(li,ei,fi,arrayIdx):
+					if( dragSourceLevel==null )
+						dragSourceLevel = li.level;
+					var pt = fi.getPointGrid(arrayIdx);
+					if( pt!=null )
+						dragPointSnapshots.push({
+							elementIdx:i,
+							li:li,
+							ei:ei,
+							fi:fi,
+							arrayIdx:arrayIdx,
+							cx:pt.cx,
+							cy:pt.cy,
+						});
+			}
+		}
+
+		dragSnapshotActive = dragGridSnapshots.length>0 || dragEntitySnapshots.length>0 || dragPointSnapshots.length>0;
+	}
+
+
+	function invalidateDragLayer(li:data.inst.LayerInstance) {
+		if( li.level==editor.curLevel )
+			editor.levelRender.invalidateLayer(li);
+		else
+			editor.worldRender.invalidateLevelRender(li.level);
+	}
+
+
+	function cutDragSource() {
+		if( !dragSnapshotActive || dragSourceCut )
+			return;
+
+		var touched : Map<String,data.inst.LayerInstance> = new Map();
+
+		for(s in dragGridSnapshots) {
+			var li : data.inst.LayerInstance = s.li;
+			if( s.isTiles )
+				li.removeAllGridTiles(s.cx,s.cy,false);
+			else
+				li.removeIntGrid(s.cx,s.cy,false);
+			touched.set(li.iid,li);
+		}
+
+		for(s in dragEntitySnapshots) {
+			var li : data.inst.LayerInstance = s.li;
+			var ei : data.inst.EntityInstance = s.ei;
+			li.detachEntityInstanceForMove(ei);
+			touched.set(li.iid,li);
+		}
+
+		dragSourceCut = true;
+		for(li in touched)
+			invalidateDragLayer(li);
+	}
+
+
+	function restoreGridSnapshot(s:Dynamic) {
+		var li : data.inst.LayerInstance = s.li;
+		if( !li.isValid(s.cx,s.cy) )
+			return;
+
+		if( s.isTiles ) {
+			var tiles : Array<Dynamic> = s.tiles;
+			var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
+			for(t in tiles)
+				li.addGridTile(s.cx,s.cy,t.tileId,t.flips,stacking,false);
+		}
+		else
+			li.setIntGrid(s.cx,s.cy,s.value,false);
+	}
+
+
+	public function restoreDragSource() {
+		if( !dragSnapshotActive || !dragSourceCut )
+			return;
+
+		var touched : Map<String,data.inst.LayerInstance> = new Map();
+		for(s in dragGridSnapshots) {
+			restoreGridSnapshot(s);
+			var li : data.inst.LayerInstance = s.li;
+			touched.set(li.iid,li);
+		}
+
+		for(s in dragEntitySnapshots) {
+			var li : data.inst.LayerInstance = s.li;
+			var ei : data.inst.EntityInstance = s.ei;
+			ei.x = s.x;
+			ei.y = s.y;
+			li.attachEntityInstanceForMove(ei);
+			touched.set(li.iid,li);
+		}
+
+		dragSourceCut = false;
+		for(li in touched)
+			invalidateDragLayer(li);
+	}
+
+
+	function getDragTargetLevel(to:Coords) : data.Level {
+		var source = dragSourceLevel!=null ? dragSourceLevel : editor.curLevel;
+		var best : data.Level = null;
+
+		for(l in source._world.levels)
+			if( l.isWorldOver(to.worldX,to.worldY) ) {
+				if( l==source )
+					return source;
+				if( best==null || l.worldDepth==source.worldDepth && best.worldDepth!=source.worldDepth )
+					best = l;
+			}
+
+		return best!=null ? best : source;
+	}
+
+
+	public inline function getLastDropTargetLevel() return lastDropTargetLevel;
+
+
+	public function commitDragSnapshot(origin:Coords, to:Coords, isCopy:Bool) : Array<data.inst.LayerInstance> {
+		if( !dragSnapshotActive )
+			return moveSelecteds(origin,to,isCopy);
+
+		var sourceLevel = dragSourceLevel!=null ? dragSourceLevel : editor.curLevel;
+		var targetLevel = getDragTargetLevel(to);
+		lastDropTargetLevel = targetLevel;
+
+		// Ensure destination history exists BEFORE any destination mutation.
+		editor.ensureLevelTimeline(targetLevel);
+
+		var dx = to.worldX-origin.worldX;
+		var dy = to.worldY-origin.worldY;
+		var changed : Map<String,data.inst.LayerInstance> = new Map();
+		var copiedEntities : Map<String,data.inst.EntityInstance> = new Map();
+		var movedEntityIids : Map<String,Bool> = new Map();
+
+		// Empty-space selections also clear the destination rectangle.
+		if( originalRects.length>0 ) {
+			for(r in originalRects) {
+				var left = sourceLevel.worldX + r.leftPx + dx - targetLevel.worldX;
+				var right = sourceLevel.worldX + r.rightPx + dx - targetLevel.worldX;
+				var top = sourceLevel.worldY + r.topPx + dy - targetLevel.worldY;
+				var bottom = sourceLevel.worldY + r.bottomPx + dy - targetLevel.worldY;
+
+				for(li in targetLevel.layerInstances)
+					if( li.def.type==IntGrid || li.def.type==Tiles ) {
+						var cLeft = li.levelToLayerCx(left);
+						var cRight = li.levelToLayerCx(right+1);
+						var cTop = li.levelToLayerCy(top);
+						var cBottom = li.levelToLayerCy(bottom+1);
+						for(cx in cLeft...cRight)
+						for(cy in cTop...cBottom)
+							if( li.isValid(cx,cy) ) {
+								if( li.def.type==IntGrid )
+									li.removeIntGrid(cx,cy,false);
+								else
+									li.removeAllGridTiles(cx,cy,false);
+							}
+						changed.set(li.iid,li);
+					}
+			}
+		}
+
+		// Grid data
+		for(s in dragGridSnapshots) {
+			var srcLi : data.inst.LayerInstance = s.li;
+			var dstLi = targetLevel.getLayerInstance(srcLi.layerDefUid);
+			var grid = srcLi.def.gridSize;
+
+			var srcWorldX = srcLi.level.worldX + srcLi.pxTotalOffsetX + s.cx*grid;
+			var srcWorldY = srcLi.level.worldY + srcLi.pxTotalOffsetY + s.cy*grid;
+			var tcx = M.round( (srcWorldX + dx - targetLevel.worldX - dstLi.pxTotalOffsetX) / grid );
+			var tcy = M.round( (srcWorldY + dy - targetLevel.worldY - dstLi.pxTotalOffsetY) / grid );
+
+			if( dstLi.isValid(tcx,tcy) ) {
+				if( s.isTiles ) {
+					var tiles : Array<Dynamic> = s.tiles;
+					var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
+					for(t in tiles)
+						dstLi.addGridTile(tcx,tcy,t.tileId,t.flips,stacking,false);
+				}
+				else
+					dstLi.setIntGrid(tcx,tcy,s.value,false);
+
+				elements[s.elementIdx] = GridCell(dstLi,tcx,tcy);
+				changed.set(dstLi.iid,dstLi);
+				if( !isCopy )
+					changed.set(srcLi.iid,srcLi);
+			}
+			else if( !isCopy ) {
+				restoreGridSnapshot(s);
+				elements[s.elementIdx] = GridCell(srcLi,s.cx,s.cy);
+				changed.set(srcLi.iid,srcLi);
+			}
+		}
+
+		// Entities
+		for(s in dragEntitySnapshots) {
+			var srcLi : data.inst.LayerInstance = s.li;
+			var srcEi : data.inst.EntityInstance = s.ei;
+			var dstLi = targetLevel.getLayerInstance(srcLi.layerDefUid);
+			var tx = srcLi.level.worldX + s.x + dx - targetLevel.worldX;
+			var ty = srcLi.level.worldY + s.y + dy - targetLevel.worldY;
+
+			if( !srcEi.def.allowOutOfBounds && !targetLevel.inBounds(tx,ty) ) {
+				if( !isCopy ) {
+					srcEi.x = s.x;
+					srcEi.y = s.y;
+					srcLi.attachEntityInstanceForMove(srcEi);
+					elements[s.elementIdx] = Entity(srcLi,srcEi);
+					changed.set(srcLi.iid,srcLi);
+				}
+				continue;
+			}
+
+			var dstEi : data.inst.EntityInstance;
+			if( isCopy ) {
+				dstEi = dstLi.duplicateEntityInstance(srcEi);
+				copiedEntities.set(srcEi.iid,dstEi);
+			}
+			else {
+				// Erase source-side entity stamps while the entity still points to
+				// its original level/layer.
+				for(stampLi in editor.project.forkConfig.eraseEntityStamps(srcEi))
+					changed.set(stampLi.iid,stampLi);
+				dstLi.attachEntityInstanceForMove(srcEi);
+				dstEi = srcEi;
+				movedEntityIids.set(srcEi.iid,true);
+				changed.set(srcLi.iid,srcLi);
+			}
+
+			dstEi.x = tx;
+			dstEi.y = ty;
+			elements[s.elementIdx] = Entity(dstLi,dstEi);
+			changed.set(dstLi.iid,dstLi);
+
+			for(stampLi in editor.project.forkConfig.paintEntityStamps(dstEi))
+				changed.set(stampLi.iid,stampLi);
+			editor.ge.emit( EntityInstanceChanged(dstEi) );
+		}
+
+		// Selected point fields that belong to a moved/copied entity follow it.
+		for(s in dragPointSnapshots) {
+			var srcEi : data.inst.EntityInstance = s.ei;
+			var dstEi : data.inst.EntityInstance = null;
+			if( isCopy && copiedEntities.exists(srcEi.iid) )
+				dstEi = copiedEntities.get(srcEi.iid);
+			else if( !isCopy && movedEntityIids.exists(srcEi.iid) )
+				dstEi = srcEi;
+
+			if( dstEi==null )
+				continue;
+
+			var srcLi : data.inst.LayerInstance = s.li;
+			var dstLi = dstEi._li;
+			var grid = srcLi.def.gridSize;
+			var srcWorldX = srcLi.level.worldX + srcLi.pxTotalOffsetX + s.cx*grid;
+			var srcWorldY = srcLi.level.worldY + srcLi.pxTotalOffsetY + s.cy*grid;
+			var pcx = M.round( (srcWorldX + dx - dstLi.level.worldX - dstLi.pxTotalOffsetX) / grid );
+			var pcy = M.round( (srcWorldY + dy - dstLi.level.worldY - dstLi.pxTotalOffsetY) / grid );
+			var dstFi = dstEi.getFieldInstance(s.fi.def,true);
+			if( dstFi!=null && s.arrayIdx<dstFi.getArrayLength() ) {
+				dstFi.parseValue(s.arrayIdx, pcx+Const.POINT_SEPARATOR+pcy);
+				elements[s.elementIdx] = PointField(dstLi,dstEi,dstFi,s.arrayIdx);
+			}
+		}
+
+		// Move stored rectangle into destination level space.
+		if( originalRects.length>0 )
+			for(r in originalRects) {
+				r.leftPx = sourceLevel.worldX + r.leftPx + dx - targetLevel.worldX;
+				r.rightPx = sourceLevel.worldX + r.rightPx + dx - targetLevel.worldX;
+				r.topPx = sourceLevel.worldY + r.topPx + dy - targetLevel.worldY;
+				r.bottomPx = sourceLevel.worldY + r.bottomPx + dy - targetLevel.worldY;
+			}
+
+		dragSnapshotActive = false;
+		dragSourceCut = false;
+
+		var affected = [];
+		for(li in changed) {
+			// Ensure any auto-layer output reflects the final transferred data.
+			if( li.def.type==IntGrid ) {
+				if( li.def.isAutoLayer() )
+					li.applyAllRules();
+				for(other in li.level.layerInstances)
+					if( other.def.type==AutoLayer && other.def.autoSourceLayerDefUid==li.layerDefUid )
+						other.applyAllRules();
+			}
+
+			editor.ge.emit( LayerInstanceChangedGlobally(li) );
+			invalidateDragLayer(li);
+			affected.push(li);
+		}
+
+		if( targetLevel!=sourceLevel )
+			editor.worldRender.invalidateLevelRender(targetLevel);
+		editor.worldRender.invalidateLevelRender(sourceLevel);
+
+		invalidateBounds();
+		invalidateSelectRender();
+		return affected;
 	}
 
 
@@ -993,7 +1409,7 @@ class GenericLevelElementGroup {
 		var affectedLayers = [];
 		for(li in changedLayers) {
 			editor.ge.emit( LayerInstanceChangedGlobally(li) );
-			editor.levelRender.invalidateLayer(li);
+			invalidateDragLayer(li);
 			affectedLayers.push(li);
 		}
 
@@ -1011,6 +1427,9 @@ class GenericLevelElementGroup {
 
 
 	public function hasFlippableGridContent() {
+		if( dragSnapshotActive && dragGridSnapshots.length>0 )
+			return true;
+
 		for(ge in elements)
 			switch ge {
 				case GridCell(li, cx, cy):
@@ -1054,8 +1473,8 @@ class GenericLevelElementGroup {
 			switch ge {
 				case GridCell(li, cx, cy):
 					var include = switch li.def.type {
-						case Tiles: li.hasAnyGridTile(cx,cy);
-						case IntGrid: li.hasIntGrid(cx,cy);
+						case Tiles: dragSnapshotActive || li.hasAnyGridTile(cx,cy);
+						case IntGrid: dragSnapshotActive || li.hasIntGrid(cx,cy);
 						case Entities, AutoLayer: false;
 					}
 					if( include ) {
@@ -1149,14 +1568,14 @@ class GenericLevelElementGroup {
 
 		// Remove all sources first so mirrored positions can swap safely.
 		for(c in pendingTiles) {
-			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
-			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.cx, c.cy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeAllGridTiles(c.cx, c.cy, false);
 			changedLayers.set(c.li, c.li);
 		}
 		for(c in pendingIntGrid) {
-			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
-			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.cx, c.cy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeIntGrid(c.cx, c.cy, false);
 			changedLayers.set(c.li, c.li);
 		}

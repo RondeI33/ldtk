@@ -1409,7 +1409,7 @@ class GenericLevelElementGroup {
 		var affectedLayers = [];
 		for(li in changedLayers) {
 			editor.ge.emit( LayerInstanceChangedGlobally(li) );
-			editor.levelRender.invalidateLayer(li);
+			invalidateDragLayer(li);
 			affectedLayers.push(li);
 		}
 
@@ -1568,14 +1568,14 @@ class GenericLevelElementGroup {
 
 		// Remove all sources first so mirrored positions can swap safely.
 		for(c in pendingTiles) {
-			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
-			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.cx, c.cy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeAllGridTiles(c.cx, c.cy, false);
 			changedLayers.set(c.li, c.li);
 		}
 		for(c in pendingIntGrid) {
-			editor.curLevelTimeline.markGridChange(c.li, c.cx, c.cy);
-			editor.curLevelTimeline.markGridChange(c.li, c.targetCx, c.targetCy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.cx, c.cy);
+			editor.ensureLevelTimeline(c.li.level).markGridChange(c.li, c.targetCx, c.targetCy);
 			c.li.removeIntGrid(c.cx, c.cy, false);
 			changedLayers.set(c.li, c.li);
 		}

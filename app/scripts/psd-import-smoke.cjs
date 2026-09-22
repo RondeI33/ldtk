@@ -4,6 +4,7 @@ const path = require("path");
 
 const fixture = path.resolve(__dirname, "../../art/miscAssets/skyBg.psd");
 const psdToolsSource = path.resolve(__dirname, "../../src/electron.renderer/misc/PsdTools.hx");
+const psdPickerSource = path.resolve(__dirname, "../../src/electron.renderer/ui/modal/dialog/PsdLayerPicker.hx");
 
 function fail(message) {
   throw new Error("[PSD SMOKE] " + message);
@@ -14,8 +15,11 @@ async function run() {
     fail("Fixture not found: " + fixture);
   if (!fs.existsSync(psdToolsSource))
     fail("PsdTools source not found: " + psdToolsSource);
+  if (!fs.existsSync(psdPickerSource))
+    fail("PsdLayerPicker source not found: " + psdPickerSource);
 
   const sourceText = fs.readFileSync(psdToolsSource, "utf8");
+  const pickerText = fs.readFileSync(psdPickerSource, "utf8");
   if (sourceText.includes('js.Syntax.code("Buffer")'))
     fail("PsdTools must not rely on the renderer-global Buffer object");
   if (!sourceText.includes("require('buffer')"))
@@ -26,6 +30,14 @@ async function run() {
     fail("PSD import metadata must preserve multiple selected layer keys");
   if (!sourceText.includes("displayCrop"))
     fail("PSD import metadata must preserve cropped LDtk atlas bounds");
+  if (!sourceText.includes("display.width = cropW") || !sourceText.includes("display.height = cropH"))
+    fail("LDtk PSD atlas must be cropped instead of using full PSD document dimensions");
+  if (!sourceText.includes("entry.info.left-cropLeft") || !sourceText.includes("entry.info.top-cropTop"))
+    fail("PSD selected layers must be rebased to cropped atlas origin");
+  if (!pickerText.includes('type="checkbox"'))
+    fail("PSD layer picker must support multi-select checkboxes");
+  if (pickerText.includes('type="radio"'))
+    fail("PSD layer picker regressed to single-layer radio selection");
 
   const win = new BrowserWindow({
     show: false,

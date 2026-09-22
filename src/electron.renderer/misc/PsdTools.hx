@@ -18,15 +18,22 @@ typedef PsdLayerInfo = {
 	var ?id : Null<Int>;
 	var ?kind : String;
 	var ?exportRelPath : Null<String>;
+	var ?effectiveOpacity : Float;
 }
 
 typedef PsdGeneratedImport = {
 	var sourceRelPath : String;
-	var selectedLayerKey : String;
-	var selectedLayerPath : String;
+	var selectedLayerKeys : Array<String>;
+	var selectedLayerPaths : Array<String>;
+	var displayRelPath : String;
+	var displayLeft : Int;
+	var displayTop : Int;
+	var displayWidth : Int;
+	var displayHeight : Int;
 	var documentWidth : Int;
 	var documentHeight : Int;
 	var layers : Array<PsdLayerInfo>;
+	var ?legacy : Bool;
 }
 
 class PsdTools {
@@ -114,7 +121,7 @@ class PsdTools {
 		if( root==null || !Std.isOfType(root,Array) )
 			return out;
 
-		function visit(children:Array<Dynamic>, parents:Array<String>, indexParents:Array<Int>, depth:Int) {
+		function visit(children:Array<Dynamic>, parents:Array<String>, indexParents:Array<Int>, depth:Int, parentOpacity:Float) {
 			for(i in 0...children.length) {
 				var node = children[i];
 				if( node==null )
@@ -136,6 +143,16 @@ class PsdTools {
 					: "tree:"+indices.join(".");
 				var layerPath = names.join("/");
 				var selectable = !isGroup && canvas!=null;
+				var opacity = M.fclamp(floatField(node,"opacity",1.0),0,1);
+				var effectiveOpacity = parentOpacity*opacity;
+				var left = intField(node,"left",0);
+				var top = intField(node,"top",0);
+				var fallbackW = canvas==null ? 0 : Std.int(Reflect.field(canvas,"width"));
+				var fallbackH = canvas==null ? 0 : Std.int(Reflect.field(canvas,"height"));
+				var right = intField(node,"right",left+fallbackW);
+				var bottom = intField(node,"bottom",top+fallbackH);
+				if( right<=left && fallbackW>0 ) right = left+fallbackW;
+				if( bottom<=top && fallbackH>0 ) bottom = top+fallbackH;
 
 				var info:PsdLayerInfo = {
 					key: key,
@@ -145,13 +162,14 @@ class PsdTools {
 					isGroup: isGroup,
 					selectable: selectable,
 					visible: !boolField(node,"hidden",false),
-					opacity: floatField(node,"opacity",1.0),
+					opacity: opacity,
+					effectiveOpacity: effectiveOpacity,
 					blendMode: Reflect.field(node,"blendMode")==null ? "normal" : Std.string(Reflect.field(node,"blendMode")),
 					clipping: boolField(node,"clipping",false),
-					left: intField(node,"left",0),
-					top: intField(node,"top",0),
-					right: intField(node,"right",0),
-					bottom: intField(node,"bottom",0),
+					left: left,
+					top: top,
+					right: right,
+					bottom: bottom,
 					id: idValue==null ? null : Std.int(idValue),
 					kind: layerKind(node,isGroup),
 					exportRelPath: null,
@@ -159,11 +177,11 @@ class PsdTools {
 				out.push({ info:info, node:node });
 
 				if( isGroup )
-					visit(cast childObj, names, indices, depth+1);
+					visit(cast childObj, names, indices, depth+1, effectiveOpacity);
 			}
 		}
 
-		visit(cast root, [], [], 0);
+		visit(cast root, [], [], 0, 1);
 		return out;
 	}
 

@@ -5,8 +5,8 @@ package misc;
  * their layer picker before the normal image-picker callback receives a PNG.
  *
  * Aseprite keeps its existing CLI-based selective flattening flow.
- * PSD uses PsdTools: one chosen layer becomes the LDtk atlas while all readable
- * layer exports + metadata are preserved under .ldtk-psd for future importers.
+ * PSD uses PsdTools: one or more chosen layers become a cropped LDtk atlas while
+ * all readable layer exports + metadata are preserved under .ldtk-psd for future importers.
  */
 class AsepriteImportInterceptor {
 	static var installed = false;

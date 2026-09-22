@@ -64,4 +64,5 @@ jobs:
           node-version: '20'
       - run: cd app && npm install
       - run: cd app && npm run compile
+      - run: cd app && npm run test:psd-import
 

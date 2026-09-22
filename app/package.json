@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.14",
+	"version": "1.0.15",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -15,6 +15,7 @@
 	"scripts": {
 		"start": "electron .",
 		"compile": "cd ..  &&  haxe main.hxml  &&  haxe renderer.hxml",
+		"test:psd-import": "electron scripts/psd-import-smoke.cjs",
 		"doc": "cd ..  &&  haxe doc.hxml",
 		"pack-prepare": "npm run doc  &&  npm run compile",
 		"pack-test": "npm run pack-prepare  &&  electron-builder build --win --dir --publish never",

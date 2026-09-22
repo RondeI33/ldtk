@@ -124,6 +124,10 @@ jobs:
         working-directory: app
         run: npm install --no-audit --no-fund
 
+      - name: PSD import runtime smoke test
+        working-directory: app
+        run: npm run test:psd-import
+
       - name: Verify package version
         working-directory: app
         shell: bash
@@ -191,6 +195,10 @@ jobs:
       - name: Install Node dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
+
+      - name: PSD import runtime smoke test
+        working-directory: app
+        run: npm run test:psd-import
 
       - name: Package universal macOS
         working-directory: app

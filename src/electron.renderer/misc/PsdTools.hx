@@ -212,7 +212,10 @@ class PsdTools {
 		var comma = dataUrl.indexOf(",");
 		if( comma<0 )
 			throw "Could not encode PSD layer PNG.";
-		var Buffer:Dynamic = js.Syntax.code("Buffer");
+		var bufferModule:Dynamic = js.Syntax.code("require('buffer')");
+		var Buffer:Dynamic = bufferModule==null ? null : Reflect.field(bufferModule,"Buffer");
+		if( Buffer==null || Reflect.field(Buffer,"from")==null )
+			throw "Node Buffer API is unavailable in the renderer.";
 		return Buffer.from(dataUrl.substr(comma+1), "base64");
 	}
 

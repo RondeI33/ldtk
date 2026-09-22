@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const fixture = path.resolve(__dirname, "../../art/miscAssets/skyBg.psd");
+const psdToolsSource = path.resolve(__dirname, "../../src/electron.renderer/misc/PsdTools.hx");
 
 function fail(message) {
   throw new Error("[PSD SMOKE] " + message);
@@ -11,6 +12,14 @@ function fail(message) {
 async function run() {
   if (!fs.existsSync(fixture))
     fail("Fixture not found: " + fixture);
+  if (!fs.existsSync(psdToolsSource))
+    fail("PsdTools source not found: " + psdToolsSource);
+
+  const sourceText = fs.readFileSync(psdToolsSource, "utf8");
+  if (sourceText.includes('js.Syntax.code("Buffer")'))
+    fail("PsdTools must not rely on the renderer-global Buffer object");
+  if (!sourceText.includes("require('buffer')"))
+    fail("PsdTools must resolve Buffer through require('buffer')");
 
   const win = new BrowserWindow({
     show: false,

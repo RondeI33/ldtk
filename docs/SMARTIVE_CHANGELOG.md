@@ -1,3 +1,23 @@
+# 1.0.14
+
+## Photoshop PSD layer import
+
+- Added `.psd` support to the normal LDtk image/tileset picker, alongside PNG/GIF/JPEG and Aseprite sources.
+- Choosing a PSD opens a Photoshop-style layer picker and lets you choose the single layer LDtk should display as the spritesheet.
+- Photoshop group hierarchy is preserved in the picker so nested layer paths remain understandable.
+- The original PSD is never modified and remains the source of truth.
+- Every renderable PSD leaf layer is exported as its own **full-document-size, pixel-aligned PNG** under `.ldtk-psd/`, even when that layer is not selected for display in LDtk.
+- `.ldtk-psd/.../import.json` preserves the PSD source path, document dimensions, complete layer/group list, hierarchy path, Photoshop layer ID when available, visibility, opacity, blend mode, clipping state, bounds, detected layer kind, and generated PNG path for each renderable layer.
+- This retained data is intentionally structured for future external importers, such as a Unity importer that combines color/normal/emission layers into materials. Unity material generation itself is **not implemented in this release**.
+- PSD source files are watched for changes. Editing the PSD regenerates all exported layer PNGs and metadata while keeping the originally selected display layer.
+- PSD parsing is powered by `ag-psd`.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.13
 
 ## Cross-level selection moves and live cut preview

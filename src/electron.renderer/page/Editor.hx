@@ -64,6 +64,33 @@ class Editor extends Page {
 		inline function get_curLevelTimeline() return levelTimelines.get(curLevelId);
 
 
+	public function ensureLevelTimeline(l:data.Level) : LevelTimeline {
+		if( !levelTimelines.exists(l.uid) )
+			levelTimelines.set(l.uid, new LevelTimeline(l.uid, l._world.iid, true));
+		return levelTimelines.get(l.uid);
+	}
+
+
+	public function saveLayerStatesByLevel(lis:Array<data.inst.LayerInstance>) {
+		var byLevel : Map<Int,Array<data.inst.LayerInstance>> = new Map();
+		for(li in lis) {
+			if( li==null )
+				continue;
+			if( !byLevel.exists(li.levelId) )
+				byLevel.set(li.levelId, []);
+			var arr = byLevel.get(li.levelId);
+			if( arr.indexOf(li)<0 )
+				arr.push(li);
+		}
+
+		for(levelId in byLevel.keys()) {
+			var l = project.getLevelAnywhere(levelId);
+			if( l!=null )
+				ensureLevelTimeline(l).saveLayerStates(byLevel.get(levelId));
+		}
+	}
+
+
 	public function new(p:data.Project, ?loadLevelIndex:Int) {
 		super();
 

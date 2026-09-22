@@ -40,7 +40,7 @@ class PsdTools {
 	static inline var GENERATED_DIR = ".ldtk-psd";
 	static inline var GENERATED_CONFIG = "import.json";
 	static inline var FORMAT_ID = "ldtk-smartive-psd-import";
-	static inline var FORMAT_VERSION = 1;
+	static inline var FORMAT_VERSION = 2;
 
 	static var lib : Dynamic;
 	static var canvasInitialized = false;
@@ -455,7 +455,7 @@ class PsdTools {
 		var stat:Dynamic = fs.statSync(absSource);
 		var json = {
 			format: FORMAT_ID,
-			version: 2,
+			version: FORMAT_VERSION,
 			sourceRelPath: normalizeRel(relSourcePath),
 			documentWidth: docW,
 			documentHeight: docH,

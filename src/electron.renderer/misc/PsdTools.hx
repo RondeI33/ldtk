@@ -270,17 +270,69 @@ class PsdTools {
 		return project.makeRelativeFilePath(absOut);
 	}
 
-	public static function exportSelectedLayer(project:data.Project, relSourcePath:String, selectedLayerKey:String) : String {
+
+	static function canvasBlendMode(psdBlend:String) : String {
+		return switch psdBlend {
+			case "multiply": "multiply";
+			case "screen": "screen";
+			case "overlay": "overlay";
+			case "darken": "darken";
+			case "lighten": "lighten";
+			case "color dodge": "color-dodge";
+			case "color burn": "color-burn";
+			case "hard light": "hard-light";
+			case "soft light": "soft-light";
+			case "difference": "difference";
+			case "exclusion": "exclusion";
+			case "hue": "hue";
+			case "saturation": "saturation";
+			case "color": "color";
+			case "luminosity": "luminosity";
+			case _: "source-over";
+		}
+	}
+
+
+	static function readExistingVariants(configPath:String) : Array<Dynamic> {
+		if( configPath==null || !NT.fileExists(configPath) )
+			return [];
+		try {
+			var raw:Dynamic = haxe.Json.parse(NT.readFileString(configPath));
+			if( Reflect.field(raw,"format")!=FORMAT_ID )
+				return [];
+			var variants:Dynamic = Reflect.field(raw,"variants");
+			return variants!=null && Std.isOfType(variants,Array) ? cast variants : [];
+		}
+		catch(_:Dynamic) {
+			return [];
+		}
+	}
+
+
+	public static function exportSelectedLayers(project:data.Project, relSourcePath:String, selectedLayerKeys:Array<String>) : String {
 		if( !isPsdPath(relSourcePath) )
 			throw "The selected source is not a PSD file.";
-		if( selectedLayerKey==null || selectedLayerKey.length==0 )
-			throw "Choose a PSD layer.";
+		if( selectedLayerKeys==null || selectedLayerKeys.length==0 )
+			throw "Choose at least one PSD layer.";
 
 		var absSource = project.makeAbsoluteFilePath(relSourcePath);
 		var psd = readPsd(absSource);
 		var entries = collectLayers(psd);
 		if( entries.length==0 )
 			throw "This PSD does not contain any readable layers.";
+
+		var selectedMap : Map<String,Bool> = new Map();
+		for(key in selectedLayerKeys)
+			if( key!=null && key.length>0 )
+				selectedMap.set(key,true);
+
+		var selectedEntries : Array<{ info:PsdLayerInfo, node:Dynamic }> = [];
+		for(entry in entries)
+			if( entry.info.selectable && selectedMap.exists(entry.info.key) )
+				selectedEntries.push(entry);
+
+		if( selectedEntries.length==0 )
+			throw "The selected PSD layers no longer exist or contain no renderable pixel data.";
 
 		var path:Dynamic = js.Syntax.code("require('path')");
 		var fs:Dynamic = js.Syntax.code("require('fs')");
@@ -296,41 +348,134 @@ class PsdTools {
 			base = "photoshop";
 		base = ~/[^A-Za-z0-9_-]+/g.replace(base,"_");
 
-		var selectedRel : Null<String> = null;
-		var selectedPath : Null<String> = null;
-		for(entry in entries) {
-			var rel = exportLayerCanvas(project,psd,entry,base,outDir);
-			entry.info.exportRelPath = rel;
-			if( entry.info.key==selectedLayerKey ) {
-				if( rel==null )
-					throw 'PSD layer "${entry.info.path}" has no renderable pixel data.';
-				selectedRel = rel;
-				selectedPath = entry.info.path;
-			}
-		}
-		if( selectedRel==null )
-			throw "The selected PSD layer no longer exists or cannot be rendered.";
+		// Preserve every renderable PSD leaf as a full-document PNG for future
+		// Unity/external importers. These are NOT used as the LDtk atlas.
+		for(entry in entries)
+			entry.info.exportRelPath = exportLayerCanvas(project,psd,entry,base,outDir);
 
-		var fs2:Dynamic = js.Syntax.code("require('fs')");
-		var stat:Dynamic = fs2.statSync(absSource);
+		var docW = intField(psd,"width",0);
+		var docH = intField(psd,"height",0);
+
+		// Crop LDtk's display atlas to the union of selected layers. The old
+		// full-document atlas kept PSD document offsets as transparent margins,
+		// which shifted the LDtk grid and produced visible gaps between tiles.
+		var cropLeft = docW;
+		var cropTop = docH;
+		var cropRight = 0;
+		var cropBottom = 0;
+		for(entry in selectedEntries) {
+			var srcCanvas:Dynamic = Reflect.field(entry.node,"canvas");
+			if( srcCanvas==null )
+				continue;
+
+			var left = M.imax(0,entry.info.left);
+			var top = M.imax(0,entry.info.top);
+			var right = M.imin(docW,entry.info.right);
+			var bottom = M.imin(docH,entry.info.bottom);
+			if( right<=left )
+				right = M.imin(docW,left+Std.int(Reflect.field(srcCanvas,"width")));
+			if( bottom<=top )
+				bottom = M.imin(docH,top+Std.int(Reflect.field(srcCanvas,"height")));
+
+			cropLeft = M.imin(cropLeft,left);
+			cropTop = M.imin(cropTop,top);
+			cropRight = M.imax(cropRight,right);
+			cropBottom = M.imax(cropBottom,bottom);
+		}
+
+		var cropW = cropRight-cropLeft;
+		var cropH = cropBottom-cropTop;
+		if( cropW<=0 || cropH<=0 )
+			throw "Selected PSD layers have empty or invalid bounds.";
+
+		var display:Dynamic = js.Browser.document.createElement("canvas");
+		display.width = cropW;
+		display.height = cropH;
+		var ctx:Dynamic = display.getContext("2d");
+		if( ctx==null )
+			throw "Could not create PSD display canvas.";
+		ctx.clearRect(0,0,cropW,cropH);
+		ctx.imageSmoothingEnabled = false;
+
+		// ag-psd returns Photoshop children in top-to-bottom order. Paint
+		// bottom-to-top so multiple selected layers flatten like the PSD stack.
+		var i = selectedEntries.length-1;
+		while( i>=0 ) {
+			var entry = selectedEntries[i--];
+			var srcCanvas:Dynamic = Reflect.field(entry.node,"canvas");
+			if( srcCanvas==null )
+				continue;
+
+			ctx.save();
+			ctx.globalAlpha = entry.info.effectiveOpacity==null
+				? M.fclamp(entry.info.opacity,0,1)
+				: M.fclamp(entry.info.effectiveOpacity,0,1);
+			ctx.globalCompositeOperation = canvasBlendMode(entry.info.blendMode);
+			ctx.drawImage(
+				srcCanvas,
+				entry.info.left-cropLeft,
+				entry.info.top-cropTop
+			);
+			ctx.restore();
+		}
+
+		var normalizedKeys = [ for(entry in selectedEntries) entry.info.key ];
+		var selectedPaths = [ for(entry in selectedEntries) entry.info.path ];
+		var sigKeys = normalizedKeys.copy();
+		sigKeys.sort(Reflect.compare);
+		var selectionSig = haxe.crypto.Md5.encode(sigKeys.join("|")).substr(0,12);
+		var displayDir:String = path.join(outDir,"display",selectionSig);
+		fs.mkdirSync(displayDir,{ recursive:true });
+		var absDisplay:String = path.join(displayDir,base+".png");
+		fs.writeFileSync(absDisplay,canvasToPngBytes(display));
+		var displayRel = project.makeRelativeFilePath(absDisplay);
+
+		var configPath:String = path.join(outDir,GENERATED_CONFIG);
+		var variants = readExistingVariants(configPath);
+		var keptVariants : Array<Dynamic> = [];
+		for(v in variants) {
+			var rel:Dynamic = Reflect.field(v,"displayRelPath");
+			if( rel==null || normalizeRel(Std.string(rel))!=normalizeRel(displayRel) )
+				keptVariants.push(v);
+		}
+		keptVariants.push({
+			selectedLayerKeys: normalizedKeys,
+			selectedLayerPaths: selectedPaths,
+			displayRelPath: displayRel,
+			displayCrop: {
+				left: cropLeft,
+				top: cropTop,
+				right: cropRight,
+				bottom: cropBottom,
+				width: cropW,
+				height: cropH,
+			},
+		});
+
+		var stat:Dynamic = fs.statSync(absSource);
 		var json = {
 			format: FORMAT_ID,
-			version: FORMAT_VERSION,
+			version: 2,
 			sourceRelPath: normalizeRel(relSourcePath),
-			documentWidth: intField(psd,"width",0),
-			documentHeight: intField(psd,"height",0),
+			documentWidth: docW,
+			documentHeight: docH,
 			sourceMtimeMs: stat.mtimeMs,
 			layers: [ for(entry in entries) entry.info ],
+			variants: keptVariants,
 		};
 		fs.writeFileSync(
-			path.join(outDir,GENERATED_CONFIG),
+			configPath,
 			haxe.Json.stringify(json,null,"  "),
 			{ encoding:"utf8" }
 		);
 
-		App.LOG.fileOp('Imported PSD "$relSourcePath", selected "$selectedPath", exported ${entries.length} indexed layer entries.');
-		return selectedRel;
+		App.LOG.fileOp(
+			'Imported PSD "$relSourcePath", selected ${normalizedKeys.length} layer(s), '+
+			'LDtk atlas=$cropW x $cropH from crop $cropLeft,$cropTop, exported ${entries.length} indexed layer entries.'
+		);
+		return displayRel;
 	}
+
 
 	public static function getGeneratedImport(project:data.Project, relGeneratedPath:String) : Null<PsdGeneratedImport> {
 		var cfgPath = configPathForGenerated(project,relGeneratedPath);
@@ -354,17 +499,62 @@ class PsdTools {
 
 			var layers:Array<PsdLayerInfo> = cast rawLayers;
 			var wanted = normalizeRel(relGeneratedPath);
-			for(layer in layers) {
-				if( layer.exportRelPath!=null && normalizeRel(layer.exportRelPath)==wanted )
+
+			var rawVariants:Dynamic = Reflect.field(raw,"variants");
+			if( rawVariants!=null && Std.isOfType(rawVariants,Array) )
+				for(v in (cast rawVariants:Array<Dynamic>)) {
+					var rel:Dynamic = Reflect.field(v,"displayRelPath");
+					if( rel==null || normalizeRel(Std.string(rel))!=wanted )
+						continue;
+
+					var keys:Array<String> = [];
+					var rawKeys:Dynamic = Reflect.field(v,"selectedLayerKeys");
+					if( rawKeys!=null && Std.isOfType(rawKeys,Array) )
+						for(k in (cast rawKeys:Array<Dynamic>))
+							if( k!=null ) keys.push(Std.string(k));
+
+					var paths:Array<String> = [];
+					var rawPaths:Dynamic = Reflect.field(v,"selectedLayerPaths");
+					if( rawPaths!=null && Std.isOfType(rawPaths,Array) )
+						for(p in (cast rawPaths:Array<Dynamic>))
+							if( p!=null ) paths.push(Std.string(p));
+
+					var crop:Dynamic = Reflect.field(v,"displayCrop");
 					return {
 						sourceRelPath: source,
-						selectedLayerKey: layer.key,
-						selectedLayerPath: layer.path,
+						selectedLayerKeys: keys,
+						selectedLayerPaths: paths,
+						displayRelPath: Std.string(rel),
+						displayLeft: intField(crop,"left",0),
+						displayTop: intField(crop,"top",0),
+						displayWidth: intField(crop,"width",docW),
+						displayHeight: intField(crop,"height",docH),
 						documentWidth: docW,
 						documentHeight: docH,
 						layers: layers,
+						legacy: false,
 					};
-			}
+				}
+
+			// Compatibility with 1.0.14/1.0.15 projects that still reference a
+			// single full-document layer export directly.
+			for(layer in layers)
+				if( layer.exportRelPath!=null && normalizeRel(layer.exportRelPath)==wanted )
+					return {
+						sourceRelPath: source,
+						selectedLayerKeys: [layer.key],
+						selectedLayerPaths: [layer.path],
+						displayRelPath: relGeneratedPath,
+						displayLeft: 0,
+						displayTop: 0,
+						displayWidth: docW,
+						displayHeight: docH,
+						documentWidth: docW,
+						documentHeight: docH,
+						layers: layers,
+						legacy: true,
+					};
+
 			return null;
 		}
 		catch(e:Dynamic) {
@@ -373,11 +563,18 @@ class PsdTools {
 		}
 	}
 
+
 	public static function regenerateGenerated(project:data.Project, relGeneratedPath:String) : Bool {
 		var generated = getGeneratedImport(project,relGeneratedPath);
-		if( generated==null )
+		if( generated==null || generated.selectedLayerKeys.length==0 )
 			return false;
-		var selected = exportSelectedLayer(project,generated.sourceRelPath,generated.selectedLayerKey);
-		return project.makeAbsoluteFilePath(selected)==project.makeAbsoluteFilePath(relGeneratedPath);
+
+		var display = exportSelectedLayers(project,generated.sourceRelPath,generated.selectedLayerKeys);
+
+		if( generated.legacy==true )
+			return NT.fileExists(project.makeAbsoluteFilePath(relGeneratedPath));
+
+		return project.makeAbsoluteFilePath(display)==project.makeAbsoluteFilePath(relGeneratedPath);
 	}
+
 }

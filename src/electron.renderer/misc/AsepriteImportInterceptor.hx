@@ -91,9 +91,9 @@ class AsepriteImportInterceptor {
 					}
 
 					var relSourcePath = project.makeRelativeFilePath(absPath);
-					new ui.modal.dialog.PsdLayerPicker(relSourcePath, cast layers, selectedLayerKey->{
+					new ui.modal.dialog.PsdLayerPicker(relSourcePath, cast layers, selectedLayerKeys->{
 						try {
-							var generatedRelPath = PsdTools.exportSelectedLayer(project, relSourcePath, selectedLayerKey);
+							var generatedRelPath = PsdTools.exportSelectedLayers(project, relSourcePath, selectedLayerKeys);
 							var generatedAbsPath = project.makeAbsoluteFilePath(generatedRelPath);
 							onPick(generatedAbsPath);
 
@@ -104,8 +104,8 @@ class AsepriteImportInterceptor {
 							);
 
 							var imported = PsdTools.getGeneratedImport(project,generatedRelPath);
-							var label = imported==null ? selectedLayerKey : imported.selectedLayerPath;
-							N.success('Imported PSD layer "$label". Other PSD layers were preserved for external importers.');
+							var n = imported==null ? selectedLayerKeys.length : imported.selectedLayerKeys.length;
+							N.success('Imported $n PSD layer${n==1 ? "" : "s"} into one cropped LDtk atlas. All PSD layers remain preserved for external importers.');
 						}
 						catch(e:Dynamic) {
 							App.LOG.error(e);

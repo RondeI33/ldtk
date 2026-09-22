@@ -1,3 +1,21 @@
+# 1.0.15
+
+## PSD import runtime crash hotfix and regression tests
+
+- Fixed the packaged Electron PSD import crash `Cannot read properties of undefined (reading 'from')` by resolving `Buffer` explicitly through Node's `require('buffer').Buffer` instead of assuming a renderer-global `Buffer`.
+- Added an Electron PSD runtime smoke test using the real `art/miscAssets/skyBg.psd` fixture.
+- The smoke test parses the PSD through `ag-psd`, validates document dimensions and layer hierarchy, finds a renderable leaf layer, draws it to a browser canvas, encodes PNG output, converts the PNG through `require('buffer').Buffer.from(...)`, verifies the PNG signature, and validates metadata JSON round-tripping.
+- The smoke test also rejects any future regression that reintroduces the renderer-global `Buffer` dependency.
+- Windows CI and macOS packaging now run the PSD runtime smoke test.
+- The stable Windows/macOS release jobs are blocked on the PSD smoke test, so a release cannot be published from those platforms if PSD import runtime validation fails.
+- PSD layer selection, aligned layer exports, metadata preservation, source hot-reload, and the future-Unity-importer data layout from 1.0.14 remain unchanged.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.14
 
 ## Photoshop PSD layer import

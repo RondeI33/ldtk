@@ -223,16 +223,6 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function startUsing(ev:hxd.Event, m:Coords, ?extraParam:String) {
-		if( ev.button==1 && any() && group.isOveringSelection(m) ) {
-			var ctx = new ui.modal.ContextMenu(m);
-			ctx.addAction({
-				label: L.t._("Save to template..."),
-				iconId: "save",
-				cb: saveSelectionAsTemplate,
-			});
-			ev.cancel = true;
-			return;
-		}
 		isCopy = App.ME.isCtrlCmdDown() && App.ME.isAltDown();
 		dragFlipX = false;
 		dragFlipY = false;
@@ -271,8 +261,10 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	public function saveSelectionAsTemplate() {
-		if( isEmpty() )
+		if( isEmpty() ) {
+			N.error("Select something in the level first.");
 			return;
+		}
 		var name = js.Browser.window.prompt("Template name:","Template");
 		if( name==null )
 			return;

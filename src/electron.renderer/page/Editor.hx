@@ -252,6 +252,8 @@ class Editor extends Page {
 			if( ev.keyCode==K.SPACE && !e.is("input") && !e.is("textarea") )
 				ev.preventDefault();
 		});
+
+		data.SelectionTemplates.installUi(this);
 	}
 
 	public function setPermanentNotification(id:String, ?jContent:js.jquery.JQuery) {

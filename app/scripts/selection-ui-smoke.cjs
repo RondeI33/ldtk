@@ -22,7 +22,11 @@ app.on('browser-window-created',(_,win)=>{
   });
 });
 async function run(win) {
-  const ev=code=>win.webContents.executeJavaScript(code,true);
+  const ev=async code=>{
+    const result=await win.webContents.executeJavaScript(`(()=>{try{return {ok:true,value:eval(${JSON.stringify(code)})};}catch(e){return {ok:false,error:String(e.stack||e)};}})()`,true);
+    if(!result.ok)throw Error(result.error+'\nExpression: '+code);
+    return result.value;
+  };
   async function until(code,message) {
     for(let i=0;i<180;i++){if(await ev('!!('+code+')'))return;await delay(40);}
     let state;try{state=await ev('SceneSelectionTests.uiState()');}catch(_){}

@@ -30,9 +30,9 @@ async function run(win){
   assert(await ev('document.querySelector("#selectionTemplatesTab").textContent.trim()===""'));
   pass('Compact Templates icon follows Tilesets');
 
-  await ev(`$('#selectionTemplatesTab').trigger('mouseenter')`);
+  await ev(`(()=>{$('#selectionTemplatesTab').trigger('mouseenter');return true;})()`);
   await until('Array.from(document.querySelectorAll(".tip .text")).some(n=>n.textContent.includes("Templates"))','Templates toolbar tooltip did not appear');
-  await ev(`$('#selectionTemplatesTab').trigger('mouseleave')`);
+  await ev(`(()=>{$('#selectionTemplatesTab').trigger('mouseleave');return true;})()`);
   pass('Templates toolbar icon exposes the same hover tooltip behavior as native tabs');
 
   await click('#selectionTemplatesTab');

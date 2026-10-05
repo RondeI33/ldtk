@@ -5,6 +5,7 @@ class SelectionTemplateTool extends Tool<Int> {
 	var ghost : h2d.Graphics;
 	var flipX = false;
 	var flipY = false;
+	var placedOnRelease = false;
 
 	public function new(tpl:Dynamic) {
 		super();
@@ -83,7 +84,19 @@ class SelectionTemplateTool extends Tool<Int> {
 	override function useAt(m:Coords, isOnStop:Bool) : Bool {
 		if( !isOnStop )
 			return false;
-		return data.SelectionTemplates.place(editor,tpl,Std.int(m.levelX),Std.int(m.levelY),flipX,flipY);
+		placedOnRelease = data.SelectionTemplates.place(editor,tpl,Std.int(m.levelX),Std.int(m.levelY),flipX,flipY);
+		return placedOnRelease;
+	}
+
+	override function stopUsing(m:Coords) {
+		placedOnRelease = false;
+		super.stopUsing(m);
+
+		// A successful placement becomes a normal multi-layer selection
+		// immediately, so the next drag moves the placed template as a group
+		// instead of stamping another copy.
+		if( placedOnRelease )
+			editor.clearSpecialTool();
 	}
 
 	override function onAppCommand(cmd:AppCommand) {

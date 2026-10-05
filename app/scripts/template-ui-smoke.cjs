@@ -42,6 +42,7 @@ async function run(win){
   await click('#selectionTemplatesTab');
   await until('document.querySelector(".selectionTemplatesPanel") && !document.querySelector(".entityDefs")','Entities did not swap directly back to Templates');
   pass('Templates swaps directly with native editor panels without manual closing');
+  assert(await ev('document.querySelector(".selectionTemplatesPanel .wrapper").getBoundingClientRect().width<450'),'Templates panel should stay compact and leave the map visible');
   assert(await ev('document.querySelector("#saveSelectionTemplate").disabled'));
   await ev('TemplateTestHooks.selectAll()');
   await until('!document.querySelector("#saveSelectionTemplate").disabled','Save did not enable live');
@@ -49,7 +50,9 @@ async function run(win){
   await until('document.querySelector("#saveSelectionTemplate").disabled','Save did not disable live');
   pass('Save state follows selection changes while the panel stays open');
   require('electron').Menu.setApplicationMenu(null);win.webContents.focus();
-  const a=await ev('TemplateTestHooks.point(24,24)'),b=await ev('TemplateTestHooks.point(216,112)');
+  const a=await ev('TemplateTestHooks.point(150,40)'),b=await ev('TemplateTestHooks.point(235,100)');
+  const panelRight=await ev('document.querySelector(".selectionTemplatesPanel .wrapper").getBoundingClientRect().right');
+  assert(a.x>panelRight && b.x>panelRight,'Live selection regression must exercise the visible map area beside Templates');
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'Alt'});win.webContents.sendInputEvent({type:'keyDown',keyCode:'Shift'});await until('TemplateTestHooks.inputState().alt && TemplateTestHooks.inputState().shift','Modifier keys not delivered');
   win.webContents.sendInputEvent({type:'mouseMove',x:a.x,y:a.y,modifiers:['alt','shift']});await delay(120);await ev(`document.elementFromPoint(${a.x},${a.y})!==null`);
   win.webContents.sendInputEvent({type:'mouseDown',x:a.x,y:a.y,button:'left',clickCount:1,modifiers:['alt','shift']});await until('TemplateTestHooks.inputState().running','Selection drag did not begin');

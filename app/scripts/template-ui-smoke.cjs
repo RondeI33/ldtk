@@ -29,7 +29,19 @@ async function run(win){
   assert(await ev('document.querySelector("button.editTilesets").nextElementSibling.id==="selectionTemplatesTab"'));
   assert(await ev('document.querySelector("#selectionTemplatesTab").textContent.trim()===""'));
   pass('Compact Templates icon follows Tilesets');
+
+  await ev(`$('#selectionTemplatesTab').trigger('mouseenter')`);
+  await until('Array.from(document.querySelectorAll(".tip .text")).some(n=>n.textContent.includes("Templates"))','Templates toolbar tooltip did not appear');
+  await ev(`$('#selectionTemplatesTab').trigger('mouseleave')`);
+  pass('Templates toolbar icon exposes the same hover tooltip behavior as native tabs');
+
   await click('#selectionTemplatesTab');
+  await until('document.querySelector(".selectionTemplatesPanel")','Templates native panel did not open');
+  await click('button.editEntities');
+  await until('document.querySelector(".entityDefs") && !document.querySelector(".selectionTemplatesPanel")','Templates did not swap directly to Entities');
+  await click('#selectionTemplatesTab');
+  await until('document.querySelector(".selectionTemplatesPanel") && !document.querySelector(".entityDefs")','Entities did not swap directly back to Templates');
+  pass('Templates swaps directly with native editor panels without manual closing');
   assert(await ev('document.querySelector("#saveSelectionTemplate").disabled'));
   await ev('TemplateTestHooks.selectAll()');
   await until('!document.querySelector("#saveSelectionTemplate").disabled','Save did not enable live');
@@ -84,7 +96,7 @@ async function run(win){
   assert.strictEqual(saved.entities[1].refs.find(f=>f.fieldDefUid===fixture.fields.target).values[0],null);
   assert.strictEqual(await ev('TemplateTestHooks.source()'),source);
   pass('Save supports layer exclusion, entity deletion, field editing, reference cleanup, and draft Undo/Redo');
-  await ev("Array.from(document.querySelectorAll('#selectionTemplatesPanel button')).find(b=>b.textContent==='Rename').click()");
+  await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Rename').click()");
   await until('document.querySelector(".inputDialog input[type=text]")','Native rename dialog did not open');
   await edit('.inputDialog input[type=text]','Renamed setup');
   await ev("Array.from(document.querySelectorAll('.inputDialog .buttons button')).find(b=>b.textContent==='Validate').click()");await delay(160);
@@ -111,10 +123,15 @@ async function run(win){
   await until('!document.querySelector(".selectionTemplateEditor")','Editor dialog did not close');
   const walls=await ev('TemplateTestHooks.wallState()');
   await ev('TemplateTestHooks.clear()');
-  await ev("Array.from(document.querySelectorAll('#selectionTemplatesPanel button')).find(b=>b.textContent==='Place').click()");
+  await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Place').click()");
   await until('TemplateTestHooks.inputState().placing','Place tool did not activate');
+  const ghostStats=await ev('TemplateTestHooks.templateGhostStats()');
+  assert(ghostStats && ghostStats.entities===2,'Placement preview did not build the real entity graphics');
+  assert(ghostStats.childCount>0,'Placement preview has no rendered ghost content');
+  pass('Placement preview uses real rendered template graphics instead of size-only boxes');
   const target=await ev('TemplateTestHooks.point(272,176)');
   win.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});await delay(120);await until(`document.elementFromPoint(${target.x},${target.y}).id==='webgl'`,'Map is covered by a dialog');
+  fs.writeFileSync(path.join(output,'placement-real-ghost.png'),(await win.webContents.capturePage()).toPNG());
   win.webContents.sendInputEvent({type:'mouseDown',x:target.x,y:target.y,button:'left',clickCount:1});await until('TemplateTestHooks.inputState().specialRunning','Placement did not start');
   win.webContents.sendInputEvent({type:'mouseUp',x:target.x,y:target.y,button:'left',clickCount:1});
   await until('TemplateTestHooks.entityCount()===5','Placement did not finish');

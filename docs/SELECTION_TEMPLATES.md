@@ -1,7 +1,7 @@
 # Selection Templates
 
 ## Create
-Select the source objects in the level with Alt/Option + Shift and drag. Open the compact **Templates** icon immediately after **Tilesets**, then click the save icon. The save icon updates while the panel is open; no right-click is needed.
+Select the source objects in the level with Alt/Option + Shift and drag. Open the compact **Templates** icon immediately after **Tilesets**, then click the save icon. The save icon updates while the panel is open; no right-click is needed. Templates is a native LDtk panel: clicking it directly swaps from Layers, Entities, Enums, Tilesets or another open panel without requiring a separate close step. Hovering the Templates icon shows the normal **Templates** toolbar tooltip.
 
 The **Edit template** dialog opens a separate draft. Name it, then use the layer checkboxes to exclude walls or other layers before pressing **Save template**. Cancel discards the draft, not the source selection.
 
@@ -15,7 +15,7 @@ Connection dropdowns refer to entities in this template. Removing an entity also
 **Rename** also remains available directly in the library and uses LDtk's standard input dialog. Deleting a template uses LDtk's confirmation dialog. There are no browser prompt or confirm calls in template UI.
 
 ## Place
-Click **Place**, then click the destination level. Each placement creates independent entity IDs and rewires internal references to that copy. Excluded layers are omitted, including entity tile stamps targeting those layers. Required connections to excluded or deleted entities must be repaired before placement. Empty space does not erase destination cells; occupied grid cells are protected.
+Click **Place**, then click the destination level. Before placement, the cursor shows a layered visual ghost using the template's real entity rendering and actual Tiles sprites rather than only bounding boxes. IntGrid cells use their authored colors and point/path handles are visible on top. Each placement creates independent entity IDs and rewires internal references to that copy. Excluded layers are omitted, including entity tile stamps targeting those layers. Required connections to excluded or deleted entities must be repaired before placement. Empty space does not erase destination cells; occupied grid cells are protected.
 
 After a successful placement, stamp mode closes automatically and the newly placed template is selected using LDtk's normal multi-layer selection system. Entities, their point/path handles, and explicit Tiles/IntGrid cells are selected together, so you can immediately drag the placed template to fine-tune its position. Generated entity tile stamps are not selected separately because they already move with their owner.
 

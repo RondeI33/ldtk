@@ -1,3 +1,27 @@
+# 1.0.19
+
+## Native template dialogs, live selection and editable template contents
+
+- Fixed the Electron `prompt() is and will not be supported` crash when creating or renaming templates. Creation now uses an LDtk-hosted template editor, Rename uses LDtk's InputDialog, and Delete uses LDtk's Confirm dialog.
+- The save icon now enables and disables as the selection changes while Templates remains open, without rebuilding the panel or losing search focus.
+- Added an isolated visual template editor, available during creation and from **Edit** in the saved-template library.
+- Select an entity, grid cell or connection in the preview, use Shift-click or a selection rectangle, and press Delete to remove it from the draft only.
+- Edit field values, reset fields to defaults, remove individual array entries, and disconnect or reassign references using an inspector. Required empty links are reported before placement.
+- Layer inclusion checkboxes work before or after saving. Excluded layers are omitted from placement, including entity tile stamps on those layers. Generated AutoLayer exclusions also exclude the driving source rather than freezing derived output.
+- Templates have their own draft Undo/Redo. Cancel leaves both the source map and the saved library unchanged.
+- Entity previews use the editor's actual entity rendering; tile previews use the active project's atlases.
+- Registered newly copied entity IDs before resolving their references, preventing valid copied links from being discarded during tidy.
+- Fixed template placement saving a second, redundant history entry. One map Undo now removes the complete placement.
+- Library writes use atomic replacement and report errors without displaying a false success message.
+- Added template-model checks and a real Electron UI regression workflow covering creation, live save-button state, Alt/Option + Shift selection, renaming, draft editing, exclusions, placement, reference resolution, persistence and Undo/Redo.
+- Kept the compact Templates icon immediately after Tilesets and preserved existing shortcut bindings.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.18
 
 ## Selection Templates input and toolbar hotfix

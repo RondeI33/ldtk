@@ -15,6 +15,7 @@ private enum SavingState {
 	ExportingTiled;
 	ExportingGMS;
 	WritingSimplifiedFormat;
+	SavingSelectionTemplates;
 	AfterSavingCustomCommands;
 	Done;
 }
@@ -112,7 +113,7 @@ class ProjectSaver extends dn.Process {
 			case PreChecks:
 				if( !ui.modal.MetaProgress.exists() ) {
 					useMetaBar = true;
-					ui.modal.MetaProgress.start('Saving ${project.filePath.fileWithExt}...', 9);
+					ui.modal.MetaProgress.start('Saving ${project.filePath.fileWithExt}...', 10);
 				}
 
 				logState();
@@ -503,6 +504,13 @@ class ProjectSaver extends dn.Process {
 				}
 
 
+			case SavingSelectionTemplates:
+				logState();
+				if( data.SelectionTemplates.saveStaged(project,false) )
+					beginNextState();
+				else
+					error(L.t._("Could not save the Selection Templates library next to the LDtk project file."));
+
 			case AfterSavingCustomCommands:
 				ui.modal.dialog.CommandRunner.runMultipleCommands( project, project.getCustomCommmands(AfterSave), beginNextState );
 
@@ -579,6 +587,8 @@ class ProjectSaver extends dn.Process {
 
 			case WritingSimplifiedFormat:
 
+			case SavingSelectionTemplates:
+
 			case AfterSavingCustomCommands:
 
 			case Done:
@@ -598,6 +608,9 @@ class ProjectSaver extends dn.Process {
 
 		// List potential external levels
 		var allRelFiles = [ p.filePath.fileWithExt ];
+		var templatesRel = p.filePath.fileWithExt+"-templates.json";
+		if( NT.fileExists(p.filePath.directoryWithSlash+templatesRel) )
+			allRelFiles.push(templatesRel);
 		if( NT.fileExists(subProjectDir) ) {
 			for( f in NT.readDir(subProjectDir) ) {
 				if( dn.FilePath.extractExtension(f)!=Const.LEVEL_EXTENSION )

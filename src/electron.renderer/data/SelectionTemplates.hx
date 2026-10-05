@@ -315,10 +315,6 @@ class SelectionTemplates {
 				N.error("Template cannot be placed outside the level.");
 				return false;
 			}
-			if( li.hasAnyGridValue(cx,cy) ) {
-				N.error("Template cannot be placed on occupied grid cells.");
-				return false;
-			}
 		}
 
 		var touched : Map<String,data.inst.LayerInstance> = new Map();
@@ -418,9 +414,16 @@ class SelectionTemplates {
 			var cx = M.round((atX + rx - li.pxTotalOffsetX)/grid);
 			var cy = M.round((atY + ry - li.pxTotalOffsetY)/grid);
 			var kind = Std.string(field(cell,"kind"));
-			if( kind=="intgrid" )
+			if( kind=="intgrid" ) {
+				// IntGrid assignment is replacement semantics: any existing value
+				// at the destination coordinate is replaced by the template value.
 				li.setIntGrid(cx,cy,intVal(field(cell,"value")),false);
+			}
 			else if( kind=="tiles" ) {
+				// A template cell represents the complete authored tile stack for
+				// that coordinate. Clear any destination stack first so placement
+				// replaces occupied cells instead of appending/merging with them.
+				li.removeAllGridTiles(cx,cy,false);
 				var tiles = arr(cell,"tiles");
 				var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
 				for(t in tiles)

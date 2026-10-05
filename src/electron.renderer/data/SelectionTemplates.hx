@@ -311,6 +311,7 @@ class SelectionTemplates {
 		var touched : Map<String,data.inst.LayerInstance> = new Map();
 		var newByOld : Map<String,data.inst.EntityInstance> = new Map();
 		var pending : Array<{ raw:Dynamic, ei:data.inst.EntityInstance }> = [];
+		var placedSelection : Array<GenericLevelElement> = [];
 
 		for(raw in arr(tpl,"entities")) {
 			var layerUid = intVal(field(raw,"layerDefUid"),-1);
@@ -387,6 +388,13 @@ class SelectionTemplates {
 			for(stampLi in stampTouched) touched.set(stampLi.iid,stampLi);
 			project.forkConfig.trackEntity(ei);
 			editor.ge.emit(EntityInstanceChanged(ei));
+
+			placedSelection.push(Entity(li,ei));
+			for(fi in ei.fieldInstances)
+				if( fi.def.type==F_Point )
+					for(i in 0...fi.getArrayLength())
+						if( !fi.valueIsNull(i) )
+							placedSelection.push(PointField(li,ei,fi,i));
 		}
 
 		for(cell in arr(tpl,"cells")) {
@@ -406,6 +414,7 @@ class SelectionTemplates {
 					li.addGridTile(cx,cy,intVal(field(t,"tileId")),(intVal(field(t,"flips")) ^ (flipX ? 1 : 0) ^ (flipY ? 2 : 0)),stacking,false);
 			}
 			touched.set(li.iid,li);
+			placedSelection.push(GridCell(li,cx,cy));
 		}
 
 		var changed : Array<data.inst.LayerInstance> = [];
@@ -426,7 +435,13 @@ class SelectionTemplates {
 		}
 		editor.saveLayerStatesByLevel(changed);
 		editor.invalidateResizeTool();
-		N.quick("Template placed");
+
+		// Hand control back to the normal multi-layer selection workflow.
+		// Only elements created by this placement are selected; generated
+		// entity stamp output is intentionally excluded because it follows
+		// its owning entity when the selection is moved.
+		editor.selectionTool.select(placedSelection);
+		N.quick("Template placed and selected");
 		return true;
 	}
 }

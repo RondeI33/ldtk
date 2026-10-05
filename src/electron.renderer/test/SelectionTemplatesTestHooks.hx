@@ -44,7 +44,35 @@ class SelectionTemplatesTestHooks {
 		Editor.ME.selectionTool.select(es);
 	}
 	public static function dismissNotices():Void { ui.Modal.closeAll(); }
-	public static function inputState():Dynamic return {alt:App.ME.isAltDown(),shift:App.ME.isShiftDown(),running:Editor.ME.selectionTool.isRunning(),selection:Editor.ME.selectionTool.debugContent(),locked:Editor.ME.isLocked(),placing:Editor.ME.isSpecialToolActive(),specialRunning:Editor.ME.isSpecialToolActive() && Editor.ME.specialTool.isRunning()};
+	public static function inputState():Dynamic return {
+		alt:App.ME.isAltDown(),
+		shift:App.ME.isShiftDown(),
+		running:Editor.ME.selectionTool.isRunning(),
+		selection:Editor.ME.selectionTool.debugContent(),
+		selectedCount:Editor.ME.selectionTool.group.selectedElementsCount(),
+		locked:Editor.ME.isLocked(),
+		placing:Editor.ME.isSpecialToolActive(),
+		specialRunning:Editor.ME.isSpecialToolActive() && Editor.ME.specialTool.isRunning()
+	};
+	public static function selectedEntityPositions():Array<Dynamic> {
+		var out:Array<Dynamic>=[];
+		for(ge in Editor.ME.selectionTool.group.allElements())
+			switch ge {
+				case Entity(_,ei): out.push({id:ei.iid,x:ei.x,y:ei.y});
+				case _:
+			}
+		return out;
+	}
+	public static function selectionAnchor():Dynamic {
+		for(ge in Editor.ME.selectionTool.group.allElements())
+			switch ge {
+				case Entity(_,ei):
+					var c=Coords.fromLevelCoords(ei.centerX,ei.centerY);
+					return {x:Math.round(c.pageX),y:Math.round(c.pageY)};
+				case _:
+			}
+		return null;
+	}
 	public static function clear():Void Editor.ME.selectionTool.clear();
 	public static function point(x:Int,y:Int):Dynamic {
 		var c=Coords.fromLevelCoords(x,y);return {x:Math.round(c.pageX),y:Math.round(c.pageY)};

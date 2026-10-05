@@ -17,6 +17,8 @@ Connection dropdowns refer to entities in this template. Removing an entity also
 ## Place
 Click **Place**, then click the destination level. Each placement creates independent entity IDs and rewires internal references to that copy. Excluded layers are omitted, including entity tile stamps targeting those layers. Required connections to excluded or deleted entities must be repaired before placement. Empty space does not erase destination cells; occupied grid cells are protected.
 
+After a successful placement, stamp mode closes automatically and the newly placed template is selected using LDtk's normal multi-layer selection system. Entities, their point/path handles, and explicit Tiles/IntGrid cells are selected together, so you can immediately drag the placed template to fine-tune its position. Generated entity tile stamps are not selected separately because they already move with their owner.
+
 Generated AutoLayer output is controlled by its IntGrid source. Excluding a generated layer also excludes its source rather than pretending generated output can be frozen independently.
 
 A placement is one map Undo/Redo operation. Editing or renaming a template never updates already-placed copies. Templates remain in `<project>.ldtk-templates.json` next to the project; keep that sidecar when copying a project. Library writes use a temporary file and atomic replacement, and report failures instead of displaying a false success message.

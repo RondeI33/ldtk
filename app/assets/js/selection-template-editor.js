@@ -34,7 +34,7 @@ function removeEntities(template, ids, clearField) {
 }
 
 function mount(root, api) {
-  let draft = clone(api.template), selected = new Set(), zoom = 1, marquee = null;
+  let draft = clone(api.template), selected = new Set(), zoom = 1, marquee = null, pan = null;
   let imageCache = new Map(), cellCache = new Map(), history = [], future = [], disposed = false;
   const layers = api.layers || [];
   const doc = root.ownerDocument;
@@ -51,8 +51,9 @@ function mount(root, api) {
 .te-layers,.te-inspector{overflow:auto;min-width:0;padding:6px;background:#1c2027;border:1px solid #444b57}
 .te-layers label{display:flex;align-items:flex-start;gap:6px;padding:6px 2px;overflow-wrap:anywhere}
 .te-center{display:flex;flex-direction:column;min-width:0;min-height:0}
-.te-viewport{position:relative;overflow:auto;flex:1;min-height:150px;background-color:#181b21;background-image:linear-gradient(#272d3555 1px,transparent 1px),linear-gradient(90deg,#272d3555 1px,transparent 1px);background-size:16px 16px;border:1px solid #444b57;outline:none}
+.te-viewport{position:relative;overflow:auto;flex:1;min-height:150px;background-color:#181b21;background-image:linear-gradient(#272d3555 1px,transparent 1px),linear-gradient(90deg,#272d3555 1px,transparent 1px);background-size:16px 16px;border:1px solid #444b57;outline:none;cursor:default}
 .te-viewport:focus{border-color:#8ab7ff}
+.te-viewport.is-panning{cursor:grabbing}
 .te-stage{position:relative;margin:14px;transform-origin:top left;user-select:none}
 .te-item{position:absolute;cursor:pointer}
 .te-item.is-selected{outline:2px solid #ffcc00;outline-offset:1px}
@@ -96,7 +97,7 @@ function mount(root, api) {
   const viewport=el('div','te-viewport',null,center);viewport.tabIndex=0;viewport.setAttribute('aria-label','Template contents. Select objects or links and press Delete.');
   const stage=el('div','te-stage',null,viewport);
   const summary=el('div','te-summary',null,center);
-  el('div','te-muted','Click to select. Shift-click adds to selection. Drag empty space to select an area. Delete removes only draft contents.',center);
+  el('div','te-muted','Click to select. Shift-click adds to selection. Drag empty space to select an area. Middle-mouse drag pans. Mouse wheel zooms around the cursor. Delete removes only draft contents.',center);
   const error=el('div','te-error',null,root);
   function showError(message){error.textContent=String(message||'');}
   function record(){draft.name=name.value;history.push(clone(draft));if(history.length>50)history.shift();future=[];}
@@ -213,17 +214,65 @@ function mount(root, api) {
       if(!field.canBeNull&&(field.type==='F_EntityRef'||field.type==='F_Point')&&field.values.some(v=>v==null))el('div','te-muted','Required value is empty. Set it before placement.',group);
     }
   }
-  function fit(){zoom=Math.min(3,Math.max(.02,(viewport.clientWidth-30)/Math.max(1,draft.width),(0)));zoom=Math.min(zoom,(viewport.clientHeight-30)/Math.max(1,draft.height));renderPreview();}
-  function scaleBy(f){zoom=Math.max(.02,Math.min(8,zoom*f));renderPreview();}
+  function clampZoom(value){return Math.max(.02,Math.min(8,value));}
+  function setZoom(next, clientX=null, clientY=null){
+    const old=zoom,newZoom=clampZoom(next);
+    if(Math.abs(newZoom-old)<1e-6)return;
+    const rect=viewport.getBoundingClientRect();
+    const sx=clientX==null?rect.width*.5:clientX-rect.left;
+    const sy=clientY==null?rect.height*.5:clientY-rect.top;
+    const stageLeft=stage.offsetLeft,stageTop=stage.offsetTop;
+    const worldX=(viewport.scrollLeft+sx-stageLeft)/old;
+    const worldY=(viewport.scrollTop+sy-stageTop)/old;
+    zoom=newZoom;renderPreview();
+    viewport.scrollLeft=stage.offsetLeft+worldX*zoom-sx;
+    viewport.scrollTop=stage.offsetTop+worldY*zoom-sy;
+  }
+  function fit(){
+    zoom=Math.min(3,Math.max(.02,(viewport.clientWidth-30)/Math.max(1,draft.width)));
+    zoom=Math.min(zoom,(viewport.clientHeight-30)/Math.max(1,draft.height));
+    renderPreview();
+    viewport.scrollLeft=Math.max(0,(stage.scrollWidth*zoom-viewport.clientWidth)*.5);
+    viewport.scrollTop=Math.max(0,(stage.scrollHeight*zoom-viewport.clientHeight)*.5);
+  }
+  function scaleBy(f){setZoom(zoom*f);}
   viewport.addEventListener('keydown',ev=>{
     if(ev.key==='Delete'||ev.key==='Backspace'){ev.preventDefault();ev.stopPropagation();removeSelected();}
     if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='z'){ev.preventDefault();ev.stopPropagation();restore(ev.shiftKey);}
   });
+  viewport.addEventListener('wheel',ev=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    const factor=Math.exp(-ev.deltaY*0.0015);
+    setZoom(zoom*factor,ev.clientX,ev.clientY);
+  },{passive:false});
+  viewport.addEventListener('mousedown',ev=>{
+    if(ev.button!==1)return;
+    pan={x:ev.clientX,y:ev.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+    viewport.classList.add('is-panning');
+    viewport.focus({preventScroll:true});
+    ev.preventDefault();
+    ev.stopPropagation();
+  });
   function point(ev){const b=stage.getBoundingClientRect();return{x:(ev.clientX-b.left)/zoom,y:(ev.clientY-b.top)/zoom};}
   stage.addEventListener('mousedown',ev=>{if(ev.button!==0||ev.target.closest('.te-item')||ev.target.tagName==='line')return;
     const p=point(ev);marquee={start:p,extend:ev.shiftKey};if(!ev.shiftKey)selected.clear();viewport.focus({preventScroll:true});ev.preventDefault();});
-  function move(ev){if(!marquee)return;const p=point(ev),a=marquee.start;let box=stage.querySelector('.te-marquee');if(!box)box=el('div','te-marquee',null,stage);Object.assign(box.style,{left:Math.min(a.x,p.x)+'px',top:Math.min(a.y,p.y)+'px',width:Math.abs(a.x-p.x)+'px',height:Math.abs(a.y-p.y)+'px'});}
-  function up(ev){if(!marquee)return;const p=point(ev),a=marquee.start;marquee=null;const l=Math.min(a.x,p.x),r=Math.max(a.x,p.x),t=Math.min(a.y,p.y),b=Math.max(a.y,p.y);
+  function move(ev){
+    if(pan){
+      viewport.scrollLeft=pan.left-(ev.clientX-pan.x);
+      viewport.scrollTop=pan.top-(ev.clientY-pan.y);
+      ev.preventDefault();
+      return;
+    }
+    if(!marquee)return;const p=point(ev),a=marquee.start;let box=stage.querySelector('.te-marquee');if(!box)box=el('div','te-marquee',null,stage);Object.assign(box.style,{left:Math.min(a.x,p.x)+'px',top:Math.min(a.y,p.y)+'px',width:Math.abs(a.x-p.x)+'px',height:Math.abs(a.y-p.y)+'px'});
+  }
+  function up(ev){
+    if(pan){
+      pan=null;viewport.classList.remove('is-panning');
+      if(ev)ev.preventDefault();
+      return;
+    }
+    if(!marquee)return;const p=point(ev),a=marquee.start;marquee=null;const l=Math.min(a.x,p.x),r=Math.max(a.x,p.x),t=Math.min(a.y,p.y),b=Math.max(a.y,p.y);
     const intersect=v=>v.x<=r&&v.x+v.w>=l&&v.y<=b&&v.y+v.h>=t;
     for(const e of active().entities)if(intersect(entityBox(e)))selected.add('e:'+e.sourceIid);
     list(draft,'cells').forEach((c,i)=>{const g=c.gridSize||16;if(!excludedLayers(draft,layers).has(c.layerDefUid)&&intersect({x:c.relX,y:c.relY,w:g,h:g}))selected.add('c:'+i);});renderPreview();renderInspector();}
@@ -232,7 +281,7 @@ function mount(root, api) {
   return {
     getDraft(){draft.name=name.value.trim();if(!draft.name)throw Error('Enter a template name.');const t=active();if(!t.entities.length&&!t.cells.length)throw Error('Include at least one entity or cell.');return clone(draft);},
     showError,
-    dispose(){disposed=true;clearTimeout(timer);doc.removeEventListener('mousemove',move);doc.removeEventListener('mouseup',up);imageCache.clear();cellCache.clear();root.replaceChildren();}
+    dispose(){disposed=true;pan=null;clearTimeout(timer);doc.removeEventListener('mousemove',move);doc.removeEventListener('mouseup',up);imageCache.clear();cellCache.clear();root.replaceChildren();}
   };
 }
 module.exports={mount,materialize,excludedLayers,removeEntities};

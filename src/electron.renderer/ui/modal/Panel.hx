@@ -49,6 +49,16 @@ class Panel extends ui.Modal {
 
 	}
 
+
+	public function allowCanvasInteraction() {
+		// Keep the native Panel lifecycle/linking, but do not intercept map input.
+		// The panel wrapper/content still receives its own pointer events.
+		if( jPanelMask!=null )
+			jPanelMask.css("pointer-events","none");
+		if( jMask!=null )
+			jMask.css("pointer-events","none");
+	}
+
 	function checkBackup() {
 		if( !project.isBackup() )
 			return;

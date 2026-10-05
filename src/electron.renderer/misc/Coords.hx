@@ -67,7 +67,7 @@ class Coords {
 			else if( getRelativeLayerInst()==null )
 				return levelX;
 			else
-				return Std.int( ( levelX - getRelativeLayerInst().pxParallaxX ) / getRelativeLayerInst().def.getScale() );
+				return M.floor( ( levelX - getRelativeLayerInst().pxParallaxX ) / getRelativeLayerInst().def.getScale() );
 		}
 
 	public var layerY(get,never) : Int;
@@ -78,7 +78,7 @@ class Coords {
 				return levelY;
 
 			else
-				return Std.int( ( levelY - getRelativeLayerInst().pxParallaxY ) / getRelativeLayerInst().def.getScale() );
+				return M.floor( ( levelY - getRelativeLayerInst().pxParallaxY ) / getRelativeLayerInst().def.getScale() );
 		}
 
 	// Level cell
@@ -164,11 +164,11 @@ class Coords {
 	}
 
 	public function getLayerCx(li:data.inst.LayerInstance) {
-		return Std.int( ( layerX + getRelativeLayerInst().pxParallaxX - li.pxParallaxX ) / li.def.scaledGridSize );
+		return M.floor( ( levelX - li.pxParallaxX ) / li.def.scaledGridSize );
 	}
 
 	public function getLayerCy(li:data.inst.LayerInstance) {
-		return Std.int( ( layerY + getRelativeLayerInst().pxParallaxY - li.pxParallaxY ) / li.def.scaledGridSize );
+		return M.floor( ( levelY - li.pxParallaxY ) / li.def.scaledGridSize );
 	}
 
 	public inline function getPageDist(with:Coords) {

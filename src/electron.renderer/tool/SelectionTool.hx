@@ -302,7 +302,7 @@ class SelectionTool extends Tool<Int> {
 		// first movement event past the drag threshold render the selection ghost
 		// immediately instead of waiting for another mouse-move event.
 		if( isRunning() && button==0 && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
-			group.onMoveStart(isCopy);
+			group.onMoveStart(isCopy,origin);
 			moveStarted = true;
 		}
 
@@ -451,19 +451,10 @@ class SelectionTool extends Tool<Int> {
 			if( isOnStop ) {
 				// Commit the captured selection into the level under the cursor.
 				// The source may already be temporarily cut for live move preview.
-				var changedLayers = group.commitDragSnapshot(origin, m, isCopy);
-
-				function addChanged(lis:Array<data.inst.LayerInstance>) {
-					for(li in lis)
-						if( li!=null && changedLayers.indexOf(li)<0 )
-							changedLayers.push(li);
-				}
-
-				// Commit the same transient flips that were shown by the live ghost.
-				if( dragFlipX )
-					addChanged( group.flipSelectedGridContent(true) );
-				if( dragFlipY )
-					addChanged( group.flipSelectedGridContent(false) );
+				// Place directly at the ghost's final transformed coordinates.
+				// Pasting first and flipping the destination afterward erases
+				// unrelated tiles under the intermediate (unflipped) positions.
+				var changedLayers = group.commitDragSnapshot(origin,m,isCopy,dragFlipX,dragFlipY);
 
 				for(li in changedLayers)
 					if( li.level==editor.curLevel )
@@ -520,10 +511,10 @@ class SelectionTool extends Tool<Int> {
 				if( !li.def.canSelectWhenInactive && editor.curLayerInstance!=li )
 					return;
 
-				var cLeft = Std.int( (leftPx-li.pxParallaxX) / li.def.scaledGridSize );
-				var cRight = Std.int( (rightPx-li.pxParallaxX) / li.def.scaledGridSize );
-				var cTop = Std.int( (topPx-li.pxParallaxY) /li.def.scaledGridSize );
-				var cBottom = Std.int( (bottomPx-li.pxParallaxY) /li.def.scaledGridSize );
+				var cLeft = M.floor( (leftPx-li.pxParallaxX) / li.def.scaledGridSize );
+				var cRight = M.floor( (rightPx-li.pxParallaxX) / li.def.scaledGridSize );
+				var cTop = M.floor( (topPx-li.pxParallaxY) / li.def.scaledGridSize );
+				var cBottom = M.floor( (bottomPx-li.pxParallaxY) / li.def.scaledGridSize );
 
 				for( cy in cTop...cBottom+1 )
 				for( cx in cLeft...cRight+1 ) {

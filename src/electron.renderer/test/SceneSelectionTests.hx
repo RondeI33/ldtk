@@ -89,7 +89,7 @@ class SceneSelectionTests {
 		var l=other?target():source();
 		return Coords.fromWorldCoords(l.worldX+x,l.worldY+y);
 	}
-	static function selection(elems:Array<GenericLevelElement>,rect=false,left=0.,top=0.,right=0.,bottom=0.):GenericLevelElementGroup {
+	static function selection(elems:Array<GenericLevelElement>,rect=false,left=0,top=0,right=0,bottom=0):GenericLevelElementGroup {
 		var g=new GenericLevelElementGroup(elems);
 		if(rect) g.addSelectionRect(left,right,top,bottom);
 		return g;

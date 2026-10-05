@@ -8,7 +8,8 @@ class SelectionTemplateTool extends Tool<Int> {
 
 	public function new(tpl:Dynamic) {
 		super();
-		this.tpl = tpl;
+		var module:Dynamic=js.Node.require(JsTools.getAssetsDir()+"/js/selection-template-editor.js");
+		this.tpl = module.materialize(tpl,ui.TemplateEditorBridge.catalog(tpl));
 		canUseOutOfBounds = false;
 		ghost = new h2d.Graphics();
 		editor.levelRender.root.add(ghost, Const.DP_UI);
@@ -20,6 +21,9 @@ class SelectionTemplateTool extends Tool<Int> {
 			ghost.remove();
 		ghost = null;
 	}
+
+	// SelectionTemplates.place records all affected layers as one transaction.
+	override function saveToHistory() {}
 
 	override function getDefaultValue() return 1;
 	override public function canEdit() return true;

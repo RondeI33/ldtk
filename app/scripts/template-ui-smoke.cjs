@@ -53,12 +53,12 @@ async function run(win){
   const navBefore=await ev(`(()=>{const v=document.querySelector('.te-viewport'),s=document.querySelector('.te-stage'),r=v.getBoundingClientRect();return{transform:s.style.transform,left:v.scrollLeft,top:v.scrollTop,cx:r.left+r.width/2,cy:r.top+r.height/2};})()`);
   await ev(`(()=>{const v=document.querySelector('.te-viewport'),r=v.getBoundingClientRect();v.dispatchEvent(new WheelEvent('wheel',{deltaY:-1200,clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true,cancelable:true}));})()`);
   await delay(80);
-  const navZoomed=await ev(`(()=>{const v=document.querySelector('.te-viewport'),s=document.querySelector('.te-stage'),r=v.getBoundingClientRect();return{transform:s.style.transform,left:v.scrollLeft,top:v.scrollTop,cx:r.left+r.width/2,cy:r.top+r.height/2};})()`);
+  const navZoomed=await ev(`(()=>{const v=document.querySelector('.te-viewport'),s=document.querySelector('.te-stage'),r=v.getBoundingClientRect();return{transform:s.style.transform,cx:r.left+r.width/2,cy:r.top+r.height/2};})()`);
   assert.notStrictEqual(navZoomed.transform,navBefore.transform,'Mouse wheel did not zoom template preview');
   await ev(`(()=>{const v=document.querySelector('.te-viewport'),r=v.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;v.dispatchEvent(new MouseEvent('mousedown',{button:1,clientX:x,clientY:y,bubbles:true,cancelable:true}));document.dispatchEvent(new MouseEvent('mousemove',{clientX:x-70,clientY:y-45,bubbles:true,cancelable:true}));document.dispatchEvent(new MouseEvent('mouseup',{button:1,clientX:x-70,clientY:y-45,bubbles:true,cancelable:true}));})()`);
   await delay(60);
-  const navPanned=await ev(`(()=>{const v=document.querySelector('.te-viewport');return{left:v.scrollLeft,top:v.scrollTop,panning:v.classList.contains('is-panning')};})()`);
-  assert(navPanned.left!==navZoomed.left || navPanned.top!==navZoomed.top,'Middle mouse drag did not pan template preview');
+  const navPanned=await ev(`(()=>{const v=document.querySelector('.te-viewport'),s=document.querySelector('.te-stage');return{transform:s.style.transform,panning:v.classList.contains('is-panning')};})()`);
+  assert.notStrictEqual(navPanned.transform,navZoomed.transform,'Middle mouse drag did not pan template preview');
   assert.strictEqual(navPanned.panning,false,'Preview stayed in panning state after middle mouse release');
   pass('Template preview supports cursor wheel zoom and middle-mouse panning');
   await edit('.template-name','Draft cancelled');

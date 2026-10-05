@@ -1170,6 +1170,165 @@ class GenericLevelElementGroup {
 	}
 
 
+
+	public function toSelectionTemplate(name:String) : Dynamic {
+		if( elements.length==0 )
+			return null;
+
+		var minX = 0x3fffffff;
+		var minY = 0x3fffffff;
+		var maxX = -0x3fffffff;
+		var maxY = -0x3fffffff;
+
+		function addBounds(x:Int,y:Int,w:Int,h:Int) {
+			minX = M.imin(minX,x);
+			minY = M.imin(minY,y);
+			maxX = M.imax(maxX,x+w);
+			maxY = M.imax(maxY,y+h);
+		}
+
+		var selectedEntities : Map<String,Bool> = new Map();
+		for(ge in elements)
+			switch ge {
+				case null:
+				case GridCell(li,cx,cy):
+					var g = li.def.gridSize;
+					addBounds(li.pxTotalOffsetX+cx*g, li.pxTotalOffsetY+cy*g, g,g);
+
+				case Entity(li,ei):
+					selectedEntities.set(ei.iid,true);
+					addBounds(ei.left,ei.top,ei.width,ei.height);
+					for(fi in ei.fieldInstances)
+						if( fi.def.type==F_Point )
+							for(i in 0...fi.getArrayLength()) {
+								var pt = fi.getPointGrid(i);
+								if( pt!=null ) {
+									var g = li.def.gridSize;
+									addBounds(li.pxTotalOffsetX+pt.cx*g,li.pxTotalOffsetY+pt.cy*g,g,g);
+								}
+							}
+
+				case PointField(li,ei,fi,arrayIdx):
+					var pt = fi.getPointGrid(arrayIdx);
+					if( pt!=null ) {
+						var g = li.def.gridSize;
+						addBounds(li.pxTotalOffsetX+pt.cx*g,li.pxTotalOffsetY+pt.cy*g,g,g);
+					}
+			}
+
+		if( minX==0x3fffffff )
+			return null;
+
+		var entityData : Array<Dynamic> = [];
+		var doneEntities : Map<String,Bool> = new Map();
+		for(ge in elements)
+			switch ge {
+				case Entity(li,ei):
+					if( doneEntities.exists(ei.iid) )
+						continue;
+					doneEntities.set(ei.iid,true);
+
+					var refs : Array<Dynamic> = [];
+					var points : Array<Dynamic> = [];
+					for(fi in ei.fieldInstances)
+						switch fi.def.type {
+							case F_EntityRef:
+								var values : Array<Dynamic> = [];
+								for(i in 0...fi.getArrayLength())
+									values.push( fi.valueIsNull(i) ? null : fi.getEntityRefIid(i) );
+								refs.push({
+									fieldDefUid: fi.defUid,
+									values: values,
+								});
+
+							case F_Point:
+								var values : Array<Dynamic> = [];
+								for(i in 0...fi.getArrayLength()) {
+									var pt = fi.getPointGrid(i);
+									if( pt!=null ) {
+										var g = li.def.gridSize;
+										values.push({
+											idx:i,
+											relX: li.pxTotalOffsetX + pt.cx*g - minX,
+											relY: li.pxTotalOffsetY + pt.cy*g - minY,
+										});
+									}
+								}
+								points.push({
+									fieldDefUid: fi.defUid,
+									values: values,
+								});
+
+							case _:
+						}
+
+					entityData.push({
+						sourceIid: ei.iid,
+						layerDefUid: li.layerDefUid,
+						relX: ei.x-minX,
+						relY: ei.y-minY,
+						json: ei.toJson(li),
+						refs: refs,
+						points: points,
+					});
+
+				case _:
+			}
+
+		var cellData : Array<Dynamic> = [];
+		var seenCells : Map<String,Bool> = new Map();
+		for(ge in elements)
+			switch ge {
+				case GridCell(li,cx,cy):
+					var key = li.iid+":"+cx+":"+cy;
+					if( seenCells.exists(key) )
+						continue;
+					seenCells.set(key,true);
+					var g = li.def.gridSize;
+					switch li.def.type {
+						case IntGrid:
+							if( li.hasIntGrid(cx,cy) )
+								cellData.push({
+									kind:"intgrid",
+									layerDefUid:li.layerDefUid,
+									gridSize:g,
+									relX:li.pxTotalOffsetX+cx*g-minX,
+									relY:li.pxTotalOffsetY+cy*g-minY,
+									value:li.getIntGrid(cx,cy),
+								});
+
+						case Tiles:
+							if( li.hasAnyGridTile(cx,cy) ) {
+								var stack : Array<Dynamic> = [];
+								for(t in li.getGridTileStack(cx,cy))
+									stack.push({tileId:t.tileId, flips:t.flips});
+								cellData.push({
+									kind:"tiles",
+									layerDefUid:li.layerDefUid,
+									gridSize:g,
+									relX:li.pxTotalOffsetX+cx*g-minX,
+									relY:li.pxTotalOffsetY+cy*g-minY,
+									tiles:stack,
+								});
+							}
+
+						case Entities, AutoLayer:
+					}
+
+				case _:
+			}
+
+		return {
+			schemaVersion: 1,
+			id: editor.project.generateUniqueId_UUID(),
+			name: name,
+			width: M.imax(1,maxX-minX),
+			height: M.imax(1,maxY-minY),
+			entities: entityData,
+			cells: cellData,
+		};
+	}
+
 	function snapToGrid() {
 		return true;
 	}

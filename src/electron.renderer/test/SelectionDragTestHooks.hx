@@ -26,6 +26,8 @@ class SelectionDragTestHooks {
 	static inline function entities() return level().getLayerInstance(entitiesUid);
 	static inline function bigTiles() return level().getLayerInstance(bigTilesUid);
 
+	public static function ready():Bool return Editor.ME!=null && !Editor.ME.destroyed && Editor.ME.selectionTool!=null;
+
 	public static function setup(path:String):Dynamic {
 		var p=data.Project.createEmpty(path);
 		var a=p.defs.createLayerDef(Tiles,"Tiles_A");

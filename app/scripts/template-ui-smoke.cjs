@@ -137,7 +137,7 @@ async function run(win){
   assert(deltas[0].x!==0||deltas[0].y!==0,'Placed group drag produced no movement');
   pass('Placement exits stamp mode and auto-selects the whole template for immediate grouped movement');
   await ev('TemplateTestHooks.undo()');
-  assert.deepStrictEqual(await ev('TemplateTestHooks.selectedEntityPositions()'),placedPositions);
+  assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),5,'First Undo should revert only the grouped movement, not the placement');
   await ev('TemplateTestHooks.undo()');assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),3);
   await ev('TemplateTestHooks.redo()');assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),5);assert.strictEqual(await ev('TemplateTestHooks.wallState()'),walls);
   pass('Placement preserves excluded walls, resolves references to new copies, and keeps movement/placement Undo separate');

@@ -7,6 +7,14 @@ on:
     paths:
       - app/package.json
       - docs/SMARTIVE_CHANGELOG.md
+      - app/scripts/template-*.cjs
+      - app/assets/js/selection-template-editor.js
+      - src/electron.renderer/data/SelectionTemplates.hx
+      - src/electron.renderer/tool/SelectionTemplateTool.hx
+      - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/ui/TemplateEditorBridge.hx
+      - src/electron.renderer/ui/modal/dialog/SelectionTemplateEditor.hx
+      - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
       - .github/workflows/ldtk-smartive-1.0.0-release.yml
   workflow_dispatch:
     inputs:

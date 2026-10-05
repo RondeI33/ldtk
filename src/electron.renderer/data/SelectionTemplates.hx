@@ -8,6 +8,8 @@ package data;
 class SelectionTemplates {
 	public static inline var FORMAT = 1;
 	static var jPanel : Null<J>;
+	static var jSave : Null<J>;
+	static var saveEnabled:Null<Bool>;
 
 	static inline function field(o:Dynamic, name:String) : Dynamic
 		return o==null ? null : Reflect.field(o,name);
@@ -47,19 +49,35 @@ class SelectionTemplates {
 		}
 	}
 
-	static function saveAll(p:Project, templates:Array<Dynamic>) {
-		var root : Dynamic = {
-			format: FORMAT,
-			projectIid: p.iid,
-			templates: templates,
-		};
+	static function saveAll(p:Project, templates:Array<Dynamic>):Bool {
+		var path=getPath(p), tmp=path+".tmp";
 		try {
-			NT.writeFileString(getPath(p), haxe.Json.stringify(root,null,"\t"));
+			if(NT.fileExists(path)) {
+				var previous:Dynamic=haxe.Json.parse(NT.readFileString(path));
+				if(previous.format!=FORMAT || !Std.isOfType(previous.templates,Array)) throw "Unsupported or damaged template library.";
+			}
+			NT.writeFileString(tmp,haxe.Json.stringify({format:FORMAT,projectIid:p.iid,templates:templates},null,"	"));
+			var fs:Dynamic=js.Node.require("fs");
+			fs.renameSync(tmp,path);
+			return true;
 		}
-		catch(err:Dynamic) {
-			App.LOG.error('Failed to save selection templates: '+Std.string(err));
-			N.error("Could not save template library.");
+		catch(e:Dynamic) {
+			try { if(NT.fileExists(tmp)) { var fs:Dynamic=js.Node.require("fs"); fs.unlinkSync(tmp); } } catch(_:Dynamic) {}
+			N.error("Could not save template library: "+Std.string(e));
+			return false;
 		}
+	}
+
+	public static function put(p:Project, tpl:Dynamic):Bool {
+		var all=load(p);
+		var name=tpl.name==null ? "" : StringTools.trim(Std.string(tpl.name));
+		if(name.length==0) { N.error("Enter a template name."); return false; }
+		var copy=cloneJson(tpl); copy.name=name;
+		if(copy.id==null) copy.id=p.generateUniqueId_UUID();
+		var found=false;
+		for(i in 0...all.length) if(all[i].id==copy.id) { all[i]=copy; found=true; break; }
+		if(!found) all.push(copy);
+		return saveAll(p,all);
 	}
 
 	public static function add(p:Project, tpl:Dynamic) {
@@ -101,46 +119,29 @@ class SelectionTemplates {
 	}
 
 	public static function installUi(editor:Editor) {
-		if( editor==null )
-			return;
-
-		editor.jMainPanel.find("#selectionTemplatesTab").remove();
-		editor.jMainPanel.find("#selectionTemplatesPanel").remove();
-
-		var tab = new J('<button id="selectionTemplatesTab" class="selectionTemplates" title="Templates"><div class="icon copy"></div></button>');
-		var near = editor.jMainPanel.find("button.editTilesets");
-		if( near.length>0 )
-			tab.insertAfter(near);
-		else
-			tab.prependTo(editor.jMainPanel);
-
-		var panel = new J('<div id="selectionTemplatesPanel"></div>');
-		panel.css({
-			position: "absolute",
-			left: "0",
-			right: "0",
-			top: "0",
-			bottom: "0",
-			zIndex: "40",
-			background: "#20242b",
-			padding: "10px",
-			overflow: "hidden",
+		editor.jMainPanel.find("#selectionTemplatesTab, #selectionTemplatesPanel").remove();
+		jSave=null; saveEnabled=null;
+		var tab=new J('<button id="selectionTemplatesTab" class="selectionTemplates" title="Templates" aria-label="Templates"><div class="icon copy"></div></button>');
+		tab.insertAfter(editor.jMainPanel.find("button.editTilesets"));
+		var panel=new J('<div id="selectionTemplatesPanel"/>');
+		panel.css({position:"absolute",left:"0",right:"0",top:editor.jMainPanel.find("#mainBar").outerHeight()+"px",bottom:"0",zIndex:"40",background:"#20242b",padding:"10px",overflow:"hidden"});
+		panel.hide().appendTo(editor.jMainPanel); jPanel=panel;
+		tab.click(ev->{
+			ev.stopPropagation();
+			if(panel.is(":visible")) { panel.hide(); editor.clearSpecialTool(); }
+			else { panel.show(); renderPanel(editor); }
 		});
-		panel.hide();
-		editor.jMainPanel.css("position","relative");
-		panel.appendTo(editor.jMainPanel);
-		jPanel = panel;
+	}
 
-		tab.click(function(_) {
-			if( panel.is(":visible") ) {
-				panel.hide();
-				editor.clearSpecialTool();
-			}
-			else {
-				panel.show();
-				renderPanel(editor);
-			}
-		});
+	public static function updateSaveState(editor:Editor) {
+		if(jPanel==null || jSave==null || !jPanel.is(":visible")) return;
+		var enabled=editor.project!=null && !editor.project.isBackup() && !editor.worldMode
+			&& editor.selectionTool.any() && !editor.selectionTool.isRunning();
+		if(saveEnabled!=enabled) {
+			saveEnabled=enabled;
+			jSave.prop("disabled",!enabled);
+			jSave.attr("title",enabled ? "Create template from current selection" : "Select objects in the level first");
+		}
 	}
 
 	public static function refreshUi(editor:Editor) {
@@ -159,15 +160,11 @@ class SelectionTemplates {
 		header.appendTo(panel);
 		var title = new J('<strong style="flex:1">Templates</strong>');
 		title.appendTo(header);
-		var saveCurrent = new J('<button title="Save current selection as template"><span class="icon save"></span></button>');
-		saveCurrent.appendTo(header);
-		if( !editor.selectionTool.any() )
-			saveCurrent.prop("disabled",true);
-		saveCurrent.click(function(_) {
-			editor.selectionTool.saveSelectionAsTemplate();
-			renderPanel(editor);
-		});
-
+		jSave=new J('<button id="saveSelectionTemplate" aria-label="Create template from selection"><span class="icon save"></span></button>');
+		jSave.appendTo(header);
+		saveEnabled=null;
+		jSave.click(ev->{ ev.stopPropagation(); editor.selectionTool.saveSelectionAsTemplate(); });
+		updateSaveState(editor);
 		var close = new J('<button class="transparent">×</button>');
 		close.appendTo(header);
 		close.click(function(_) {
@@ -186,7 +183,7 @@ class SelectionTemplates {
 			var all = load(editor.project);
 			if( all.length==0 ) {
 				var empty = new J('<div style="opacity:.65;padding:12px 4px"></div>');
-				empty.text("Select part of a level, open Templates, then click the save icon above.");
+				empty.text("Select objects in the level, then click the save icon above. You can edit the contents and exclude layers before saving.");
 				empty.appendTo(list);
 				return;
 			}
@@ -224,12 +221,15 @@ class SelectionTemplates {
 				renameBtn.appendTo(actions);
 				var templateId = Std.string(field(tpl,"id"));
 				renameBtn.click(function(_) {
-					var n = js.Browser.window.prompt("Template name:",name);
-					if( n!=null && StringTools.trim(n).length>0 ) {
-						rename(editor.project,templateId,StringTools.trim(n));
-						renderPanel(editor);
-					}
+					new ui.modal.dialog.InputDialog<String>(L.t._("Template name:"),name,"",
+						v->v==null || StringTools.trim(v).length==0 ? "Enter a template name." : null,
+						v->StringTools.trim(v),
+						v->{ var edited=cloneJson(captured); edited.name=v; if(put(editor.project,edited)) renderPanel(editor); }
+					);
 				});
+				var editBtn=new J('<button class="editTemplate">Edit</button>');
+				editBtn.appendTo(actions);
+				editBtn.click(_->new ui.modal.dialog.SelectionTemplateEditor(captured));
 
 				var duplicateBtn = new J('<button class="transparent">Duplicate</button>');
 				duplicateBtn.appendTo(actions);
@@ -241,10 +241,9 @@ class SelectionTemplates {
 				var deleteBtn = new J('<button class="transparent">Delete</button>');
 				deleteBtn.appendTo(actions);
 				deleteBtn.click(function(_) {
-					if( js.Browser.window.confirm('Delete template "'+name+'"?') ) {
-						remove(editor.project,templateId);
-						renderPanel(editor);
-					}
+					new ui.modal.dialog.Confirm(L.t._("Delete this template? Placed copies are not affected."),true,()->{
+						remove(editor.project,templateId); renderPanel(editor);
+					});
 				});
 			}
 		}
@@ -266,6 +265,26 @@ class SelectionTemplates {
 
 		var level = editor.curLevel;
 		var project = editor.project;
+		var module:Dynamic=js.Node.require(JsTools.getAssetsDir()+"/js/selection-template-editor.js");
+		tpl=module.materialize(tpl,ui.TemplateEditorBridge.catalog(tpl));
+		var excluded:Array<Int>=cast tpl.excludedLayerUids;
+		if(arr(tpl,"entities").length==0 && arr(tpl,"cells").length==0) { N.error("This template has no included contents."); return false; }
+		for(raw in arr(tpl,"entities")) {
+			var li=level.getLayerInstance(intVal(raw.layerDefUid,-1));
+			var ed=project.defs.getEntityDef(intVal(raw.json.defUid,-1));
+			if(li==null || li.def.type!=Entities || ed==null) { N.error("A required entity or layer definition is missing."); return false; }
+			for(f in arr(raw.json,"fieldInstances")) if(ed.getFieldDef(intVal(f.defUid,-1))==null) { N.error("A template field definition is missing. Edit the template first."); return false; }
+			var tx=atX+(flipX ? intVal(tpl.width)-intVal(raw.relX) : intVal(raw.relX));
+			var ty=atY+(flipY ? intVal(tpl.height)-intVal(raw.relY) : intVal(raw.relY));
+			if(!ed.allowOutOfBounds && !level.inBounds(tx,ty)) { N.error("Template entities would be outside the level."); return false; }
+			for(ref in arr(raw,"refs")) {
+				var fd=ed.getFieldDef(intVal(ref.fieldDefUid,-1));
+				if(fd!=null && !fd.canBeNull) for(target in arr(ref,"values")) if(target==null) {
+					N.error("A required connection is empty or targets an excluded entity. Edit the template first."); return false;
+				}
+			}
+		}
+		editor.ensureLevelTimeline(level);
 
 		for(cell in arr(tpl,"cells")) {
 			var layerUid = intVal(field(cell,"layerDefUid"),-1);
@@ -312,7 +331,10 @@ class SelectionTemplates {
 			Reflect.setField(json,"iid",newIid);
 			Reflect.setField(json,"px",[atX+rx,atY+ry]);
 			var ei = data.inst.EntityInstance.fromJson(project,li,cast json);
+			for(fi in ei.fieldInstances) if(fi.def.type==F_EntityRef)
+				for(i in 0...fi.getArrayLength()) fi.parseValue(i,null);
 			li.attachEntityInstanceForMove(ei);
+			project.registerEntityInstance(ei);
 			newByOld.set(oldIid,ei);
 			pending.push({raw:raw,ei:ei});
 			touched.set(li.iid,li);
@@ -356,8 +378,14 @@ class SelectionTemplates {
 			}
 
 			ei.tidy(project,li);
-			for(stampLi in project.forkConfig.paintEntityStamps(ei))
-				touched.set(stampLi.iid,stampLi);
+			project.registerEntityInstance(ei);
+			var stampTouched:Map<Int,data.inst.LayerInstance>=new Map();
+			for(stamp in ei.def.tileStamps) if(excluded.indexOf(intVal(stamp.layerDefUid,-1))<0) {
+				@:privateAccess if(project.forkConfig.stampIsActive(ei,stamp))
+					project.forkConfig.paintStampAt(ei,stamp,ei.x,ei.y,stampTouched);
+			}
+			for(stampLi in stampTouched) touched.set(stampLi.iid,stampLi);
+			project.forkConfig.trackEntity(ei);
 			editor.ge.emit(EntityInstanceChanged(ei));
 		}
 
@@ -375,7 +403,7 @@ class SelectionTemplates {
 				var tiles = arr(cell,"tiles");
 				var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
 				for(t in tiles)
-					li.addGridTile(cx,cy,intVal(field(t,"tileId")),intVal(field(t,"flips")),stacking,false);
+					li.addGridTile(cx,cy,intVal(field(t,"tileId")),(intVal(field(t,"flips")) ^ (flipX ? 1 : 0) ^ (flipY ? 2 : 0)),stacking,false);
 			}
 			touched.set(li.iid,li);
 		}

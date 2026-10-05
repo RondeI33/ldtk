@@ -1,3 +1,23 @@
+# 1.0.20
+
+## Template preview navigation and post-placement selection
+
+- Added **middle-mouse panning** to the Selection Template editor preview. Hold the middle mouse button and drag to move around the preview without changing template contents.
+- Added **mouse-wheel zoom** in the template editor. Zoom is centered around the cursor position so the area under the pointer stays under the pointer while zooming.
+- Updated the template editor help text to document middle-mouse pan and wheel zoom.
+- A successful template placement now immediately selects every newly placed supported template element: entities, entity point/path handles, and explicit Tiles/IntGrid cells.
+- Template placement now exits stamp mode after one successful placement and hands control back to the normal multi-layer Selection tool.
+- The freshly placed template can therefore be dragged immediately as one group instead of requiring manual cancellation and re-selection.
+- Generated entity tile-stamp output is intentionally not double-selected because it already follows its owning entity through the existing fork stamp-sync logic.
+- Moving the auto-selected template creates its own normal history entry; Undo first reverts the movement and a second Undo removes the placement.
+- Extended the real Electron regression to cover cursor-centered wheel zoom, middle-mouse panning, automatic selection after placement, immediate grouped dragging, and separate movement/placement Undo history.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.19
 
 ## Native template dialogs, live selection and editable template contents

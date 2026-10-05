@@ -10,12 +10,15 @@ on:
       - app/scripts/template-*.cjs
       - app/assets/js/selection-template-editor.js
       - src/electron.renderer/data/SelectionTemplates.hx
+      - src/electron.renderer/page/Editor.hx
+      - src/electron.renderer/ui/ProjectSaver.hx
       - src/electron.renderer/tool/SelectionTemplateTool.hx
       - src/electron.renderer/tool/SelectionTool.hx
       - src/electron.renderer/ui/TemplateEditorBridge.hx
       - src/electron.renderer/ui/modal/Dialog.hx
       - src/electron.renderer/ui/modal/Panel.hx
       - src/electron.renderer/ui/modal/dialog/SelectionTemplateEditor.hx
+      - src/electron.renderer/ui/modal/dialog/SelectionTemplateImportPicker.hx
       - src/electron.renderer/ui/modal/panel/SelectionTemplatesPanel.hx
       - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
       - app/assets/tpl/selectionTemplatesPanel.html

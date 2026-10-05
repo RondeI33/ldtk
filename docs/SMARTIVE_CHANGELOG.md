@@ -1,3 +1,24 @@
+# 1.0.23
+
+## Selection copy/move grid alignment and transparent empty cells
+
+- Fixed normal scene selection move/copy dropping one tile above or below the live preview in some grab/release positions.
+- Drop commit no longer uses the raw mouse pixel delta. It derives movement from the same snapped cell delta as the live selection ghost, then converts that delta to LDtk logical coordinates.
+- This removes cursor-within-cell rounding differences that could shift copied/moved Tiles, IntGrid cells, entities, and selected Point fields by one grid cell.
+- Empty cells inside a rectangular selection are now **transparent** during normal move/copy/duplicate operations.
+- Moving or duplicating a sparse selection no longer erases destination Tiles or IntGrid data that sits under empty parts of the selection rectangle.
+- The selection rectangle is still retained for selection visuals, hit testing, and movement feedback; it simply no longer represents destructive empty data.
+- Source cutting for a true move still affects only actually selected, non-empty cells/entities, and cancelling a move restores that source exactly.
+- Added a dedicated real-Electron Selection regression suite with **450 copy/move variants** covering different X/Y deltas and multiple grab/drop points inside grid cells.
+- The regression also verifies same-layer and unrelated-layer empty-space sentinels, entity + Point-field alignment, preview/drop equality, move cancellation, and Undo/Redo.
+- Stable releases are now blocked if the normal Selection move/copy regression fails.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.22
 
 ## Grid replacement, save-bound template persistence and selective import

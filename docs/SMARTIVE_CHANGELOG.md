@@ -1,3 +1,26 @@
+# 1.0.17
+
+## Selection Templates
+
+- Added project-local reusable templates for multi-layer scene selections.
+- Right-click an existing selection and choose **Save to template...** to snapshot configured entities and selected Tiles/IntGrid cells.
+- Added a dedicated **Templates** panel that stays out of the way during normal editing and only exposes the template library when opened.
+- Template copies create fresh entity IIDs and remap internal EntityRef fields so each placed copy links to its own entities rather than the source selection.
+- Point fields are translated with the placed template, including multi-entity layouts.
+- Templates preserve entity field editor values through the normal LDtk entity JSON representation.
+- Tile stacks preserve tile IDs and flip flags; IntGrid values preserve their source values.
+- Template placement maps content back to matching layer definition UIDs instead of collapsing everything onto the active layer.
+- Existing occupied grid cells are protected by default instead of being erased by empty template space.
+- X/Y flip commands are supported while placing a template without changing user shortcut mappings.
+- Template libraries are stored beside the project as a sidecar JSON file and survive editor restarts without modifying the stock LDtk JSON schema.
+- Library UI includes search, Place, Rename, Duplicate and Delete.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.16
 
 ## Multi-layer PSD import and gap-free LDtk atlases

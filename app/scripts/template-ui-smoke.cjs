@@ -217,7 +217,11 @@ async function run(win){
   assert.strictEqual(JSON.parse(fs.readFileSync(sidecar,'utf8')).templates.length,1,'Selective import wrote to disk before project Save');
   pass('Import picker clones only checked templates with fresh IDs and stages them until project Save');
 
-  await ev('TemplateTestHooks.saveProject()');
+  await until('!TemplateTestHooks.saveStatus().locked','Editor remained locked before project Save after import');
+  const saveDebug=await ev('TemplateTestHooks.saveProjectDebug()');
+  console.log('SAVE_AFTER_IMPORT_STATE '+JSON.stringify(saveDebug));
+  assert.strictEqual(saveDebug.before.locked,false,'Editor was locked before Save after import');
+  assert.strictEqual(saveDebug.after.saver,true,'ProjectSaver did not start after selective template import');
   await until('!TemplateTestHooks.saveInProgress() && !TemplateTestHooks.needSaving()','Project Save after import did not finish');
   disk=JSON.parse(fs.readFileSync(sidecar,'utf8'));
   assert.strictEqual(disk.templates.length,3);

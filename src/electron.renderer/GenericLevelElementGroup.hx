@@ -481,6 +481,36 @@ class GenericLevelElementGroup {
 			: now.levelY - origin.levelY;
 	}
 
+	/**
+	 * Logical movement used when mutating LDtk data.
+	 *
+	 * The live ghost works in rendered/scaled level pixels, while entity and grid
+	 * coordinates are stored in unscaled LDtk pixels. Both paths must derive from
+	 * the exact same snapped cell delta or dropping near a cell edge can differ
+	 * from the preview by one tile.
+	 */
+	function getLogicalDragDelta(origin:Coords, now:Coords) {
+		var rel = getSmartRelativeLayerInstance();
+		if( rel==null )
+			return {
+				x: now.levelX-origin.levelX,
+				y: now.levelY-origin.levelY,
+			};
+
+		var o = origin.cloneRelativeToLayer(rel);
+		var n = now.cloneRelativeToLayer(rel);
+		if( !snapToGrid() )
+			return {
+				x: n.levelX-o.levelX,
+				y: n.levelY-o.levelY,
+			};
+
+		return {
+			x: (n.cx-o.cx) * rel.def.gridSize,
+			y: (n.cy-o.cy) * rel.def.gridSize,
+		};
+	}
+
 	public function getSmartRelativeLayerInstance() : Null<data.inst.LayerInstance> {
 		var l : data.inst.LayerInstance = null;
 		for(ge in elements)
@@ -591,12 +621,11 @@ class GenericLevelElementGroup {
 
 		selectRender.visible = false;
 
-		var offX = bounds.left - origin.levelX;
-		var offY = bounds.top - origin.levelY;
-
+		// Preview movement is derived only from snapped cell deltas. Drop commit
+		// uses the same cell delta (converted to logical/unscaled LDtk pixels).
 		ghost.visible = true;
-		ghost.x = offX + origin.levelX + getDeltaX(origin,now);
-		ghost.y = offY + origin.levelY + getDeltaY(origin,now);
+		ghost.x = bounds.left + getDeltaX(origin,now);
+		ghost.y = bounds.top + getDeltaY(origin,now);
 
 
 		// Movement arrow
@@ -995,38 +1024,19 @@ class GenericLevelElementGroup {
 		// Ensure destination history exists BEFORE any destination mutation.
 		editor.ensureLevelTimeline(targetLevel);
 
-		var dx = to.worldX-origin.worldX;
-		var dy = to.worldY-origin.worldY;
+		// Use the same snapped cell delta as the live ghost. Raw world-pixel
+		// differences depend on where inside the source/destination cells the
+		// mouse was grabbed/released and were the source of +/-1 tile drift.
+		var dragDelta = getLogicalDragDelta(origin,to);
+		var dx = dragDelta.x;
+		var dy = dragDelta.y;
 		var changed : Map<String,data.inst.LayerInstance> = new Map();
 		var copiedEntities : Map<String,data.inst.EntityInstance> = new Map();
 		var movedEntityIids : Map<String,Bool> = new Map();
 
-		// Empty-space selections also clear the destination rectangle.
-		if( originalRects.length>0 ) {
-			for(r in originalRects) {
-				var left = sourceLevel.worldX + r.leftPx + dx - targetLevel.worldX;
-				var right = sourceLevel.worldX + r.rightPx + dx - targetLevel.worldX;
-				var top = sourceLevel.worldY + r.topPx + dy - targetLevel.worldY;
-				var bottom = sourceLevel.worldY + r.bottomPx + dy - targetLevel.worldY;
-
-				for(li in targetLevel.layerInstances)
-					if( li.def.type==IntGrid || li.def.type==Tiles ) {
-						var cLeft = li.levelToLayerCx(left);
-						var cRight = li.levelToLayerCx(right+1);
-						var cTop = li.levelToLayerCy(top);
-						var cBottom = li.levelToLayerCy(bottom+1);
-						for(cx in cLeft...cRight)
-						for(cy in cTop...cBottom)
-							if( li.isValid(cx,cy) ) {
-								if( li.def.type==IntGrid )
-									li.removeIntGrid(cx,cy,false);
-								else
-									li.removeAllGridTiles(cx,cy,false);
-							}
-						changed.set(li.iid,li);
-					}
-			}
-		}
+		// Empty cells in the rectangle are transparent during move/copy.
+		// Only elements that actually exist in dragGridSnapshots/entities/points
+		// may mutate destination data. originalRects is visual/hit-test metadata.
 
 		// Grid data
 		for(s in dragGridSnapshots) {
@@ -1352,7 +1362,8 @@ class GenericLevelElementGroup {
 		var postInserts : Array< Void->Void > = [];
 		var changedLayers : Map<data.inst.LayerInstance, data.inst.LayerInstance> = [];
 
-		// Clear arrival to emulate "empty cell selection" mode
+		// Keep the visual selection rectangle aligned with the moved selection,
+		// but never treat empty cells inside it as data to paste/erase.
 		if( originalRects.length>0 ) {
 			for(r in originalRects) {
 				r.leftPx += getDeltaX(origin,to);
@@ -1360,24 +1371,6 @@ class GenericLevelElementGroup {
 				r.topPx += getDeltaY(origin,to);
 				r.bottomPx += getDeltaY(origin,to);
 			}
-
-			var layers = App.ME.settings.v.singleLayerMode
-				? [ editor.curLayerInstance ]
-				: editor.curLevel.layerInstances;
-			for(li in layers)
-				if( editor.levelRender.isLayerVisible(li) && ( li.def.type==IntGrid || li.def.type==Tiles ) ) {
-					for(r in originalRects) {
-						for(cx in li.levelToLayerCx(r.leftPx)...li.levelToLayerCx(r.rightPx+1))
-						for(cy in li.levelToLayerCy(r.topPx)...li.levelToLayerCy(r.bottomPx+1)) {
-							if( li.def.type==IntGrid )
-								postRemovals.push( li.removeIntGrid.bind(cx,cy,false) );
-
-							if( li.def.type==Tiles )
-								postRemovals.push( li.removeAllGridTiles.bind(cx,cy,false) );
-						}
-					}
-					changedLayers.set(li,li);
-				}
 		}
 
 		// Prepare movement effects

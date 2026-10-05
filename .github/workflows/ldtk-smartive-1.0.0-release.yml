@@ -14,6 +14,9 @@ on:
       - src/electron.renderer/ui/ProjectSaver.hx
       - src/electron.renderer/tool/SelectionTemplateTool.hx
       - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/GenericLevelElementGroup.hx
+      - src/electron.renderer/test/SelectionDragTestHooks.hx
+      - app/scripts/selection-*.cjs
       - src/electron.renderer/ui/TemplateEditorBridge.hx
       - src/electron.renderer/ui/modal/Dialog.hx
       - src/electron.renderer/ui/modal/Panel.hx
@@ -304,8 +307,35 @@ jobs:
           path: app/test-results/templates
           if-no-files-found: warn
 
+
+  selection-runtime:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Selection move/copy Electron regression
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selection-runtime-${{ needs.prepare.outputs.version }}
+          path: app/test-results/selection
+          if-no-files-found: warn
+
   publish:
-    needs: [prepare, windows, macos, linux, template-runtime]
+    needs: [prepare, windows, macos, linux, template-runtime, selection-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:

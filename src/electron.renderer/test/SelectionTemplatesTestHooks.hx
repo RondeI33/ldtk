@@ -8,6 +8,7 @@ package test;
 @:access(tool.SelectionTool)
 class SelectionTemplatesTestHooks {
 	static var devices:Array<data.inst.EntityInstance>=[];
+	static var saveCompleted=false;
 	static var walls:data.inst.LayerInstance;
 	static var floor:data.inst.LayerInstance;
 	public static function setup(path:String):Dynamic {
@@ -92,8 +93,12 @@ class SelectionTemplatesTestHooks {
 	public static function source():String return haxe.Json.stringify(Editor.ME.curLevel.toJson(true));
 	public static function templates():Array<Dynamic> return data.SelectionTemplates.load(Editor.ME.project);
 	public static function needSaving():Bool return Editor.ME.needSaving;
-	public static function saveProject():Void Editor.ME.onSave();
+	public static function saveProject():Void {
+		saveCompleted=false;
+		Editor.ME.onSave(false,null,()->saveCompleted=true);
+	}
 	public static function saveInProgress():Bool return ui.ProjectSaver.hasAny();
+	public static function saveDidComplete():Bool return saveCompleted;
 	public static function reloadTemplateStage():Void data.SelectionTemplates.loadProject(Editor.ME.project);
 	public static function deleteTemplate(id:String):Void data.SelectionTemplates.remove(Editor.ME.project,id);
 	public static function openImportPicker(absProjectPath:String):Void data.SelectionTemplates.openImportPickerFromPath(Editor.ME,absProjectPath);

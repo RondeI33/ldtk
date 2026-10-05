@@ -1,0 +1,66 @@
+name: Scene selection regression
+
+on:
+  push:
+    branches: [fix/selection-transparent-snap-v1.0.23]
+  pull_request:
+    paths:
+      - src/electron.renderer/GenericLevelElementGroup.hx
+      - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/misc/Coords.hx
+      - src/electron.renderer/misc/SelectionMove.hx
+      - src/electron.renderer/test/SceneSelectionTests.hx
+      - app/scripts/*selection*.cjs
+      - .github/workflows/selection-regression.yml
+
+concurrency:
+  group: selection-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Materialize targeted source patch once
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if [[ -f app/scripts/apply-selection-fix.py ]]; then
+            test "$GITHUB_REF_NAME" = "fix/selection-transparent-snap-v1.0.23"
+            python3 app/scripts/apply-selection-fix.py
+            git add src/electron.renderer/GenericLevelElementGroup.hx src/electron.renderer/tool/SelectionTool.hx src/electron.renderer/misc/Coords.hx app/package.json
+            if [[ -f app/package-lock.json ]]; then git add app/package-lock.json; fi
+            git rm app/scripts/apply-selection-fix.py
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'fix: keep ordinary selection holes transparent and use one snapped transform'
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+          echo "Testing source commit $(git rev-parse HEAD)"
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - name: Install pinned Haxe dependencies
+        run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install application dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Real scene selection and existing template regressions
+        working-directory: app
+        run: xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:selection
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scene-selection-regression-${{ github.run_id }}
+          path: app/test-results
+          if-no-files-found: warn

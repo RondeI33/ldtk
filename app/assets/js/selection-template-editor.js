@@ -34,7 +34,7 @@ function removeEntities(template, ids, clearField) {
 }
 
 function mount(root, api) {
-  let draft = clone(api.template), selected = new Set(), zoom = 1, marquee = null, pan = null;
+  let draft = clone(api.template), selected = new Set(), zoom = 1, panX = 0, panY = 0, marquee = null, pan = null;
   let imageCache = new Map(), cellCache = new Map(), history = [], future = [], disposed = false;
   const layers = api.layers || [];
   const doc = root.ownerDocument;
@@ -51,7 +51,7 @@ function mount(root, api) {
 .te-layers,.te-inspector{overflow:auto;min-width:0;padding:6px;background:#1c2027;border:1px solid #444b57}
 .te-layers label{display:flex;align-items:flex-start;gap:6px;padding:6px 2px;overflow-wrap:anywhere}
 .te-center{display:flex;flex-direction:column;min-width:0;min-height:0}
-.te-viewport{position:relative;overflow:auto;flex:1;min-height:150px;background-color:#181b21;background-image:linear-gradient(#272d3555 1px,transparent 1px),linear-gradient(90deg,#272d3555 1px,transparent 1px);background-size:16px 16px;border:1px solid #444b57;outline:none;cursor:default}
+.te-viewport{position:relative;overflow:hidden;flex:1;min-height:150px;background-color:#181b21;background-image:linear-gradient(#272d3555 1px,transparent 1px),linear-gradient(90deg,#272d3555 1px,transparent 1px);background-size:16px 16px;border:1px solid #444b57;outline:none;cursor:default}
 .te-viewport:focus{border-color:#8ab7ff}
 .te-viewport.is-panning{cursor:grabbing}
 .te-stage{position:relative;margin:14px;transform-origin:top left;user-select:none}
@@ -134,7 +134,8 @@ function mount(root, api) {
   function renderPreview(){
     stage.replaceChildren();const t=active(),included=new Set(t.entities.map(e=>e.sourceIid));
     const w=Math.max(1,Number(draft.width)||1),h=Math.max(1,Number(draft.height)||1);
-    Object.assign(stage.style,{width:w+'px',height:h+'px',transform:`scale(${zoom})`});
+    Object.assign(stage.style,{width:w+'px',height:h+'px'});
+    applyViewTransform();
     const allLayers=[...layers].sort((a,b)=>b.order-a.order);
     for(const layer of allLayers){
       for(let i=0;i<list(draft,'cells').length;i++){
@@ -215,27 +216,34 @@ function mount(root, api) {
     }
   }
   function clampZoom(value){return Math.max(.02,Math.min(8,value));}
+  function applyViewTransform(){
+    stage.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;
+  }
   function setZoom(next, clientX=null, clientY=null){
     const old=zoom,newZoom=clampZoom(next);
     if(Math.abs(newZoom-old)<1e-6)return;
     const rect=viewport.getBoundingClientRect();
     const sx=clientX==null?rect.width*.5:clientX-rect.left;
     const sy=clientY==null?rect.height*.5:clientY-rect.top;
-    const stageLeft=stage.offsetLeft,stageTop=stage.offsetTop;
-    const worldX=(viewport.scrollLeft+sx-stageLeft)/old;
-    const worldY=(viewport.scrollTop+sy-stageTop)/old;
-    zoom=newZoom;renderPreview();
-    viewport.scrollLeft=stage.offsetLeft+worldX*zoom-sx;
-    viewport.scrollTop=stage.offsetTop+worldY*zoom-sy;
+    const worldX=(sx-stage.offsetLeft-panX)/old;
+    const worldY=(sy-stage.offsetTop-panY)/old;
+    zoom=newZoom;
+    panX=sx-stage.offsetLeft-worldX*zoom;
+    panY=sy-stage.offsetTop-worldY*zoom;
+    renderPreview();
   }
   function fit(){
-    zoom=Math.min(3,Math.max(.02,(viewport.clientWidth-30)/Math.max(1,draft.width)));
-    zoom=Math.min(zoom,(viewport.clientHeight-30)/Math.max(1,draft.height));
+    const w=Math.max(1,Number(draft.width)||1),h=Math.max(1,Number(draft.height)||1);
+    zoom=Math.min(3,Math.max(.02,(viewport.clientWidth-30)/w));
+    zoom=Math.min(zoom,(viewport.clientHeight-30)/h);
+    panX=(viewport.clientWidth-w*zoom)*.5-stage.offsetLeft;
+    panY=(viewport.clientHeight-h*zoom)*.5-stage.offsetTop;
     renderPreview();
-    viewport.scrollLeft=Math.max(0,(stage.scrollWidth*zoom-viewport.clientWidth)*.5);
-    viewport.scrollTop=Math.max(0,(stage.scrollHeight*zoom-viewport.clientHeight)*.5);
   }
-  function scaleBy(f){setZoom(zoom*f);}
+  function scaleBy(f){
+    const r=viewport.getBoundingClientRect();
+    setZoom(zoom*f,r.left+r.width*.5,r.top+r.height*.5);
+  }
   viewport.addEventListener('keydown',ev=>{
     if(ev.key==='Delete'||ev.key==='Backspace'){ev.preventDefault();ev.stopPropagation();removeSelected();}
     if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='z'){ev.preventDefault();ev.stopPropagation();restore(ev.shiftKey);}
@@ -248,7 +256,7 @@ function mount(root, api) {
   },{passive:false});
   viewport.addEventListener('mousedown',ev=>{
     if(ev.button!==1)return;
-    pan={x:ev.clientX,y:ev.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+    pan={x:ev.clientX,y:ev.clientY,panX:panX,panY:panY};
     viewport.classList.add('is-panning');
     viewport.focus({preventScroll:true});
     ev.preventDefault();
@@ -259,8 +267,9 @@ function mount(root, api) {
     const p=point(ev);marquee={start:p,extend:ev.shiftKey};if(!ev.shiftKey)selected.clear();viewport.focus({preventScroll:true});ev.preventDefault();});
   function move(ev){
     if(pan){
-      viewport.scrollLeft=pan.left-(ev.clientX-pan.x);
-      viewport.scrollTop=pan.top-(ev.clientY-pan.y);
+      panX=pan.panX+(ev.clientX-pan.x);
+      panY=pan.panY+(ev.clientY-pan.y);
+      applyViewTransform();
       ev.preventDefault();
       return;
     }

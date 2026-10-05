@@ -79,7 +79,7 @@ class Panel extends ui.Modal {
 		jCloseButton.show().appendTo(jTitle);
 	}
 
-	function linkToButton(selector:String) {
+	public function linkToButton(selector:String) {
 		jLinkedButton = new J(selector);
 		jLinkedButton.addClass("active");
 		jLinkedButton.closest(".buttons").addClass("faded");

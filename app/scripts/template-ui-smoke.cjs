@@ -138,6 +138,7 @@ async function run(win){
   assert.deepStrictEqual(occupiedAfter.tiles,[{tileId:7,flips:1},{tileId:8,flips:2}],'Occupied tile stack was merged instead of replaced');
   await ev('TemplateTestHooks.undo()');
   assert.deepStrictEqual(await ev('TemplateTestHooks.overwriteGridState()'),occupiedBefore,'Undo did not restore overwritten grid contents');
+  await delay(200); // allow LayerInstancesRestoredFromHistory end-of-frame cleanup to settle before activating another special tool
   pass('Template placement replaces occupied IntGrid values and entire Tiles stacks');
 
   const walls=await ev('TemplateTestHooks.wallState()');

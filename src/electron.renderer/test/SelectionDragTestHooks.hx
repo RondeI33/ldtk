@@ -116,7 +116,10 @@ class SelectionDragTestHooks {
 		editor().selectionTool.clear();
 		seedOnProject(editor().project,level(),dx,dy,mixed);
 		selectNormal(mixed);
-		editor().levelRender.invalidateAll();
+		// Keep this regression focused on Selection transfer semantics. The
+		// fixture intentionally uses data-only Tiles cells without an atlas, so
+		// forcing a full level render here would test an invalid tileset setup
+		// instead of move/copy behavior.
 	}
 
 	static function selectNormal(mixed=false) {

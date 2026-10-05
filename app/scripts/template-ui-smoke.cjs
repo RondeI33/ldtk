@@ -17,7 +17,7 @@ app.on('browser-window-created',(_,win)=>{
 });
 async function run(win){
   const ev=code=>win.webContents.executeJavaScript(code,true);
-  async function until(code,message){for(let i=0;i<100;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
+  async function until(code,message){for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
   const pass=m=>{passed.push(m);console.log('PASS: '+m);};
   const click=selector=>ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});e.click();})()`);
   const edit=(selector,value)=>ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing input '+${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'a'}));})()`);
@@ -98,6 +98,10 @@ async function run(win){
   assert.strictEqual(saved.entities[0].json.fieldInstances.find(f=>f.defUid===fixture.fields.amount).__value,23);
   assert.strictEqual(saved.entities[1].refs.find(f=>f.fieldDefUid===fixture.fields.target).values[0],null);
   assert.strictEqual(await ev('TemplateTestHooks.source()'),source);
+  const sidecar=path.join(tmp,'test.ldtk-templates.json');
+  assert.strictEqual(fs.existsSync(sidecar),false,'Creating/editing a template must not write the library before project Save');
+  assert.strictEqual(await ev('TemplateTestHooks.needSaving()'),true,'Template changes should mark the project dirty');
+  pass('Template create/edit changes stay staged in memory until the LDtk project is saved');
   pass('Save supports layer exclusion, entity deletion, field editing, reference cleanup, and draft Undo/Redo');
   await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Rename').click()");
   await until('document.querySelector(".inputDialog input[type=text]")','Native rename dialog did not open');
@@ -124,6 +128,18 @@ async function run(win){
   assert((await ev('TemplateTestHooks.templates()[0].excludedLayerUids')).includes(fixture.walls));
   pass('Saved templates can re-include and exclude entire layers without recreating the template');
   await until('!document.querySelector(".selectionTemplateEditor")','Editor dialog did not close');
+
+  const occupiedBefore=await ev('TemplateTestHooks.overwriteGridState()');
+  assert.strictEqual(occupiedBefore.intGrid,1);
+  assert.deepStrictEqual(occupiedBefore.tiles,[{tileId:90,flips:0},{tileId:91,flips:0}]);
+  assert.strictEqual(await ev('TemplateTestHooks.placeOverwriteFixture()'),true,'Template should place over occupied grid cells');
+  const occupiedAfter=await ev('TemplateTestHooks.overwriteGridState()');
+  assert.strictEqual(occupiedAfter.intGrid,2,'Occupied IntGrid value was not replaced');
+  assert.deepStrictEqual(occupiedAfter.tiles,[{tileId:7,flips:1},{tileId:8,flips:2}],'Occupied tile stack was merged instead of replaced');
+  await ev('TemplateTestHooks.undo()');
+  assert.deepStrictEqual(await ev('TemplateTestHooks.overwriteGridState()'),occupiedBefore,'Undo did not restore overwritten grid contents');
+  pass('Template placement replaces occupied IntGrid values and entire Tiles stacks');
+
   const walls=await ev('TemplateTestHooks.wallState()');
   await ev('TemplateTestHooks.clear()');
   await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Place').click()");
@@ -161,8 +177,52 @@ async function run(win){
   await ev('TemplateTestHooks.undo()');assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),3);
   await ev('TemplateTestHooks.redo()');assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),5);assert.strictEqual(await ev('TemplateTestHooks.wallState()'),walls);
   pass('Placement preserves excluded walls, resolves references to new copies, and keeps movement/placement Undo separate');
-  const disk=JSON.parse(fs.readFileSync(path.join(tmp,'test.ldtk-templates.json'),'utf8'));assert.strictEqual(disk.templates[0].name,'Renamed setup');
-  pass('Edited templates persist in the project-side library');
+  assert.strictEqual(fs.existsSync(sidecar),false,'Template library was written before explicit project Save');
+  await ev('TemplateTestHooks.saveProject()');
+  await until('!TemplateTestHooks.saveInProgress() && !TemplateTestHooks.needSaving()','Project Save did not finish');
+  let disk=JSON.parse(fs.readFileSync(sidecar,'utf8'));
+  assert.strictEqual(disk.templates.length,1);
+  assert.strictEqual(disk.templates[0].name,'Renamed setup');
+  pass('Normal LDtk project Save persists the staged template library');
+
+  const persistedId=disk.templates[0].id;
+  await ev(`TemplateTestHooks.deleteTemplate(${JSON.stringify(persistedId)})`);
+  assert.strictEqual((await ev('TemplateTestHooks.templates()')).length,0,'Staged delete did not remove the template in memory');
+  let diskAfterUnsavedDelete=JSON.parse(fs.readFileSync(sidecar,'utf8'));
+  assert.strictEqual(diskAfterUnsavedDelete.templates.length,1,'Deleting without project Save changed the saved template library');
+  await ev('TemplateTestHooks.reloadTemplateStage()');
+  assert.strictEqual((await ev('TemplateTestHooks.templates()')).length,1,'Reloading saved template state did not restore an unsaved deletion');
+  pass('Unsaved template deletion is discarded because disk changes only on project Save');
+
+  const sourceProject=path.join(tmp,'other-project.ldtk');
+  fs.writeFileSync(sourceProject,'{}');
+  const baseTemplate=JSON.parse(JSON.stringify(disk.templates[0]));
+  const importTemplates=['src-a','src-b','src-c'].map((id,i)=>{const t=JSON.parse(JSON.stringify(baseTemplate));t.id=id;t.name='Imported '+String.fromCharCode(65+i);return t;});
+  fs.writeFileSync(sourceProject+'-templates.json',JSON.stringify({format:1,projectIid:'other-project',templates:importTemplates},null,2));
+  await ev(`TemplateTestHooks.openImportPicker(${JSON.stringify(sourceProject)})`);
+  await until('document.querySelector(".selectionTemplateImportPicker")','Selective template import picker did not open');
+  assert.strictEqual(await ev('document.querySelectorAll(".selectionTemplateImportPicker input[type=checkbox]").length'),3);
+  await ev(`Array.from(document.querySelectorAll('.selectionTemplateImportPicker button')).find(b=>b.textContent==='Select none').click()`);
+  await ev(`(()=>{for(const id of ['src-a','src-c']){const e=document.querySelector('.selectionTemplateImportPicker input[data-template-id="'+id+'"]');e.checked=true;e.dispatchEvent(new Event('change',{bubbles:true}));}return true;})()`);
+  assert(await ev(`Array.from(document.querySelectorAll('.selectionTemplateImportPicker button')).some(b=>b.textContent.includes('Import 2 selected templates'))`));
+  await ev(`Array.from(document.querySelectorAll('.selectionTemplateImportPicker button')).find(b=>b.textContent.includes('Import 2 selected templates')).click()`);
+  await until('!document.querySelector(".selectionTemplateImportPicker")','Selective import picker did not close');
+  const stagedAfterImport=await ev('TemplateTestHooks.templates()');
+  assert.strictEqual(stagedAfterImport.length,3);
+  assert(stagedAfterImport.some(t=>t.name==='Imported A'));
+  assert(stagedAfterImport.some(t=>t.name==='Imported C'));
+  assert(!stagedAfterImport.some(t=>t.name==='Imported B'));
+  assert(!stagedAfterImport.some(t=>t.id==='src-a'||t.id==='src-c'),'Imported templates did not receive fresh template IDs');
+  assert.strictEqual(JSON.parse(fs.readFileSync(sidecar,'utf8')).templates.length,1,'Selective import wrote to disk before project Save');
+  pass('Import picker clones only checked templates with fresh IDs and stages them until project Save');
+
+  await ev('TemplateTestHooks.saveProject()');
+  await until('!TemplateTestHooks.saveInProgress() && !TemplateTestHooks.needSaving()','Project Save after import did not finish');
+  disk=JSON.parse(fs.readFileSync(sidecar,'utf8'));
+  assert.strictEqual(disk.templates.length,3);
+  assert(disk.templates.some(t=>t.name==='Imported A')&&disk.templates.some(t=>t.name==='Imported C')&&!disk.templates.some(t=>t.name==='Imported B'));
+  pass('Selected imported templates persist only when the destination LDtk project is saved');
+
   fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,platform:process.platform,electron:process.versions.electron},null,2));
   console.log(`SUCCESS: ${passed.length} template integration scenarios passed`);clearTimeout(timer);app.exit(0);
 }

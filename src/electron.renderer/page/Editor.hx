@@ -315,6 +315,7 @@ class Editor extends Page {
 
 		project = p;
 		project.tidy();
+		data.SelectionTemplates.attachProject(project);
 
 		var all = ui.ProjectSaver.listBackupFiles(project.getBackupId(), project.getAbsBackupDir());
 

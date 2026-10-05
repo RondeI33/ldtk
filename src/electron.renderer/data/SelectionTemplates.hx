@@ -33,89 +33,267 @@ class SelectionTemplates {
 		return p.filePath.full+"-templates.json";
 	}
 
-	public static function load(p:Project) : Array<Dynamic> {
-		var path = getPath(p);
+	public static inline function getPathFromProjectFile(absProjectPath:String) : String {
+		return absProjectPath+"-templates.json";
+	}
+
+	static var stagedTemplates:Array<Dynamic> = [];
+	static var stagedProjectRef:Null<Project>;
+	static var stagedProjectIid:Null<String>;
+	static var stagedSavedPath:Null<String>;
+	static var stagedDirty = false;
+
+	static function readSavedLibrary(absProjectPath:String):Array<Dynamic> {
+		var path=getPathFromProjectFile(absProjectPath);
 		if( !NT.fileExists(path) )
 			return [];
 
 		try {
-			var root : Dynamic = haxe.Json.parse(NT.readFileString(path));
-			var raw = field(root,"templates");
-			return raw==null ? [] : cast raw;
+			var root:Dynamic=haxe.Json.parse(NT.readFileString(path));
+			if( field(root,"format")!=null && intVal(field(root,"format"))!=FORMAT )
+				throw 'Unsupported Selection Templates format: '+Std.string(field(root,"format"));
+			var raw=field(root,"templates");
+			return raw==null ? [] : cast cloneJson(raw);
 		}
 		catch(err:Dynamic) {
 			App.LOG.error('Failed to load selection templates "$path": '+Std.string(err));
-			return [];
+			throw err;
 		}
 	}
 
-	static function saveAll(p:Project, templates:Array<Dynamic>):Bool {
-		var path=getPath(p), tmp=path+".tmp";
+	public static function loadProject(p:Project) {
+		try stagedTemplates=readSavedLibrary(p.filePath.full)
+		catch(_:Dynamic) stagedTemplates=[];
+		stagedProjectRef=p;
+		stagedProjectIid=p.iid;
+		stagedSavedPath=p.filePath.full;
+		stagedDirty=false;
+		refreshUi(Editor.exists() ? Editor.ME : null);
+	}
+
+	public static function attachProject(p:Project) {
+		if( stagedProjectRef!=p )
+			loadProject(p);
+	}
+
+	static function ensureLoaded(p:Project) {
+		if( stagedProjectRef!=p || stagedProjectIid!=p.iid )
+			loadProject(p);
+	}
+
+	public static function load(p:Project) : Array<Dynamic> {
+		ensureLoaded(p);
+		return cast cloneJson(stagedTemplates);
+	}
+
+	public static function hasPendingChanges(p:Project):Bool {
+		ensureLoaded(p);
+		return stagedDirty || stagedSavedPath!=p.filePath.full;
+	}
+
+	static function markDirty(p:Project) {
+		ensureLoaded(p);
+		stagedDirty=true;
+		if( Editor.exists() && Editor.ME.project==p )
+			Editor.ME.needSaving=true;
+	}
+
+	public static function saveStaged(p:Project, notifyError=true):Bool {
+		ensureLoaded(p);
+		var path=getPath(p);
+		if( !stagedDirty && stagedSavedPath==p.filePath.full )
+			return true;
+
+		var tmp=path+".tmp";
 		try {
-			if(NT.fileExists(path)) {
+			if( NT.fileExists(path) ) {
 				var previous:Dynamic=haxe.Json.parse(NT.readFileString(path));
-				if(previous.format!=FORMAT || !Std.isOfType(previous.templates,Array)) throw "Unsupported or damaged template library.";
+				if( field(previous,"format")!=null && intVal(field(previous,"format"))!=FORMAT )
+					throw "Unsupported template library format.";
+				if( field(previous,"templates")!=null && !Std.isOfType(field(previous,"templates"),Array) )
+					throw "Damaged template library.";
 			}
-			NT.writeFileString(tmp,haxe.Json.stringify({format:FORMAT,projectIid:p.iid,templates:templates},null,"	"));
+			NT.writeFileString(tmp,haxe.Json.stringify({
+				format:FORMAT,
+				projectIid:p.iid,
+				templates:stagedTemplates,
+			},null,"	"));
 			var fs:Dynamic=js.Node.require("fs");
 			fs.renameSync(tmp,path);
+			stagedSavedPath=p.filePath.full;
+			stagedDirty=false;
 			return true;
 		}
 		catch(e:Dynamic) {
-			try { if(NT.fileExists(tmp)) { var fs:Dynamic=js.Node.require("fs"); fs.unlinkSync(tmp); } } catch(_:Dynamic) {}
-			N.error("Could not save template library: "+Std.string(e));
+			try {
+				if( NT.fileExists(tmp) ) {
+					var fs:Dynamic=js.Node.require("fs");
+					fs.unlinkSync(tmp);
+				}
+			}
+			catch(_:Dynamic) {}
+			if( notifyError )
+				N.error("Could not save template library: "+Std.string(e));
 			return false;
 		}
 	}
 
+	static function uniqueImportedName(base:String):String {
+		var used=new Map<String,Bool>();
+		for(t in stagedTemplates)
+			used.set(Std.string(field(t,"name")).toLowerCase(),true);
+		if( !used.exists(base.toLowerCase()) )
+			return base;
+		var i=2;
+		var name=base+" (Imported)";
+		while( used.exists(name.toLowerCase()) ) {
+			name=base+' (Imported $i)';
+			i++;
+		}
+		return name;
+	}
+
+	static function importKey(tpl:Dynamic, index:Int):String {
+		var id=field(tpl,"id");
+		return id==null || Std.string(id).length==0 ? 'legacy-$index' : Std.string(id);
+	}
+
+	public static function getSavedImportCandidates(absProjectPath:String):Array<Dynamic> {
+		return readSavedLibrary(absProjectPath);
+	}
+
+	public static function importSavedFromProjectPath(p:Project, absProjectPath:String, selectedIds:Array<String>):Int {
+		ensureLoaded(p);
+		var imported:Array<Dynamic>;
+		try imported=readSavedLibrary(absProjectPath)
+		catch(e:Dynamic) {
+			N.error("Could not import templates: "+Std.string(e));
+			return 0;
+		}
+		if( imported.length==0 || selectedIds==null || selectedIds.length==0 )
+			return 0;
+
+		var selected=new Map<String,Bool>();
+		for(id in selectedIds)
+			selected.set(id,true);
+
+		var count=0;
+		for(i in 0...imported.length) {
+			var src=imported[i];
+			if( !selected.exists(importKey(src,i)) )
+				continue;
+			var copy=cloneJson(src);
+			copy.id=p.generateUniqueId_UUID();
+			copy.name=uniqueImportedName(copy.name==null ? "Imported template" : Std.string(copy.name));
+			stagedTemplates.push(copy);
+			count++;
+		}
+		if( count>0 ) {
+			markDirty(p);
+			refreshUi(Editor.exists() ? Editor.ME : null);
+		}
+		return count;
+	}
+
+	public static function openImportPickerFromPath(editor:Editor, absProjectPath:String) {
+		var imported:Array<Dynamic>;
+		try imported=getSavedImportCandidates(absProjectPath)
+		catch(e:Dynamic) {
+			N.error("Could not read templates from that project: "+Std.string(e));
+			return;
+		}
+		if( imported.length==0 ) {
+			N.error("No saved templates found in that LDtk project.");
+			return;
+		}
+
+		new ui.modal.dialog.SelectionTemplateImportPicker(absProjectPath, imported, (ids)->{
+			var count=importSavedFromProjectPath(editor.project,absProjectPath,ids);
+			if( count<=0 )
+				N.error("No templates were imported.");
+			else
+				N.success('Imported $count template'+(count==1 ? "" : "s")+'. Save this project to persist them.');
+		});
+	}
+
+	public static function importFromProject(editor:Editor) {
+		dn.js.ElectronDialogs.openFile(editor.project.filePath.directory, (absPath)->{
+			if( absPath==null )
+				return;
+			if( dn.FilePath.extractExtension(absPath).toLowerCase()!=Const.FILE_EXTENSION.toLowerCase() ) {
+				N.error("Choose an LDtk project file.");
+				return;
+			}
+			openImportPickerFromPath(editor,absPath);
+		});
+	}
+
 	public static function put(p:Project, tpl:Dynamic):Bool {
-		var all=load(p);
+		ensureLoaded(p);
 		var name=tpl.name==null ? "" : StringTools.trim(Std.string(tpl.name));
-		if(name.length==0) { N.error("Enter a template name."); return false; }
-		var copy=cloneJson(tpl); copy.name=name;
-		if(copy.id==null) copy.id=p.generateUniqueId_UUID();
+		if( name.length==0 ) {
+			N.error("Enter a template name.");
+			return false;
+		}
+		var copy=cloneJson(tpl);
+		copy.name=name;
+		if( copy.id==null )
+			copy.id=p.generateUniqueId_UUID();
 		var found=false;
-		for(i in 0...all.length) if(all[i].id==copy.id) { all[i]=copy; found=true; break; }
-		if(!found) all.push(copy);
-		return saveAll(p,all);
+		for(i in 0...stagedTemplates.length)
+			if( stagedTemplates[i].id==copy.id ) {
+				stagedTemplates[i]=copy;
+				found=true;
+				break;
+			}
+		if( !found )
+			stagedTemplates.push(copy);
+		markDirty(p);
+		return true;
 	}
 
 	public static function add(p:Project, tpl:Dynamic) {
-		var all = load(p);
-		all.push(cloneJson(tpl));
-		saveAll(p,all);
+		ensureLoaded(p);
+		stagedTemplates.push(cloneJson(tpl));
+		markDirty(p);
 	}
 
 	public static function remove(p:Project, id:String) {
-		var all = load(p);
-		var i = all.length-1;
+		ensureLoaded(p);
+		var i=stagedTemplates.length-1;
+		var changed=false;
 		while( i>=0 ) {
-			if( Std.string(field(all[i],"id"))==id )
-				all.splice(i,1);
+			if( Std.string(field(stagedTemplates[i],"id"))==id ) {
+				stagedTemplates.splice(i,1);
+				changed=true;
+			}
 			i--;
 		}
-		saveAll(p,all);
+		if( changed )
+			markDirty(p);
 	}
 
 	public static function duplicate(p:Project, id:String) {
-		var all = load(p);
-		for(t in all)
+		ensureLoaded(p);
+		for(t in stagedTemplates)
 			if( Std.string(field(t,"id"))==id ) {
-				var copy = cloneJson(t);
+				var copy=cloneJson(t);
 				Reflect.setField(copy,"id",p.generateUniqueId_UUID());
 				Reflect.setField(copy,"name",Std.string(field(t,"name"))+" Copy");
-				all.push(copy);
-				saveAll(p,all);
+				stagedTemplates.push(copy);
+				markDirty(p);
 				return;
 			}
 	}
 
 	public static function rename(p:Project, id:String, newName:String) {
-		var all = load(p);
-		for(t in all)
-			if( Std.string(field(t,"id"))==id )
+		ensureLoaded(p);
+		for(t in stagedTemplates)
+			if( Std.string(field(t,"id"))==id ) {
 				Reflect.setField(t,"name",newName);
-		saveAll(p,all);
+				markDirty(p);
+				return;
+			}
 	}
 
 	public static function installUi(editor:Editor) {
@@ -162,7 +340,7 @@ class SelectionTemplates {
 	}
 
 	public static function refreshUi(editor:Editor) {
-		if( jPanel!=null )
+		if( editor!=null && jPanel!=null )
 			renderPanel(editor);
 	}
 
@@ -175,6 +353,10 @@ class SelectionTemplates {
 
 		var header = new J('<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"></div>');
 		header.appendTo(panel);
+		var importBtn=new J('<button id="importSelectionTemplates" class="transparent">Import from LDtk…</button>');
+		importBtn.appendTo(header);
+		ui.Tip.attach(importBtn,L.t._("Import saved templates from another LDtk project"));
+		importBtn.click(ev->{ ev.stopPropagation(); importFromProject(editor); });
 		var spacer = new J('<div style="flex:1"></div>');
 		spacer.appendTo(header);
 		jSave=new J('<button id="saveSelectionTemplate" aria-label="Create template from selection"><span class="icon save"></span></button>');
@@ -315,10 +497,6 @@ class SelectionTemplates {
 				N.error("Template cannot be placed outside the level.");
 				return false;
 			}
-			if( li.hasAnyGridValue(cx,cy) ) {
-				N.error("Template cannot be placed on occupied grid cells.");
-				return false;
-			}
 		}
 
 		var touched : Map<String,data.inst.LayerInstance> = new Map();
@@ -418,9 +596,16 @@ class SelectionTemplates {
 			var cx = M.round((atX + rx - li.pxTotalOffsetX)/grid);
 			var cy = M.round((atY + ry - li.pxTotalOffsetY)/grid);
 			var kind = Std.string(field(cell,"kind"));
-			if( kind=="intgrid" )
+			if( kind=="intgrid" ) {
+				// IntGrid assignment is replacement semantics: any existing value
+				// at the destination coordinate is replaced by the template value.
 				li.setIntGrid(cx,cy,intVal(field(cell,"value")),false);
+			}
 			else if( kind=="tiles" ) {
+				// A template cell represents the complete authored tile stack for
+				// that coordinate. Clear any destination stack first so placement
+				// replaces occupied cells instead of appending/merging with them.
+				li.removeAllGridTiles(cx,cy,false);
 				var tiles = arr(cell,"tiles");
 				var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
 				for(t in tiles)

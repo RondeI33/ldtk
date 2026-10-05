@@ -99,6 +99,27 @@ class SelectionTemplatesTestHooks {
 	public static function openImportPicker(absProjectPath:String):Void data.SelectionTemplates.openImportPickerFromPath(Editor.ME,absProjectPath);
 	public static function place(index:Int,x:Int,y:Int):Bool return data.SelectionTemplates.place(Editor.ME,templates()[index],x,y);
 	public static function placeOverwriteFixture():Bool {
+		var cells:Array<Dynamic>=[
+			{
+				layerDefUid:walls.layerDefUid,
+				gridSize:walls.def.gridSize,
+				relX:0,
+				relY:0,
+				kind:"intgrid",
+				value:2,
+			},
+			{
+				layerDefUid:floor.layerDefUid,
+				gridSize:floor.def.gridSize,
+				relX:0,
+				relY:0,
+				kind:"tiles",
+				tiles:[
+					{tileId:7,flips:1},
+					{tileId:8,flips:2},
+				],
+			},
+		];
 		var tpl:Dynamic={
 			schemaVersion:1,
 			id:"overwrite-fixture",
@@ -107,27 +128,7 @@ class SelectionTemplatesTestHooks {
 			height:walls.def.gridSize,
 			excludedLayerUids:[],
 			entities:[],
-			cells:[
-				{
-					layerDefUid:walls.layerDefUid,
-					gridSize:walls.def.gridSize,
-					relX:0,
-					relY:0,
-					kind:"intgrid",
-					value:2,
-				},
-				{
-					layerDefUid:floor.layerDefUid,
-					gridSize:floor.def.gridSize,
-					relX:0,
-					relY:0,
-					kind:"tiles",
-					tiles:[
-						{tileId:7,flips:1},
-						{tileId:8,flips:2},
-					],
-				},
-			],
+			cells:cells,
 		};
 		return data.SelectionTemplates.place(Editor.ME,tpl,2*walls.def.gridSize,2*walls.def.gridSize);
 	}

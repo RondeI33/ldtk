@@ -105,16 +105,7 @@ jobs:
           haxe-version: '4.3.3'
 
       - name: Install Haxe libraries
-        shell: bash
-        run: |
-          haxelib install uuid --quiet
-          haxelib git castle https://github.com/ncannasse/castle
-          haxelib git heaps https://github.com/deepnight/heaps.git
-          haxelib git hxnodejs https://github.com/HaxeFoundation/hxnodejs.git
-          haxelib git electron https://github.com/tong/hxelectron.git
-          haxelib git heaps-aseprite https://github.com/AustinEast/heaps-aseprite.git
-          haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git --always
-          haxelib git deepnightLibs https://github.com/deepnight/deepnightLibs.git --always
+        run: haxe setup.hxml
 
       - uses: actions/setup-node@v4
         with:

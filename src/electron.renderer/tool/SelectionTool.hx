@@ -261,24 +261,16 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	public function saveSelectionAsTemplate() {
-		if( isEmpty() ) {
-			N.error("Select something in the level first.");
+		if( isEmpty() || isRunning() ) {
+			N.error("Finish selecting something in the level first.");
 			return;
 		}
-		var name = js.Browser.window.prompt("Template name:","Template");
-		if( name==null )
-			return;
-		name = StringTools.trim(name);
-		if( name.length==0 )
-			return;
-		var tpl = group.toSelectionTemplate(name);
-		if( tpl==null ) {
-			N.error("Nothing supported in this selection can be saved as a template.");
-			return;
+		try {
+			var tpl = group.toSelectionTemplate("Template");
+			if( tpl==null ) { N.error("Nothing supported in this selection can be saved."); return; }
+			new ui.modal.dialog.SelectionTemplateEditor(tpl);
 		}
-		data.SelectionTemplates.add(project,tpl);
-		data.SelectionTemplates.refreshUi(editor);
-		N.quick("Template saved");
+		catch(e:Dynamic) N.error("Could not open template editor: "+Std.string(e));
 	}
 
 	public inline function get() return getSelectedValue();
@@ -579,5 +571,6 @@ class SelectionTool extends Tool<Int> {
 	override function postUpdate() {
 		super.postUpdate();
 		group.onPostUpdate();
+		data.SelectionTemplates.updateSaveState(editor);
 	}
 }

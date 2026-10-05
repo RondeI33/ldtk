@@ -1,3 +1,28 @@
+# 1.0.22
+
+## Grid replacement, save-bound template persistence and selective import
+
+- Template placement now allows occupied IntGrid and Tiles cells.
+- IntGrid placement replaces the existing destination value at that coordinate.
+- Tiles placement clears the existing destination stack first, then writes the complete saved template stack, so old destination tiles are not merged into the template.
+- Grid replacement remains part of the normal placement Undo/Redo transaction.
+- Template create, edit, rename, duplicate, delete and import are now staged in memory instead of writing the template companion immediately.
+- Any staged template-library change marks the LDtk project dirty and participates in the normal unsaved-changes flow.
+- The template companion is written only by the normal LDtk project save pipeline. Leaving/discarding without saving keeps the previously saved template library intact.
+- Save As carries the staged template library to the new project path.
+- Smartive project backups now include the saved template companion when it exists.
+- Added **Import from LDtk…** to the Templates panel.
+- Importing another LDtk project reads its saved templates and opens a checkbox picker with **Select all** and **Select none**.
+- Only checked templates are cloned into the current project; imported templates receive fresh template IDs.
+- Imported templates remain staged until the destination LDtk project is saved.
+- Extended the real Electron regression to verify occupied IntGrid/Tiles replacement, unsaved create/edit/delete behavior, project-save persistence, selective template import, fresh imported IDs and destination-save persistence.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.21
 
 ## Native Templates tab switching and real placement ghost

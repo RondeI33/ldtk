@@ -5,13 +5,14 @@ class Panel extends ui.Modal {
 	var jLinkedButton : Null<js.jquery.JQuery>;
 	var jCloseButton : js.jquery.JQuery;
 
-	public function new() {
+	public function new(preserveSelection=false) {
 		super();
 
 		LOG.userAction("Opened panel "+this);
 		ui.Modal.closeAll(this);
 
-		editor.selectionTool.clear();
+		if( !preserveSelection )
+			editor.selectionTool.clear();
 
 		var mainPanel = new J("#mainPanel");
 
@@ -78,7 +79,7 @@ class Panel extends ui.Modal {
 		jCloseButton.show().appendTo(jTitle);
 	}
 
-	function linkToButton(selector:String) {
+	public function linkToButton(selector:String) {
 		jLinkedButton = new J(selector);
 		jLinkedButton.addClass("active");
 		jLinkedButton.closest(".buttons").addClass("faded");

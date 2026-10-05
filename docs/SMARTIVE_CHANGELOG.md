@@ -1,3 +1,25 @@
+# 1.0.21
+
+## Native Templates tab switching and real placement ghost
+
+- Replaced the custom absolute Templates overlay with a real LDtk **Panel**, matching the lifecycle used by Layers, Entities, Enums and Tilesets.
+- Templates can now be opened directly while another editor panel is open; the previous panel closes automatically and Templates opens in the same click.
+- Switching from Templates to any other native editor panel works the same way without manually closing Templates first.
+- The Templates panel uniquely preserves the current scene selection when opened so an existing selection can still be saved as a template.
+- Added the normal LDtk hover tooltip to the compact Templates toolbar icon, matching the hover text behavior of the surrounding native toolbar buttons.
+- Replaced the old size-only placement boxes with a real layered placement ghost.
+- Entity previews now use the same `EntityRender.renderCore` path as real scene entities, preserving configured appearance and entity tiles.
+- Explicit Tiles cells now render their actual tileset sprites with saved flip flags and template X/Y flips applied.
+- IntGrid cells keep their authored IntGrid colors, and point/path handles remain visible above the rendered content.
+- Preview content respects layer depth and opacity so multi-layer templates are visually representative before placement.
+- The real Electron regression now verifies native tab swapping, Templates tooltip behavior and the real rendered placement ghost in addition to the existing creation/editing/placement workflow.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.20
 
 ## Template preview navigation and post-placement selection

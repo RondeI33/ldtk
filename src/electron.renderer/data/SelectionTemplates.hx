@@ -120,21 +120,38 @@ class SelectionTemplates {
 
 	public static function installUi(editor:Editor) {
 		editor.jMainPanel.find("#selectionTemplatesTab, #selectionTemplatesPanel").remove();
-		jSave=null; saveEnabled=null;
-		var tab=new J('<button id="selectionTemplatesTab" class="selectionTemplates" title="Templates" aria-label="Templates"><div class="icon copy"></div></button>');
+		jPanel=null;
+		jSave=null;
+		saveEnabled=null;
+
+		var tab=new J('<button id="selectionTemplatesTab" class="selectionTemplates" aria-label="Templates"><div class="icon copy"></div></button>');
 		tab.insertAfter(editor.jMainPanel.find("button.editTilesets"));
-		var panel=new J('<div id="selectionTemplatesPanel"/>');
-		panel.css({position:"absolute",left:"0",right:"0",top:editor.jMainPanel.find("#mainBar").outerHeight()+"px",bottom:"0",zIndex:"40",background:"#20242b",padding:"10px",overflow:"hidden"});
-		panel.hide().appendTo(editor.jMainPanel); jPanel=panel;
+		ui.Tip.attach(tab, L.t._("Templates"));
+
 		tab.click(ev->{
 			ev.stopPropagation();
-			if(panel.is(":visible")) { panel.hide(); editor.clearSpecialTool(); }
-			else { panel.show(); renderPanel(editor); }
+			if( ui.Modal.isOpen(ui.modal.panel.SelectionTemplatesPanel) )
+				ui.Modal.closeAll();
+			else
+				new ui.modal.panel.SelectionTemplatesPanel();
 		});
 	}
 
+	public static function attachPanel(panel:J) {
+		jPanel=panel;
+		jSave=null;
+		saveEnabled=null;
+		renderPanel(Editor.ME);
+	}
+
+	public static function detachPanel() {
+		jPanel=null;
+		jSave=null;
+		saveEnabled=null;
+	}
+
 	public static function updateSaveState(editor:Editor) {
-		if(jPanel==null || jSave==null || !jPanel.is(":visible")) return;
+		if(jPanel==null || jSave==null) return;
 		var enabled=editor.project!=null && !editor.project.isBackup() && !editor.worldMode
 			&& editor.selectionTool.any() && !editor.selectionTool.isRunning();
 		if(saveEnabled!=enabled) {
@@ -145,7 +162,7 @@ class SelectionTemplates {
 	}
 
 	public static function refreshUi(editor:Editor) {
-		if( jPanel!=null && jPanel.is(":visible") )
+		if( jPanel!=null )
 			renderPanel(editor);
 	}
 
@@ -158,19 +175,14 @@ class SelectionTemplates {
 
 		var header = new J('<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"></div>');
 		header.appendTo(panel);
-		var title = new J('<strong style="flex:1">Templates</strong>');
-		title.appendTo(header);
+		var spacer = new J('<div style="flex:1"></div>');
+		spacer.appendTo(header);
 		jSave=new J('<button id="saveSelectionTemplate" aria-label="Create template from selection"><span class="icon save"></span></button>');
 		jSave.appendTo(header);
+		ui.Tip.attach(jSave, L.t._("Create template from current selection"));
 		saveEnabled=null;
 		jSave.click(ev->{ ev.stopPropagation(); editor.selectionTool.saveSelectionAsTemplate(); });
 		updateSaveState(editor);
-		var close = new J('<button class="transparent">×</button>');
-		close.appendTo(header);
-		close.click(function(_) {
-			panel.hide();
-			editor.clearSpecialTool();
-		});
 
 		var search = new J('<input type="text" placeholder="Search templates..." style="width:100%;box-sizing:border-box;margin-bottom:8px"/>');
 		search.appendTo(panel);
@@ -213,6 +225,7 @@ class SelectionTemplates {
 				place.appendTo(actions);
 				var captured = cloneJson(tpl);
 				place.click(function(_) {
+					ui.Modal.closeAll();
 					editor.setSpecialTool(new tool.SelectionTemplateTool(captured));
 					N.quick("Template placement active. Click the level to place, Esc to cancel.");
 				});

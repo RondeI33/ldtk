@@ -73,6 +73,10 @@ class SelectionTemplatesTestHooks {
 			}
 		return null;
 	}
+	public static function templateGhostStats():Dynamic {
+		var t=Std.downcast(Editor.ME.specialTool,tool.SelectionTemplateTool);
+		return t==null ? null : t.debugGhostStats();
+	}
 	public static function clear():Void Editor.ME.selectionTool.clear();
 	public static function point(x:Int,y:Int):Dynamic {
 		var c=Coords.fromLevelCoords(x,y);return {x:Math.round(c.pageX),y:Math.round(c.pageY)};

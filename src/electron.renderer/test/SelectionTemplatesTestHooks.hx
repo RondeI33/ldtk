@@ -91,6 +91,12 @@ class SelectionTemplatesTestHooks {
 	}
 	public static function source():String return haxe.Json.stringify(Editor.ME.curLevel.toJson(true));
 	public static function templates():Array<Dynamic> return data.SelectionTemplates.load(Editor.ME.project);
+	public static function needSaving():Bool return Editor.ME.needSaving;
+	public static function saveProject():Void Editor.ME.onSave();
+	public static function saveInProgress():Bool return ui.ProjectSaver.hasAny();
+	public static function reloadTemplateStage():Void data.SelectionTemplates.loadProject(Editor.ME.project);
+	public static function deleteTemplate(id:String):Void data.SelectionTemplates.remove(Editor.ME.project,id);
+	public static function openImportPicker(absProjectPath:String):Void data.SelectionTemplates.openImportPickerFromPath(Editor.ME,absProjectPath);
 	public static function place(index:Int,x:Int,y:Int):Bool return data.SelectionTemplates.place(Editor.ME,templates()[index],x,y);
 	public static function placeOverwriteFixture():Bool {
 		var tpl:Dynamic={

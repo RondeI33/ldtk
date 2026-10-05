@@ -217,8 +217,10 @@ async function run(win){
   assert.strictEqual(JSON.parse(fs.readFileSync(sidecar,'utf8')).templates.length,1,'Selective import wrote to disk before project Save');
   pass('Import picker clones only checked templates with fresh IDs and stages them until project Save');
 
+  await delay(180);
   await ev('TemplateTestHooks.saveProject()');
-  await until('!TemplateTestHooks.saveInProgress() && !TemplateTestHooks.needSaving()','Project Save after import did not finish');
+  await until('TemplateTestHooks.saveDidComplete()','Project Save after import callback did not finish');
+  assert.strictEqual(await ev('TemplateTestHooks.needSaving()'),false,'Project remained dirty after saving imported templates');
   disk=JSON.parse(fs.readFileSync(sidecar,'utf8'));
   assert.strictEqual(disk.templates.length,3);
   assert(disk.templates.some(t=>t.name==='Imported A')&&disk.templates.some(t=>t.name==='Imported C')&&!disk.templates.some(t=>t.name==='Imported B'));

@@ -38,6 +38,7 @@ class SelectionTemplates {
 	}
 
 	static var stagedTemplates:Array<Dynamic> = [];
+	static var stagedProjectRef:Null<Project>;
 	static var stagedProjectIid:Null<String>;
 	static var stagedSavedPath:Null<String>;
 	static var stagedDirty = false;
@@ -63,14 +64,20 @@ class SelectionTemplates {
 	public static function loadProject(p:Project) {
 		try stagedTemplates=readSavedLibrary(p.filePath.full)
 		catch(_:Dynamic) stagedTemplates=[];
+		stagedProjectRef=p;
 		stagedProjectIid=p.iid;
 		stagedSavedPath=p.filePath.full;
 		stagedDirty=false;
 		refreshUi(Editor.exists() ? Editor.ME : null);
 	}
 
+	public static function attachProject(p:Project) {
+		if( stagedProjectRef!=p )
+			loadProject(p);
+	}
+
 	static function ensureLoaded(p:Project) {
-		if( stagedProjectIid!=p.iid )
+		if( stagedProjectRef!=p || stagedProjectIid!=p.iid )
 			loadProject(p);
 	}
 

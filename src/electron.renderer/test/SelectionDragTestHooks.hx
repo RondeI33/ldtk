@@ -4,6 +4,7 @@ package test;
 @:keep
 @:access(App)
 @:access(page.Editor)
+@:access(data.def.LayerDef)
 @:access(tool.SelectionTool)
 @:access(GenericLevelElementGroup)
 class SelectionDragTestHooks {

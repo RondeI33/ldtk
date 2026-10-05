@@ -13,8 +13,12 @@ on:
       - src/electron.renderer/tool/SelectionTemplateTool.hx
       - src/electron.renderer/tool/SelectionTool.hx
       - src/electron.renderer/ui/TemplateEditorBridge.hx
+      - src/electron.renderer/ui/modal/Dialog.hx
+      - src/electron.renderer/ui/modal/Panel.hx
       - src/electron.renderer/ui/modal/dialog/SelectionTemplateEditor.hx
+      - src/electron.renderer/ui/modal/panel/SelectionTemplatesPanel.hx
       - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
+      - app/assets/tpl/selectionTemplatesPanel.html
       - .github/workflows/ldtk-smartive-1.0.0-release.yml
   workflow_dispatch:
     inputs:

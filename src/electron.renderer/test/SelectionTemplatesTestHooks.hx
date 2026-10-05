@@ -93,6 +93,26 @@ class SelectionTemplatesTestHooks {
 	public static function templates():Array<Dynamic> return data.SelectionTemplates.load(Editor.ME.project);
 	public static function needSaving():Bool return Editor.ME.needSaving;
 	public static function saveProject():Void Editor.ME.onSave();
+	public static function saveStatus():Dynamic {
+		return {
+			locked:Editor.ME.isLocked(),
+			saver:ui.ProjectSaver.hasAny(),
+			unclosable:ui.Modal.hasAnyUnclosable(),
+			modalOpen:ui.Modal.hasAnyOpen(),
+			needSaving:Editor.ME.needSaving,
+			modals:[for(m in ui.Modal.ALL) {
+				type:Type.getClassName(Type.getClass(m)),
+				closing:m.isClosing(),
+				manual:m.canBeClosedManually,
+			}],
+		};
+	}
+	public static function saveProjectDebug():Dynamic {
+		var before=saveStatus();
+		Editor.ME.onSave();
+		var after=saveStatus();
+		return {before:before,after:after};
+	}
 	public static function saveInProgress():Bool return ui.ProjectSaver.hasAny();
 	public static function reloadTemplateStage():Void data.SelectionTemplates.loadProject(Editor.ME.project);
 	public static function deleteTemplate(id:String):Void data.SelectionTemplates.remove(Editor.ME.project,id);

@@ -107,8 +107,8 @@ class SelectionTemplates {
 		editor.jMainPanel.find("#selectionTemplatesTab").remove();
 		editor.jMainPanel.find("#selectionTemplatesPanel").remove();
 
-		var tab = new J('<button id="selectionTemplatesTab" class="transparent">Templates</button>');
-		var near = editor.jMainPanel.find("button.editLayers");
+		var tab = new J('<button id="selectionTemplatesTab" class="selectionTemplates" title="Templates"><div class="icon copy"></div></button>');
+		var near = editor.jMainPanel.find("button.editTilesets");
 		if( near.length>0 )
 			tab.insertAfter(near);
 		else
@@ -159,6 +159,15 @@ class SelectionTemplates {
 		header.appendTo(panel);
 		var title = new J('<strong style="flex:1">Templates</strong>');
 		title.appendTo(header);
+		var saveCurrent = new J('<button title="Save current selection as template"><span class="icon save"></span></button>');
+		saveCurrent.appendTo(header);
+		if( !editor.selectionTool.any() )
+			saveCurrent.prop("disabled",true);
+		saveCurrent.click(function(_) {
+			editor.selectionTool.saveSelectionAsTemplate();
+			renderPanel(editor);
+		});
+
 		var close = new J('<button class="transparent">×</button>');
 		close.appendTo(header);
 		close.click(function(_) {
@@ -177,7 +186,7 @@ class SelectionTemplates {
 			var all = load(editor.project);
 			if( all.length==0 ) {
 				var empty = new J('<div style="opacity:.65;padding:12px 4px"></div>');
-				empty.text("Select part of a level, right-click and choose Save to template.");
+				empty.text("Select part of a level, open Templates, then click the save icon above.");
 				empty.appendTo(list);
 				return;
 			}

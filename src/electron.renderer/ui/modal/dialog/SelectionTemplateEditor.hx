@@ -25,7 +25,7 @@ class SelectionTemplateEditor extends ui.modal.Dialog {
 				var draft:Dynamic=view.getDraft();
 				if(data.SelectionTemplates.put(project,draft)) {
 					data.SelectionTemplates.refreshUi(editor);
-					N.quick("Template saved");
+					N.quick("Template updated — save the LDtk project to persist it");
 					close();
 				}
 			}

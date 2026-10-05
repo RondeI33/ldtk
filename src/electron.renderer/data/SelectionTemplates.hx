@@ -94,7 +94,7 @@ class SelectionTemplates {
 	public static function saveStaged(p:Project, notifyError=true):Bool {
 		ensureLoaded(p);
 		var path=getPath(p);
-		if( !stagedDirty && stagedSavedPath==p.filePath.full && NT.fileExists(path) )
+		if( !stagedDirty && stagedSavedPath==p.filePath.full )
 			return true;
 
 		var tmp=path+".tmp";
@@ -146,7 +146,16 @@ class SelectionTemplates {
 		return name;
 	}
 
-	public static function importSavedFromProjectPath(p:Project, absProjectPath:String):Int {
+	static function importKey(tpl:Dynamic, index:Int):String {
+		var id=field(tpl,"id");
+		return id==null || Std.string(id).length==0 ? 'legacy-$index' : Std.string(id);
+	}
+
+	public static function getSavedImportCandidates(absProjectPath:String):Array<Dynamic> {
+		return readSavedLibrary(absProjectPath);
+	}
+
+	public static function importSavedFromProjectPath(p:Project, absProjectPath:String, selectedIds:Array<String>):Int {
 		ensureLoaded(p);
 		var imported:Array<Dynamic>;
 		try imported=readSavedLibrary(absProjectPath)
@@ -154,18 +163,50 @@ class SelectionTemplates {
 			N.error("Could not import templates: "+Std.string(e));
 			return 0;
 		}
-		if( imported.length==0 )
+		if( imported.length==0 || selectedIds==null || selectedIds.length==0 )
 			return 0;
 
-		for(src in imported) {
+		var selected=new Map<String,Bool>();
+		for(id in selectedIds)
+			selected.set(id,true);
+
+		var count=0;
+		for(i in 0...imported.length) {
+			var src=imported[i];
+			if( !selected.exists(importKey(src,i)) )
+				continue;
 			var copy=cloneJson(src);
 			copy.id=p.generateUniqueId_UUID();
 			copy.name=uniqueImportedName(copy.name==null ? "Imported template" : Std.string(copy.name));
 			stagedTemplates.push(copy);
+			count++;
 		}
-		markDirty(p);
-		refreshUi(Editor.exists() ? Editor.ME : null);
-		return imported.length;
+		if( count>0 ) {
+			markDirty(p);
+			refreshUi(Editor.exists() ? Editor.ME : null);
+		}
+		return count;
+	}
+
+	public static function openImportPickerFromPath(editor:Editor, absProjectPath:String) {
+		var imported:Array<Dynamic>;
+		try imported=getSavedImportCandidates(absProjectPath)
+		catch(e:Dynamic) {
+			N.error("Could not read templates from that project: "+Std.string(e));
+			return;
+		}
+		if( imported.length==0 ) {
+			N.error("No saved templates found in that LDtk project.");
+			return;
+		}
+
+		new ui.modal.dialog.SelectionTemplateImportPicker(absProjectPath, imported, (ids)->{
+			var count=importSavedFromProjectPath(editor.project,absProjectPath,ids);
+			if( count<=0 )
+				N.error("No templates were imported.");
+			else
+				N.success('Imported $count template'+(count==1 ? "" : "s")+'. Save this project to persist them.');
+		});
 	}
 
 	public static function importFromProject(editor:Editor) {
@@ -176,11 +217,7 @@ class SelectionTemplates {
 				N.error("Choose an LDtk project file.");
 				return;
 			}
-			var count=importSavedFromProjectPath(editor.project,absPath);
-			if( count<=0 )
-				N.error("No saved templates found in that LDtk project.");
-			else
-				N.success('Imported $count template'+(count==1 ? "" : "s")+'. Save this project to persist them.');
+			openImportPickerFromPath(editor,absPath);
 		});
 	}
 

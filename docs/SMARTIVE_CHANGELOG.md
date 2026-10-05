@@ -1,3 +1,20 @@
+# 1.0.18
+
+## Selection Templates input and toolbar hotfix
+
+- Removed the **Save to template** action from right-click so template creation no longer conflicts with the existing selection controls.
+- Templates are now created from a dedicated save button inside the Templates panel while the current scene selection stays intact.
+- The save button is disabled when nothing is selected and gives a clear message if saving is attempted without a selection.
+- Replaced the wide **Templates** text button with a compact icon-only toolbar button.
+- Moved the Templates toolbar button directly after **Tilesets**, matching the footprint of the surrounding editor buttons.
+- Updated the empty-library instructions to describe the new workflow.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.17
 
 ## Selection Templates

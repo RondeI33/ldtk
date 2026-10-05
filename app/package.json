@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.18",
+	"version": "1.0.19",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -35,7 +35,8 @@
 		"qt-py": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.py",
 		"qt-rs": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.rs --derive-clone --derive-debug --visibility public",
 		"qt-go": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.go",
-		"qt-cpp": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.cpp"
+		"qt-cpp": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.cpp",
+		"test:templates": "node scripts/run-template-tests.cjs"
 	},
 	"repository": {
 		"type": "git",

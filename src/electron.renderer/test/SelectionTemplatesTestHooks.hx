@@ -133,9 +133,11 @@ class SelectionTemplatesTestHooks {
 		return data.SelectionTemplates.place(Editor.ME,tpl,2*walls.def.gridSize,2*walls.def.gridSize);
 	}
 	public static function overwriteGridState():Dynamic {
+		var curWalls=Editor.ME.curLevel.getLayerInstance(walls.layerDefUid);
+		var curFloor=Editor.ME.curLevel.getLayerInstance(floor.layerDefUid);
 		return {
-			intGrid:walls.getIntGrid(2,2),
-			tiles:[for(t in floor.getGridTileStack(2,2)) {tileId:t.tileId,flips:t.flips}],
+			intGrid:curWalls.getIntGrid(2,2),
+			tiles:[for(t in curFloor.getGridTileStack(2,2)) {tileId:t.tileId,flips:t.flips}],
 		};
 	}
 	public static function undo():Void Editor.ME.curLevelTimeline.undo();

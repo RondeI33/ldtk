@@ -9,10 +9,15 @@ package test;
 class SelectionTemplatesTestHooks {
 	static var devices:Array<data.inst.EntityInstance>=[];
 	static var walls:data.inst.LayerInstance;
+	static var floor:data.inst.LayerInstance;
 	public static function setup(path:String):Dynamic {
 		var p=data.Project.createEmpty(path);
 		var ld=p.defs.createLayerDef(IntGrid,"Walls");
-		ld.intGridValues=[{value:1,identifier:"Wall",color:0x889999,tile:null,groupUid:0}];
+		ld.intGridValues=[
+			{value:1,identifier:"Wall",color:0x889999,tile:null,groupUid:0},
+			{value:2,identifier:"TemplateWall",color:0xcc8844,tile:null,groupUid:0},
+		];
+		var floorLd=p.defs.createLayerDef(Tiles,"Floor");
 		var la=p.defs.createLayerDef(Entities,"Devices_A");
 		var lb=p.defs.createLayerDef(Entities,"Devices_B");
 		la.canSelectWhenInactive=lb.canSelectWhenInactive=true;
@@ -25,6 +30,9 @@ class SelectionTemplatesTestHooks {
 		p.tidy();
 		var l=p.worlds[0].levels[0];l.pxWid=512;l.pxHei=320;
 		walls=l.getLayerInstance(ld);walls.setIntGrid(2,2,1,false);
+		floor=l.getLayerInstance(floorLd);
+		floor.addGridTile(2,2,90,0,false,false);
+		floor.addGridTile(2,2,91,0,true,false);
 		devices=[];
 		for(i in 0...3){
 			var li=l.getLayerInstance(i==0?la:lb);
@@ -37,7 +45,7 @@ class SelectionTemplatesTestHooks {
 		NT.writeFileString(path,haxe.Json.stringify(p.toJson()));
 		App.ME.loadPage(()->new page.Editor(p),false);
 		var editor=Editor.ME;editor.setWorldMode(false);editor.selectLayerInstance(l.getLayerInstance(la));editor.camera.fit(true);
-		return {ids:devices.map(e->e.iid),walls:ld.uid,layers:[la.uid,lb.uid],fields:{target:link.uid,targets:many.uid,amount:amount.uid,label:label.uid,path:points.uid}};
+		return {ids:devices.map(e->e.iid),walls:ld.uid,floor:floorLd.uid,layers:[la.uid,lb.uid],fields:{target:link.uid,targets:many.uid,amount:amount.uid,label:label.uid,path:points.uid}};
 	}
 	public static function selectAll():Void {
 		var es:Array<GenericLevelElement>=[for(e in devices) Entity(e._li,e)];es.push(GridCell(walls,2,2));
@@ -84,6 +92,45 @@ class SelectionTemplatesTestHooks {
 	public static function source():String return haxe.Json.stringify(Editor.ME.curLevel.toJson(true));
 	public static function templates():Array<Dynamic> return data.SelectionTemplates.load(Editor.ME.project);
 	public static function place(index:Int,x:Int,y:Int):Bool return data.SelectionTemplates.place(Editor.ME,templates()[index],x,y);
+	public static function placeOverwriteFixture():Bool {
+		var tpl:Dynamic={
+			schemaVersion:1,
+			id:"overwrite-fixture",
+			name:"Overwrite fixture",
+			width:walls.def.gridSize,
+			height:walls.def.gridSize,
+			excludedLayerUids:[],
+			entities:[],
+			cells:[
+				{
+					layerDefUid:walls.layerDefUid,
+					gridSize:walls.def.gridSize,
+					relX:0,
+					relY:0,
+					kind:"intgrid",
+					value:2,
+				},
+				{
+					layerDefUid:floor.layerDefUid,
+					gridSize:floor.def.gridSize,
+					relX:0,
+					relY:0,
+					kind:"tiles",
+					tiles:[
+						{tileId:7,flips:1},
+						{tileId:8,flips:2},
+					],
+				},
+			],
+		};
+		return data.SelectionTemplates.place(Editor.ME,tpl,2*walls.def.gridSize,2*walls.def.gridSize);
+	}
+	public static function overwriteGridState():Dynamic {
+		return {
+			intGrid:walls.getIntGrid(2,2),
+			tiles:[for(t in floor.getGridTileStack(2,2)) {tileId:t.tileId,flips:t.flips}],
+		};
+	}
 	public static function undo():Void Editor.ME.curLevelTimeline.undo();
 	public static function redo():Void Editor.ME.curLevelTimeline.redo();
 	public static function wallState():String { var j:Dynamic=Editor.ME.curLevel.getLayerInstance(walls.layerDefUid).toJson(); if(j.overrideTilesetUid==null) Reflect.deleteField(j,"overrideTilesetUid"); return haxe.Json.stringify(j); }

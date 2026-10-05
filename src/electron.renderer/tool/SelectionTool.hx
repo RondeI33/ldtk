@@ -223,6 +223,16 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function startUsing(ev:hxd.Event, m:Coords, ?extraParam:String) {
+		if( ev.button==1 && any() && group.isOveringSelection(m) ) {
+			var ctx = new ui.modal.ContextMenu(m);
+			ctx.addAction({
+				label: L.t._("Save to template..."),
+				iconId: "save",
+				cb: saveSelectionAsTemplate,
+			});
+			ev.cancel = true;
+			return;
+		}
 		isCopy = App.ME.isCtrlCmdDown() && App.ME.isAltDown();
 		dragFlipX = false;
 		dragFlipY = false;
@@ -258,6 +268,25 @@ class SelectionTool extends Tool<Int> {
 				}
 			}
 		}
+	}
+
+	public function saveSelectionAsTemplate() {
+		if( isEmpty() )
+			return;
+		var name = js.Browser.window.prompt("Template name:","Template");
+		if( name==null )
+			return;
+		name = StringTools.trim(name);
+		if( name.length==0 )
+			return;
+		var tpl = group.toSelectionTemplate(name);
+		if( tpl==null ) {
+			N.error("Nothing supported in this selection can be saved as a template.");
+			return;
+		}
+		data.SelectionTemplates.add(project,tpl);
+		data.SelectionTemplates.refreshUi(editor);
+		N.quick("Template saved");
 	}
 
 	public inline function get() return getSelectedValue();

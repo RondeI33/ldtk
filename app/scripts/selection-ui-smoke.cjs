@@ -66,7 +66,8 @@ async function run(win){
   await until('(window.SelectionDragTestHooks=window.SelectionDragTestHooks || (typeof exports!=="undefined" && exports.SelectionDragTestHooks)) && document.querySelector("#page")','Selection test hooks unavailable');
   win.setSize(1400,900);win.show();win.focus();win.webContents.setBackgroundThrottling(false);
   await ev(`SelectionDragTestHooks.setup(${JSON.stringify(path.join(tmp,'selection.ldtk'))})`);
-  await delay(500);
+  await until('SelectionDragTestHooks.ready()','Editor did not finish loading the selection regression project');
+  await delay(180);
 
   // Real history transaction: grab near the top-left edge and release near the
   // bottom-right edge of another cell. Raw pixel deltas would round to +1 tile.

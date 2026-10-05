@@ -48,7 +48,7 @@ jobs:
         with:
           haxe-version: '4.3.3'
       - name: Install pinned Haxe dependencies
-        run: haxe setup.hxml
+        run: haxe setup.hxml > /tmp/selection-haxe-setup.log 2>&1 || { tail -80 /tmp/selection-haxe-setup.log; exit 1; }
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -58,6 +58,24 @@ jobs:
       - name: Real scene selection and existing template regressions
         working-directory: app
         run: xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:selection
+      - name: Retain reproducible environment without repository credentials
+        if: always() && github.event_name == 'push'
+        shell: bash
+        run: |
+          mkdir -p /tmp/selection-env/repo /tmp/selection-env/tools
+          git archive HEAD | tar -x -C /tmp/selection-env/repo
+          cp -a app/assets /tmp/selection-env/repo/app/
+          cp -a app/node_modules /tmp/selection-env/repo/app/
+          cp -a /opt/hostedtoolcache/haxe/4.3.3/x64 /tmp/selection-env/tools/haxe
+          cp -a /opt/hostedtoolcache/neko/2.4.0/x64 /tmp/selection-env/tools/neko
+          find /tmp/selection-env -type d -name .git -prune -exec rm -rf {} +
+          tar -czf /tmp/selection-env.tar.gz -C /tmp/selection-env .
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'push'
+        with:
+          name: selection-reproduction-${{ github.run_id }}
+          path: /tmp/selection-env.tar.gz
+          retention-days: 3
       - uses: actions/upload-artifact@v4
         if: always()
         with:

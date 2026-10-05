@@ -5,6 +5,7 @@ class SelectionTemplatesPanel extends ui.modal.Panel {
 		super(true);
 		loadTemplate("selectionTemplatesPanel","selectionTemplatesPanel");
 		linkToButton("#selectionTemplatesTab");
+		allowCanvasInteraction();
 		data.SelectionTemplates.attachPanel(jContent.find(".selectionTemplatesBody"));
 	}
 

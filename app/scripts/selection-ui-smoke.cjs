@@ -46,7 +46,21 @@ function expectEntities(state,isCopy,dx,dy){
   assert(has(state.entities,dst),'Destination entity/point is not on snapped delta');
 }
 async function run(win){
-  const ev=code=>win.webContents.executeJavaScript(code,true);
+  win.webContents.on('console-message',(_event,level,message,line,sourceId)=>{
+    console.log('[renderer console]',level,message,sourceId+':'+line);
+  });
+  const ev=async code=>{
+    const wrapped=`(()=>{try{return {ok:true,value:(${code})};}catch(e){return {ok:false,error:String(e&&e.stack||e)};}})()`;
+    let result;
+    try{
+      result=await win.webContents.executeJavaScript(wrapped,true);
+    }catch(e){
+      throw Error('executeJavaScript IPC failure for expression:\n'+code+'\n'+String(e&&e.stack||e));
+    }
+    if(!result || !result.ok)
+      throw Error('Renderer expression failed:\n'+code+'\n'+String(result&&result.error||result));
+    return result.value;
+  };
   async function until(code,message){for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
   const pass=m=>{passed.push(m);console.log('PASS: '+m);};
   await until('(window.SelectionDragTestHooks=window.SelectionDragTestHooks || (typeof exports!=="undefined" && exports.SelectionDragTestHooks)) && document.querySelector("#page")','Selection test hooks unavailable');

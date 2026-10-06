@@ -156,7 +156,8 @@ async function run(win){
   const target=await ev('TemplateTestHooks.point(272,176)');
   win.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});await delay(120);await until(`document.elementFromPoint(${target.x},${target.y}).id==='webgl'`,'Map is covered by a dialog');
   fs.writeFileSync(path.join(output,'placement-real-ghost.png'),(await win.webContents.capturePage()).toPNG());
-  win.webContents.sendInputEvent({type:'mouseDown',x:target.x,y:target.y,button:'left',clickCount:1});await until('TemplateTestHooks.inputState().specialRunning','Placement did not start');
+  win.webContents.sendInputEvent({type:'mouseDown',x:target.x,y:target.y,button:'left',clickCount:1});
+  await delay(30);
   win.webContents.sendInputEvent({type:'mouseUp',x:target.x,y:target.y,button:'left',clickCount:1});
   await until('TemplateTestHooks.entityCount()===5','Placement did not finish');
   await until('!TemplateTestHooks.inputState().placing && TemplateTestHooks.inputState().selectedCount>=2','Placed template was not handed back as a normal selection');

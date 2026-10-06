@@ -100,7 +100,9 @@ jobs:
 
   candidate:
     needs: regression
-    if: inputs.build_candidate == true || (github.event_name == 'push' && github.ref == 'refs/heads/fix/selection-regression-gate')
+    # Packaging is opt-in. Ordinary test/CI edits must not generate another set
+    # of installers; a requested candidate still cannot bypass the test gate.
+    if: inputs.build_candidate == true || (github.event_name == 'push' && github.ref == 'refs/heads/fix/selection-regression-gate' && contains(github.event.head_commit.message, '[build candidate]'))
     strategy:
       fail-fast: false
       matrix:

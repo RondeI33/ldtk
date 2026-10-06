@@ -17,6 +17,7 @@ class SelectionDragTestHooks {
 	static var pointFieldUid:Int;
 	static var caseDx=0;
 	static var caseDy=0;
+	static var testGroup:GenericLevelElementGroup;
 
 	static function editor() {
 		var current=Std.downcast(@:privateAccess App.ME.curPageProcess,page.Editor);
@@ -36,9 +37,8 @@ class SelectionDragTestHooks {
 		var e=editor();
 		return e!=null
 			&& !e.destroyed
-			&& e.selectionTool!=null
-			&& e.selectionTool.group!=null
-			&& e.selectionTool.group.allElements()!=null;
+			&& e.levelRender!=null
+			&& e.curLevel!=null;
 	}
 
 	public static function setup(path:String):Dynamic {
@@ -76,6 +76,8 @@ class SelectionDragTestHooks {
 		e.setWorldMode(false);
 		e.selectLayerInstance(e.curLevel.getLayerInstance(a));
 		e.camera.fit(true);
+		if(testGroup!=null) testGroup.dispose();
+		testGroup=new GenericLevelElementGroup();
 		selectNormal();
 		return {grid:16,bigGrid:32};
 	}
@@ -126,7 +128,8 @@ class SelectionDragTestHooks {
 
 	public static function prepare(dx:Int,dy:Int,mixed=false):Void {
 		caseDx=dx; caseDy=dy;
-		editor().selectionTool.clear();
+		if(testGroup!=null) testGroup.dispose();
+		testGroup=new GenericLevelElementGroup();
 		seedOnProject(editor().project,level(),dx,dy,mixed);
 		selectNormal(mixed);
 		// Keep this regression focused on Selection transfer semantics. The
@@ -148,13 +151,13 @@ class SelectionDragTestHooks {
 		es.push(PointField(entities(),ei,fi,0));
 		if(mixed)
 			es.push(GridCell(bigTiles(),1,1));
-		editor().selectionTool.select(es);
-		var g=editor().selectionTool.group;
-		g.addSelectionRect(2*16,5*16,2*16,6*16);
+		for(e in es)
+			testGroup.add(e);
+		testGroup.addSelectionRect(2*16,5*16,2*16,6*16);
 	}
 
 	public static function drag(isCopy:Bool,originX:Int,originY:Int,toX:Int,toY:Int,saveHistory=false):Dynamic {
-		var g=editor().selectionTool.group;
+		var g=testGroup;
 		var o=Coords.fromLevelCoords(originX,originY);
 		var t=Coords.fromLevelCoords(toX,toY);
 		g.onMoveStart(isCopy);
@@ -168,7 +171,7 @@ class SelectionDragTestHooks {
 	}
 
 	public static function startAndCancel(isCopy:Bool):Void {
-		var g=editor().selectionTool.group;
+		var g=testGroup;
 		g.onMoveStart(isCopy);
 		g.onMoveEnd();
 	}

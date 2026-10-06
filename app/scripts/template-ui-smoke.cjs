@@ -145,9 +145,8 @@ async function run(win){
   await ev('TemplateTestHooks.clear()');
   await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Place').click()");
   await until('TemplateTestHooks.inputState().placing','Place tool did not activate');
+  await until('TemplateTestHooks.templateGhostStats()!=null && TemplateTestHooks.templateGhostStats().entities===2 && TemplateTestHooks.templateGhostStats().childCount>0','Placement preview did not build the real entity graphics');
   const ghostStats=await ev('TemplateTestHooks.templateGhostStats()');
-  assert(ghostStats && ghostStats.entities===2,'Placement preview did not build the real entity graphics');
-  assert(ghostStats.childCount>0,'Placement preview has no rendered ghost content');
   pass('Placement preview uses real rendered template graphics instead of size-only boxes');
   const target=await ev('TemplateTestHooks.point(272,176)');
   win.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});await delay(120);await until(`document.elementFromPoint(${target.x},${target.y}).id==='webgl'`,'Map is covered by a dialog');

@@ -217,32 +217,6 @@ class SelectionDragTestHooks {
 		return editor().selectionTool.moveSelectionToCompatibleLayer(direction);
 
 
-	public static function layerTransferDebug():Dynamic {
-		var e=editor();
-		var source=e.selectionTool.group.getSingleTilesLayerForTransfer();
-		return {
-			isRunning:e.selectionTool.isRunning(),
-			isEmpty:e.selectionTool.isEmpty(),
-			source:source==null ? null : {
-				name:source.def.identifier,
-				uid:source.layerDefUid,
-				tileset:source.getTilesetUid(),
-			},
-			layers:[
-				for(ld in e.project.defs.layers) {
-					var li=e.curLevel.getLayerInstance(ld);
-					{
-						name:ld.identifier,
-						uid:ld.uid,
-						type:Std.string(ld.type),
-						tileset:li==null ? null : li.getTilesetUid(),
-						grid:ld.gridSize,
-					};
-				}
-			],
-		};
-	}
-
 
 	public static function layerTransferShortcut(direction:Int):Bool {
 		@:privateAccess App.ME.jsKeyDowns.set(K.CTRL,true);

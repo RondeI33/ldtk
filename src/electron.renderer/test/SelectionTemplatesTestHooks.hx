@@ -4,6 +4,7 @@ package test;
 @:keep
 @:access(App)
 @:access(data.def.LayerDef)
+@:access(data.SelectionTemplates)
 @:access(page.Editor)
 @:access(tool.SelectionTool)
 @:access(tool.SelectionTemplateTool)
@@ -125,6 +126,15 @@ class SelectionTemplatesTestHooks {
 		p.tidy();
 		floor=Editor.ME.curLevel.getLayerInstance(ld);
 		return {tileset:td.uid,floor:ld.uid};
+	}
+	public static function debugImportRemap(absProjectPath:String,index:Int):Dynamic {
+		try {
+			var templates=data.SelectionTemplates.readSavedLibrary(absProjectPath);
+			var defs=data.SelectionTemplates.readSourceDefinitions(absProjectPath);
+			return {ok:true,template:data.SelectionTemplates.remapImportedTemplate(Editor.ME.project,defs,templates[index])};
+		}
+		catch(e:Dynamic)
+			return {ok:false,error:Std.string(e)};
 	}
 	public static function openImportPicker(absProjectPath:String):Void data.SelectionTemplates.openImportPickerFromPath(Editor.ME,absProjectPath);
 	public static function place(index:Int,x:Int,y:Int):Bool return data.SelectionTemplates.place(Editor.ME,templates()[index],x,y);

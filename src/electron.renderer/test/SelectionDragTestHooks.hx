@@ -17,16 +17,24 @@ class SelectionDragTestHooks {
 	static var pointFieldUid:Int;
 	static var caseDx=0;
 	static var caseDy=0;
+	static var editorRef:page.Editor;
 
-	static inline function editor() return Editor.ME;
-	static inline function level() return Editor.ME.curLevel;
+	static function editor() {
+		if( editorRef!=null && !editorRef.destroyed && Editor.ME!=editorRef )
+			Editor.ME=editorRef;
+		return editorRef!=null ? editorRef : Editor.ME;
+	}
+	static inline function level() return editor().curLevel;
 	static inline function tilesA() return level().getLayerInstance(tilesAUid);
 	static inline function tilesB() return level().getLayerInstance(tilesBUid);
 	static inline function ints() return level().getLayerInstance(intGridUid);
 	static inline function entities() return level().getLayerInstance(entitiesUid);
 	static inline function bigTiles() return level().getLayerInstance(bigTilesUid);
 
-	public static function ready():Bool return Editor.ME!=null && !Editor.ME.destroyed && Editor.ME.selectionTool!=null;
+	public static function ready():Bool {
+		var e=editor();
+		return e!=null && !e.destroyed && e.selectionTool!=null;
+	}
 
 	public static function setup(path:String):Dynamic {
 		var p=data.Project.createEmpty(path);
@@ -60,6 +68,7 @@ class SelectionDragTestHooks {
 		NT.writeFileString(path,haxe.Json.stringify(p.toJson()));
 		App.ME.loadPage(()->new page.Editor(p),false);
 		var e=Editor.ME;
+		editorRef=e;
 		e.setWorldMode(false);
 		e.selectLayerInstance(e.curLevel.getLayerInstance(a));
 		e.camera.fit(true);

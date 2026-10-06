@@ -1,0 +1,138 @@
+name: Selection regression gate
+
+on:
+  push:
+    branches: [fix/selection-regression-gate]
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/electron.renderer/**'
+      - 'app/scripts/**'
+      - 'app/package*.json'
+      - '.github/workflows/selection-regression.yml'
+  workflow_dispatch:
+    inputs:
+      build_candidate:
+        description: Package candidates only after all regressions pass
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      build_candidate:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selection-regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Prove the new regression detects the old marquee bug
+        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/selection-regression-gate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=src/electron.renderer/tool/SelectionTool.hx
+          cp "$SOURCE" /tmp/SelectionTool.fixed.hx
+          trap 'cp /tmp/SelectionTool.fixed.hx "$SOURCE"' EXIT
+          git show 7c359761feff184a09d467c458b5a4dd92b28907:"$SOURCE" > "$SOURCE"
+          mkdir -p app/test-results/selection
+          set +e
+          (cd app && xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:selection -- --input-only) > app/test-results/selection/baseline.log 2>&1
+          status=$?
+          set -e
+          cat app/test-results/selection/baseline.log
+          if [ "$status" -eq 0 ]; then
+            echo 'ERROR: the old source unexpectedly passed the new regression'
+            exit 1
+          fi
+          grep -q 'MARQUEE_STARTED_MOVE' app/test-results/selection/baseline.log || {
+            echo 'ERROR: baseline failed for a different reason, not the reproduced bug'
+            exit 1
+          }
+          echo 'Confirmed: the old source fails specifically because a marquee starts a move.'
+      - name: Selection model, input handlers, overlap and whole-grid regression
+        working-directory: app
+        run: xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:selection
+      - name: Existing template regressions (shared editor compatibility)
+        working-directory: app
+        run: xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:templates
+      - name: PSD import regression
+        working-directory: app
+        run: npm run test:psd-import
+      - name: Verify tests did not change tracked sources
+        run: git diff --exit-code -- src app/scripts
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selection-regression-evidence-${{ github.sha }}
+          path: |
+            app/test-results/selection
+            app/test-results/templates
+          if-no-files-found: error
+
+  candidate:
+    needs: regression
+    if: inputs.build_candidate == true || (github.event_name == 'push' && github.ref == 'refs/heads/fix/selection-regression-gate')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            command: npm run compile && npx electron-builder build --win --x64 --publish never
+            platform: windows
+          - os: macos-latest
+            command: npm run pack-macos
+            platform: macos
+          - os: ubuntu-latest
+            command: npm run pack-linux-x86
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Package tested candidate without publishing a release
+        working-directory: app
+        shell: bash
+        run: ${{ matrix.command }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: selection-candidate-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            app/redist/*.exe
+            app/redist/*.dmg
+            app/redist/*.AppImage
+          if-no-files-found: error

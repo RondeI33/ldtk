@@ -192,14 +192,14 @@ class SelectionTemplates {
 		if( src==null )
 			return p.defs.getLayerDef(null,sourceUid);
 
-		var sourceType=field(src,"type")==null ? "" : Std.string(field(src,"type"));
+		var sourceType=field(src,"__type")!=null ? Std.string(field(src,"__type")) : field(src,"type")==null ? "" : Std.string(field(src,"type"));
 		var sourceIdentifier=field(src,"identifier")==null ? "" : Std.string(field(src,"identifier"));
 		var sourceTilesetUid=intVal(field(src,"tilesetDefUid"),-1);
 		var destinationTileset=destinationTilesetFor(p,sourceDefs,sourceTilesetUid);
 
 		if( sourceIdentifier.length>0 ) {
 			var direct=p.defs.getLayerDef(sourceIdentifier);
-			if( direct!=null && (sourceType.length==0 || Std.string(direct.type)==sourceType) ) {
+			if( direct!=null ) {
 				if( sourceTilesetUid<0 || destinationTileset==null || direct.tilesetDefUid==destinationTileset.uid )
 					return direct;
 			}

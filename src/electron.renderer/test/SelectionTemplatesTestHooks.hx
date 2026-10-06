@@ -20,8 +20,6 @@ class SelectionTemplatesTestHooks {
 			{value:2,identifier:"TemplateWall",color:0xcc8844,tile:null,groupUid:0},
 		];
 		var floorLd=p.defs.createLayerDef(Tiles,"Floor");
-		var floorTileset=p.defs.createTilesetDef(); floorTileset.identifier="FloorTiles"; floorTileset.tileGridSize=16;
-		floorLd.tilesetDefUid=floorTileset.uid;
 		var la=p.defs.createLayerDef(Entities,"Devices_A");
 		var lb=p.defs.createLayerDef(Entities,"Devices_B");
 		la.canSelectWhenInactive=lb.canSelectWhenInactive=true;
@@ -49,7 +47,7 @@ class SelectionTemplatesTestHooks {
 		NT.writeFileString(path,haxe.Json.stringify(p.toJson()));
 		App.ME.loadPage(()->new page.Editor(p),false);
 		var editor=Editor.ME;editor.setWorldMode(false);editor.selectLayerInstance(l.getLayerInstance(la));editor.camera.fit(true);
-		return {ids:devices.map(e->e.iid),walls:ld.uid,floor:floorLd.uid,tileset:floorTileset.uid,entityDef:ed.uid,layers:[la.uid,lb.uid],fields:{target:link.uid,targets:many.uid,amount:amount.uid,label:label.uid,path:points.uid}};
+		return {ids:devices.map(e->e.iid),walls:ld.uid,floor:floorLd.uid,entityDef:ed.uid,layers:[la.uid,lb.uid],fields:{target:link.uid,targets:many.uid,amount:amount.uid,label:label.uid,path:points.uid}};
 	}
 	public static function selectAll():Void {
 		var es:Array<GenericLevelElement>=[for(e in devices) Entity(e._li,e)];es.push(GridCell(walls,2,2));
@@ -114,6 +112,20 @@ class SelectionTemplatesTestHooks {
 	public static function saveDidComplete():Bool return saveCompleted;
 	public static function reloadTemplateStage():Void data.SelectionTemplates.loadProject(Editor.ME.project);
 	public static function deleteTemplate(id:String):Void data.SelectionTemplates.remove(Editor.ME.project,id);
+	public static function configureImportTileset():Dynamic {
+		var p=Editor.ME.project;
+		var td=p.defs.getTilesetDef(null,"FloorTiles");
+		if(td==null) {
+			td=p.defs.createTilesetDef();
+			td.identifier="FloorTiles";
+			td.tileGridSize=16;
+		}
+		var ld=p.defs.getLayerDef("Floor");
+		ld.tilesetDefUid=td.uid;
+		p.tidy();
+		floor=Editor.ME.curLevel.getLayerInstance(ld);
+		return {tileset:td.uid,floor:ld.uid};
+	}
 	public static function openImportPicker(absProjectPath:String):Void data.SelectionTemplates.openImportPickerFromPath(Editor.ME,absProjectPath);
 	public static function place(index:Int,x:Int,y:Int):Bool return data.SelectionTemplates.place(Editor.ME,templates()[index],x,y);
 	public static function placeOverwriteFixture():Bool {

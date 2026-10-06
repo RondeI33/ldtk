@@ -145,7 +145,12 @@ async function run(win){
   await ev('TemplateTestHooks.clear()');
   await ev("Array.from(document.querySelectorAll('.selectionTemplatesPanel button')).find(b=>b.textContent==='Place').click()");
   await until('TemplateTestHooks.inputState().placing','Place tool did not activate');
-  await until('TemplateTestHooks.templateGhostStats()!=null && TemplateTestHooks.templateGhostStats().entities===2 && TemplateTestHooks.templateGhostStats().childCount>0','Placement preview did not build the real entity graphics');
+  try{
+    await until('TemplateTestHooks.templateGhostStats()!=null && TemplateTestHooks.templateGhostStats().entities===2 && TemplateTestHooks.templateGhostStats().childCount>0','Placement preview did not build the real entity graphics');
+  }catch(e){
+    console.error('Template placement ghost stats:',await ev('TemplateTestHooks.templateGhostStats()'));
+    throw e;
+  }
   const ghostStats=await ev('TemplateTestHooks.templateGhostStats()');
   pass('Placement preview uses real rendered template graphics instead of size-only boxes');
   const target=await ev('TemplateTestHooks.point(272,176)');

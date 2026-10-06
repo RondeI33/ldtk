@@ -10,59 +10,45 @@ on:
       - master
       - dev*
 
+permissions:
+  contents: read
+
+concurrency:
+  group: test-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-
-    strategy:
-      matrix:
-        os: [windows-latest]
-        haxe: [4.3.3]
-      fail-fast: true
     runs-on: windows-latest
-
+    timeout-minutes: 20
     steps:
-      # Get branch name
-      - name: getBranch
-        shell: bash
-        run: echo "::set-output name=v::${GITHUB_REF#refs/heads/}"
-        id: branch
-
-      # Checkout & install haxe
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: krdlab/setup-haxe@v2
         with:
-          haxe-version: ${{ matrix.haxe }}
-      - run: haxe -version
-
-      # Install libs
-      - run: haxelib install uuid
-      - run: haxelib git castle https://github.com/ncannasse/castle
-      - run: haxelib git heaps https://github.com/deepnight/heaps.git
-      - run: haxelib git hxnodejs https://github.com/HaxeFoundation/hxnodejs.git
-      - run: haxelib git electron https://github.com/tong/hxelectron.git
-      - run: haxelib git heaps-aseprite https://github.com/AustinEast/heaps-aseprite.git
-
-      # Install haxe API from same branch (if it exists)...
-      - name: Install Haxe API from same branch
-        id: installApiBranch
-        run: haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git ${{ steps.branch.outputs.v }} --always
-        continue-on-error: true
-      # ... or from master otherwise
-      - name: Install Haxe API from master
-        if: steps.installApiBranch.outcome == 'failure'
-        run: |
-          haxelib remove ldtk-haxe-api
-          haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git --always
-
-      # Install deepnightLibs
-      - run: haxelib git deepnightLibs https://github.com/deepnight/deepnightLibs.git --always
-      - run: haxelib list
-
-      # Node/NPM commands
-      - uses: actions/setup-node@v6
+          haxe-version: '4.3.3'
+      # Use the same dependency forks as the actual application build. The old
+      # tong/hxelectron setup lacks electron.Clipboard and fails before testing.
+      - name: Install project Haxe dependencies
+        run: haxe setup.hxml
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: cd app && npm install
-      - run: cd app && npm run compile
-      - run: cd app && npm run test:psd-import
-
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Compile production application
+        working-directory: app
+        run: npm run compile
+      - name: Selection runtime regression on Windows
+        working-directory: app
+        run: npm run test:selection
+      - name: PSD import runtime regression
+        working-directory: app
+        run: npm run test:psd-import
+      - name: Save Windows selection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selection-windows-evidence-${{ github.sha }}
+          path: app/test-results/selection
+          if-no-files-found: warn

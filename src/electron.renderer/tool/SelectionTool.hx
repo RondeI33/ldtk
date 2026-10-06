@@ -144,7 +144,7 @@ class SelectionTool extends Tool<Int> {
 
 					var pt = fi.getPointGrid(arrayIdx);
 					if( pt!=null)
-						editor.levelRender.bleepLayerRectCase( li, pt.cx, pt.cy, 1, 1, ei.def.color );
+						editor.levelRender.bleepLayerRectCase( li, pt.cx, pt.cy, 1, 1, ei.getSmartColor(false) );
 					ui.EntityInstanceEditor.openFor(ei);
 			}
 
@@ -202,7 +202,6 @@ class SelectionTool extends Tool<Int> {
 						case AutoLayer:
 					}
 
-
 			case Entity(li, ei):
 				editor.cursor.set( Entity(li, ei.def, ei, ei.x, ei.y, true), ei.def.identifier );
 
@@ -235,7 +234,9 @@ class SelectionTool extends Tool<Int> {
 		super.startUsing(ev,m, extraParam);
 
 		if( ev.button==0 && extraParam!="noDefaultSelection" ) {
-			if( group.isOveringSelection(m) ) {
+			// Shift-marquee remains selection-only, even when it starts over an
+			// existing selection. It must not enter the movement/compatibility path.
+			if( !rectangle && group.isOveringSelection(m) ) {
 				startedOverSelecton = true;
 				// Move existing selection
 				if( group.hasIncompatibleGridSizes() ) {
@@ -368,10 +369,9 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function onMouseMove(ev:hxd.Event, m:Coords) {
-		// Start moving before Tool.onMouseMove() calls useAt(). This makes the
-		// first movement event past the drag threshold render the selection ghost
-		// immediately instead of waiting for another mouse-move event.
-		if( isRunning() && button==0 && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
+		// Start before Tool.onMouseMove() calls useAt(), but only for an actual
+		// move/copy. A marquee or an empty drag must never cut source data.
+		if( isRunning() && button==0 && !rectangle && any() && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
 			group.onMoveStart(isCopy);
 			moveStarted = true;
 		}
@@ -382,11 +382,9 @@ class SelectionTool extends Tool<Int> {
 			ev.cancel = true;
 	}
 
-
 	override function saveToHistory() {
 		// No super() call
 	}
-
 
 	public inline function canFlipSelection() return group.hasFlippableGridContent() && ( !isRunning() || moveStarted );
 
@@ -503,7 +501,6 @@ class SelectionTool extends Tool<Int> {
 						if( fi.def.type==F_Point )
 							for(i in 0...fi.getArrayLength())
 								group.add( PointField(li,ei,fi,i) );
-
 				}
 			}
 		}
@@ -513,7 +510,6 @@ class SelectionTool extends Tool<Int> {
 		if( dropTarget!=null && dropTarget!=editor.curLevel )
 			editor.selectLevel(dropTarget);
 	}
-
 
 	override function useAt(m:Coords, isOnStop:Bool):Bool {
 		if( any() && isRunning() && moveStarted ) {
@@ -559,12 +555,10 @@ class SelectionTool extends Tool<Int> {
 					case Entity(li, ei):
 					case PointField(li, ei, fi, arrayIdx):
 				}
-
 		}
 
 		return super.useAt(m,isOnStop);
 	}
-
 
 	override function useOnRectangle(m:Coords, left:Int, right:Int, top:Int, bottom:Int):Bool {
 		if( left==right && top==bottom ) {
@@ -590,10 +584,12 @@ class SelectionTool extends Tool<Int> {
 				if( !li.def.canSelectWhenInactive && editor.curLayerInstance!=li )
 					return;
 
-				var cLeft = Std.int( (leftPx-li.pxParallaxX) / li.def.scaledGridSize );
-				var cRight = Std.int( (rightPx-li.pxParallaxX) / li.def.scaledGridSize );
-				var cTop = Std.int( (topPx-li.pxParallaxY) /li.def.scaledGridSize );
-				var cBottom = Std.int( (bottomPx-li.pxParallaxY) /li.def.scaledGridSize );
+				// Truncation toward zero selects row/column 0 for coordinates just
+				// outside an offset layer. Floor keeps those cells outside selection.
+				var cLeft = Math.floor( (leftPx-li.pxParallaxX) / li.def.scaledGridSize );
+				var cRight = Math.floor( (rightPx-li.pxParallaxX) / li.def.scaledGridSize );
+				var cTop = Math.floor( (topPx-li.pxParallaxY) / li.def.scaledGridSize );
+				var cBottom = Math.floor( (bottomPx-li.pxParallaxY) / li.def.scaledGridSize );
 
 				for( cy in cTop...cBottom+1 )
 				for( cx in cLeft...cRight+1 ) {
@@ -636,7 +632,6 @@ class SelectionTool extends Tool<Int> {
 
 		return super.useOnRectangle(m, left, right, top, bottom);
 	}
-
 
 	override function postUpdate() {
 		super.postUpdate();

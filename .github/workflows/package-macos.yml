@@ -1,20 +1,22 @@
 name: package-macOS
 
+# Normal master builds belong to the gated Smartive release workflow.
+# Keep this legacy test-release route explicit to avoid duplicate installers
+# on every code/test edit and pull request.
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  regression:
+    uses: ./.github/workflows/selection-regression.yml
+    with:
+      build_candidate: false
 
+  build:
+    needs: regression
     strategy:
       matrix:
         os: [macos-latest]
@@ -75,9 +77,9 @@ jobs:
           else
             gh release create "$TAG" \
               "$SMARTIVE_MAC_DMG" \
-              --target "master" \
+              --target "$GITHUB_SHA" \
               --title "LDTK-Smartive master test build" \
-              --notes "Automated universal macOS test build of the current LDTK-Smartive master branch." \
+              --notes "Universal macOS test build. Selection and editor regressions passed before packaging." \
               --prerelease
           fi
 

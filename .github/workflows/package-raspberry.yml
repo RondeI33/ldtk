@@ -1,47 +1,44 @@
 name: package-raspberry
 
+# Optional ARM packaging must not run on every master edit or pull request.
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  regression:
+    uses: ./.github/workflows/selection-regression.yml
+    with:
+      build_candidate: false
 
+  build:
+    needs: regression
     strategy:
       matrix:
         os: [ubuntu-latest]
         haxe: [4.3.3]
       fail-fast: true
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
-      # Checkout, install haxe and libs
       - uses: actions/checkout@v2
       - uses: krdlab/setup-haxe@v2
         with:
           haxe-version: ${{ matrix.haxe }}
-
-        # Snapcraft required for ARM build
       - name: Install Snapcraft
         uses: samuelmeuli/action-snapcraft@v1
-
       - run: haxe -version
       - run: haxe setup.hxml
       - run: haxelib list
-
-      # Node/NPM commands
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - run: cd app && npm install
       - run: cd app && npm run pack-linux-arm64
-
-      # Upload
       - uses: actions/upload-artifact@v7
         with:
           name: raspberry-distribution
-          path: app/redist/LDtk**installer.AppImage
+          path: app/redist/LDTK-Smartive-*-linux-*.AppImage
+          if-no-files-found: error

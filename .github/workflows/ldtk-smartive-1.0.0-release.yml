@@ -16,7 +16,9 @@ on:
       - src/electron.renderer/tool/SelectionTool.hx
       - src/electron.renderer/GenericLevelElementGroup.hx
       - src/electron.renderer/test/SelectionDragTestHooks.hx
+      - src/electron.renderer/test/SelectionInputTestHooks.hx
       - app/scripts/selection-*.cjs
+      - app/scripts/run-selection-tests.cjs
       - src/electron.renderer/ui/TemplateEditorBridge.hx
       - src/electron.renderer/ui/modal/Dialog.hx
       - src/electron.renderer/ui/modal/Panel.hx
@@ -110,7 +112,7 @@ jobs:
           echo "LDtk JSON compatibility version: $(tr -d '\r\n' < docs/version.txt)"
 
   windows:
-    needs: prepare
+    needs: [prepare, selection-runtime, template-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: windows-latest
     env:
@@ -183,7 +185,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    needs: prepare
+    needs: [prepare, selection-runtime, template-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: macos-latest
     env:
@@ -235,7 +237,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    needs: prepare
+    needs: [prepare, selection-runtime, template-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:

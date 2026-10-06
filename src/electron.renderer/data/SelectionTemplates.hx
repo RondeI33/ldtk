@@ -158,6 +158,177 @@ class SelectionTemplates {
 		return id==null || Std.string(id).length==0 ? 'legacy-$index' : Std.string(id);
 	}
 
+	static function jsonByUid(all:Array<Dynamic>, uid:Int):Dynamic {
+		for(v in all)
+			if( intVal(field(v,"uid"),-1)==uid )
+				return v;
+		return null;
+	}
+
+	static function readSourceDefinitions(absProjectPath:String):Dynamic {
+		var root:Dynamic=haxe.Json.parse(NT.readFileString(absProjectPath));
+		var defs=field(root,"defs");
+		if( defs==null )
+			throw "The selected LDtk project has no definitions.";
+		return defs;
+	}
+
+	static function destinationTilesetFor(p:Project, sourceDefs:Dynamic, sourceUid:Int):Null<data.def.TilesetDef> {
+		if( sourceUid<0 )
+			return null;
+		var src=jsonByUid(arr(sourceDefs,"tilesets"),sourceUid);
+		if( src==null )
+			return p.defs.getTilesetDef(sourceUid);
+		var identifier=field(src,"identifier");
+		if( identifier==null )
+			return null;
+		return p.defs.getTilesetDef(null,Std.string(identifier));
+	}
+
+	static function destinationLayerFor(p:Project, sourceDefs:Dynamic, sourceUid:Int):Null<data.def.LayerDef> {
+		if( sourceUid<0 )
+			return null;
+		var src=jsonByUid(arr(sourceDefs,"layers"),sourceUid);
+		if( src==null )
+			return p.defs.getLayerDef(null,sourceUid);
+
+		var sourceType=field(src,"type")==null ? "" : Std.string(field(src,"type"));
+		var sourceIdentifier=field(src,"identifier")==null ? "" : Std.string(field(src,"identifier"));
+		var sourceTilesetUid=intVal(field(src,"tilesetDefUid"),-1);
+		var destinationTileset=destinationTilesetFor(p,sourceDefs,sourceTilesetUid);
+
+		if( sourceIdentifier.length>0 ) {
+			var direct=p.defs.getLayerDef(sourceIdentifier);
+			if( direct!=null && (sourceType.length==0 || Std.string(direct.type)==sourceType) ) {
+				if( sourceTilesetUid<0 || destinationTileset==null || direct.tilesetDefUid==destinationTileset.uid )
+					return direct;
+			}
+		}
+
+		// A Tiles/AutoLayer may have been renamed between projects while still
+		// using the same named tileset. Accept that mapping only when unique.
+		if( destinationTileset!=null ) {
+			var match:Null<data.def.LayerDef>=null;
+			for(ld in p.defs.layers)
+				if( (sourceType.length==0 || Std.string(ld.type)==sourceType) && ld.tilesetDefUid==destinationTileset.uid ) {
+					if( match!=null )
+						return null;
+					match=ld;
+				}
+			if( match!=null )
+				return match;
+		}
+		return null;
+	}
+
+	static function destinationEntityFor(p:Project, sourceDefs:Dynamic, sourceUid:Int, fallbackIdentifier:Null<String>):Null<data.def.EntityDef> {
+		if( sourceUid<0 )
+			return null;
+		var src=jsonByUid(arr(sourceDefs,"entities"),sourceUid);
+		var identifier=src!=null ? field(src,"identifier") : null;
+		if( identifier==null && fallbackIdentifier!=null && fallbackIdentifier.length>0 )
+			identifier=fallbackIdentifier;
+		if( identifier!=null ) {
+			var byName=p.defs.getEntityDef(null,Std.string(identifier));
+			if( byName!=null )
+				return byName;
+		}
+		return src==null ? p.defs.getEntityDef(sourceUid) : null;
+	}
+
+	static function destinationFieldFor(destEd:data.def.EntityDef, sourceEd:Dynamic, sourceUid:Int, fallbackIdentifier:Null<String>):Null<data.def.FieldDef> {
+		if( sourceUid<0 )
+			return null;
+		var src=sourceEd==null ? null : jsonByUid(arr(sourceEd,"fieldDefs"),sourceUid);
+		var identifier=src!=null ? field(src,"identifier") : null;
+		if( identifier==null && fallbackIdentifier!=null && fallbackIdentifier.length>0 )
+			identifier=fallbackIdentifier;
+		if( identifier!=null ) {
+			var byName=destEd.getFieldDef(Std.string(identifier));
+			if( byName!=null )
+				return byName;
+		}
+		return src==null ? destEd.getFieldDef(sourceUid) : null;
+	}
+
+	static function remapImportedTemplate(p:Project, sourceDefs:Dynamic, tpl:Dynamic):Dynamic {
+		var copy=cloneJson(tpl);
+
+		for(raw in arr(copy,"entities")) {
+			var sourceLayerUid=intVal(field(raw,"layerDefUid"),-1);
+			var destLayer=destinationLayerFor(p,sourceDefs,sourceLayerUid);
+			if( destLayer==null || destLayer.type!=Entities )
+				throw 'No matching destination entity layer for source layer UID $sourceLayerUid.';
+			Reflect.setField(raw,"layerDefUid",destLayer.uid);
+
+			var json:Dynamic=field(raw,"json");
+			if( json==null )
+				throw "Template entity data is missing.";
+			var sourceEntityUid=intVal(field(json,"defUid"),-1);
+			var sourceEntity=jsonByUid(arr(sourceDefs,"entities"),sourceEntityUid);
+			var fallbackEntityId=field(json,"__identifier")==null ? null : Std.string(field(json,"__identifier"));
+			var destEd=destinationEntityFor(p,sourceDefs,sourceEntityUid,fallbackEntityId);
+			if( destEd==null )
+				throw 'No matching destination entity definition for source entity UID $sourceEntityUid.';
+			Reflect.setField(json,"defUid",destEd.uid);
+			Reflect.setField(json,"__identifier",destEd.identifier);
+
+			var remappedFields:Map<Int,Int>=new Map();
+			for(fi in arr(json,"fieldInstances")) {
+				var oldFieldUid=intVal(field(fi,"defUid"),-1);
+				var fallbackFieldId=field(fi,"__identifier")==null ? null : Std.string(field(fi,"__identifier"));
+				var destFd=destinationFieldFor(destEd,sourceEntity,oldFieldUid,fallbackFieldId);
+				if( destFd==null )
+					throw 'No matching destination field for "$fallbackFieldId" (source UID $oldFieldUid) on entity "'+destEd.identifier+'".';
+				remappedFields.set(oldFieldUid,destFd.uid);
+				Reflect.setField(fi,"defUid",destFd.uid);
+				Reflect.setField(fi,"__identifier",destFd.identifier);
+			}
+
+			function remapFieldUid(oldFieldUid:Int):Int {
+				if( remappedFields.exists(oldFieldUid) )
+					return cast remappedFields.get(oldFieldUid);
+				var destFd=destinationFieldFor(destEd,sourceEntity,oldFieldUid,null);
+				if( destFd==null )
+					throw 'No matching destination field for source UID $oldFieldUid on entity "'+destEd.identifier+'".';
+				remappedFields.set(oldFieldUid,destFd.uid);
+				return destFd.uid;
+			}
+
+			for(ref in arr(raw,"refs")) {
+				var oldFieldUid=intVal(field(ref,"fieldDefUid"),-1);
+				Reflect.setField(ref,"fieldDefUid",remapFieldUid(oldFieldUid));
+			}
+			for(point in arr(raw,"points")) {
+				var oldFieldUid=intVal(field(point,"fieldDefUid"),-1);
+				Reflect.setField(point,"fieldDefUid",remapFieldUid(oldFieldUid));
+			}
+		}
+
+		for(cell in arr(copy,"cells")) {
+			var sourceLayerUid=intVal(field(cell,"layerDefUid"),-1);
+			var destLayer=destinationLayerFor(p,sourceDefs,sourceLayerUid);
+			var kind=Std.string(field(cell,"kind"));
+			if( destLayer==null )
+				throw 'No matching destination layer for template cell source UID $sourceLayerUid.';
+			if( kind=="tiles" && destLayer.type!=Tiles )
+				throw 'Matched layer "'+destLayer.identifier+'" is not a Tiles layer.';
+			if( kind=="intgrid" && destLayer.type!=IntGrid )
+				throw 'Matched layer "'+destLayer.identifier+'" is not an IntGrid layer.';
+			Reflect.setField(cell,"layerDefUid",destLayer.uid);
+			Reflect.setField(cell,"gridSize",destLayer.gridSize);
+		}
+
+		var excluded:Array<Int>=[];
+		for(rawUid in arr(copy,"excludedLayerUids")) {
+			var destLayer=destinationLayerFor(p,sourceDefs,intVal(rawUid,-1));
+			if( destLayer!=null && excluded.indexOf(destLayer.uid)<0 )
+				excluded.push(destLayer.uid);
+		}
+		Reflect.setField(copy,"excludedLayerUids",excluded);
+		return copy;
+	}
+
 	public static function getSavedImportCandidates(absProjectPath:String):Array<Dynamic> {
 		return readSavedLibrary(absProjectPath);
 	}
@@ -165,7 +336,11 @@ class SelectionTemplates {
 	public static function importSavedFromProjectPath(p:Project, absProjectPath:String, selectedIds:Array<String>):Int {
 		ensureLoaded(p);
 		var imported:Array<Dynamic>;
-		try imported=readSavedLibrary(absProjectPath)
+		var sourceDefs:Dynamic;
+		try {
+			imported=readSavedLibrary(absProjectPath);
+			sourceDefs=readSourceDefinitions(absProjectPath);
+		}
 		catch(e:Dynamic) {
 			N.error("Could not import templates: "+Std.string(e));
 			return 0;
@@ -182,11 +357,16 @@ class SelectionTemplates {
 			var src=imported[i];
 			if( !selected.exists(importKey(src,i)) )
 				continue;
-			var copy=cloneJson(src);
-			copy.id=p.generateUniqueId_UUID();
-			copy.name=uniqueImportedName(copy.name==null ? "Imported template" : Std.string(copy.name));
-			stagedTemplates.push(copy);
-			count++;
+			var sourceName=field(src,"name")==null ? "Imported template" : Std.string(field(src,"name"));
+			try {
+				var copy=remapImportedTemplate(p,sourceDefs,src);
+				copy.id=p.generateUniqueId_UUID();
+				copy.name=uniqueImportedName(sourceName);
+				stagedTemplates.push(copy);
+				count++;
+			}
+			catch(e:Dynamic)
+				N.error('Could not import "$sourceName": '+Std.string(e));
 		}
 		if( count>0 ) {
 			markDirty(p);

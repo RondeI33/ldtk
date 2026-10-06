@@ -207,11 +207,11 @@ async function run(win){
   assert(diskFloor,'Saved fixture lost the Floor definition');
   diskFloor.tilesetDefUid=importSetup.tileset;
   const layerUidMap=new Map(),entityUidMap=new Map(),fieldUidMap=new Map(),tilesetUidMap=new Map();
-  for(const [i,td] of sourceJson.defs.tilesets.entries()){const old=td.uid,next=old+40000+i;tilesetUidMap.set(old,next);td.uid=next;}
-  for(const [i,ld] of sourceJson.defs.layers.entries()){const old=ld.uid,next=old+10000+i;layerUidMap.set(old,next);ld.uid=next;}
+  for(const [i,td] of sourceJson.defs.tilesets.entries()){const old=td.uid,next=40000+i;tilesetUidMap.set(old,next);td.uid=next;}
+  for(const [i,ld] of sourceJson.defs.layers.entries()){const old=ld.uid,next=10000+i;layerUidMap.set(old,next);ld.uid=next;}
   for(const [i,ed] of sourceJson.defs.entities.entries()){
-    const old=ed.uid,next=old+20000+i;entityUidMap.set(old,next);ed.uid=next;
-    for(const [j,fd] of ed.fieldDefs.entries()){const fOld=fd.uid,fNext=fOld+30000+i*100+j;fieldUidMap.set(fOld,fNext);fd.uid=fNext;}
+    const old=ed.uid,next=20000+i;entityUidMap.set(old,next);ed.uid=next;
+    for(const [j,fd] of ed.fieldDefs.entries()){const fOld=fd.uid,fNext=30000+i*100+j;fieldUidMap.set(fOld,fNext);fd.uid=fNext;}
   }
   for(const ld of sourceJson.defs.layers){
     if(ld.tilesetDefUid!=null)ld.tilesetDefUid=tilesetUidMap.get(ld.tilesetDefUid)??ld.tilesetDefUid;

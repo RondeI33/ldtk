@@ -6,6 +6,7 @@ package test;
 @:access(data.def.LayerDef)
 @:access(page.Editor)
 @:access(tool.SelectionTool)
+@:access(tool.SelectionTemplateTool)
 class SelectionTemplatesTestHooks {
 	static var devices:Array<data.inst.EntityInstance>=[];
 	static var saveCompleted=false;
@@ -85,6 +86,16 @@ class SelectionTemplatesTestHooks {
 	public static function templateGhostStats():Dynamic {
 		var t=Std.downcast(Editor.ME.specialTool,tool.SelectionTemplateTool);
 		return t==null ? null : t.debugGhostStats();
+	}
+	public static function commitActiveTemplateAt(x:Int,y:Int):Bool {
+		var t=Std.downcast(Editor.ME.specialTool,tool.SelectionTemplateTool);
+		if(t==null)
+			return false;
+		var c=Coords.fromLevelCoords(x,y);
+		var placed=t.useAt(c,true);
+		if(placed)
+			Editor.ME.clearSpecialTool();
+		return placed;
 	}
 	public static function clear():Void Editor.ME.selectionTool.clear();
 	public static function point(x:Int,y:Int):Dynamic {

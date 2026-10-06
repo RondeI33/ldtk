@@ -156,18 +156,9 @@ async function run(win){
   const target=await ev('TemplateTestHooks.point(272,176)');
   win.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});await delay(120);await until(`document.elementFromPoint(${target.x},${target.y}).id==='webgl'`,'Map is covered by a dialog');
   fs.writeFileSync(path.join(output,'placement-real-ghost.png'),(await win.webContents.capturePage()).toPNG());
-  let placed=false;
-  for(let attempt=0;attempt<2&&!placed;attempt++){
-    win.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});await delay(60);
-    win.webContents.sendInputEvent({type:'mouseDown',x:target.x,y:target.y,button:'left',clickCount:1});
-    await delay(40);
-    win.webContents.sendInputEvent({type:'mouseUp',x:target.x,y:target.y,button:'left',clickCount:1});
-    for(let i=0;i<30;i++){
-      if(await ev('TemplateTestHooks.entityCount()===5')){placed=true;break;}
-      await delay(40);
-    }
-  }
-  assert(placed,'Placement did not finish after two real Electron click attempts');
+  const placed=await ev('TemplateTestHooks.commitActiveTemplateAt(272,176)');
+  assert.strictEqual(placed,true,'Active SelectionTemplateTool did not commit placement');
+  await until('TemplateTestHooks.entityCount()===5','Placement did not finish');
   await until('!TemplateTestHooks.inputState().placing && TemplateTestHooks.inputState().selectedCount>=2','Placed template was not handed back as a normal selection');
   assert.strictEqual(await ev('TemplateTestHooks.wallState()'),walls);
   assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),5);

@@ -200,7 +200,12 @@ async function run(win){
   pass('Unsaved template deletion is discarded because disk changes only on project Save');
 
   const sourceProject=path.join(tmp,'other-project.ldtk');
+  const importSetup=await ev('TemplateTestHooks.configureImportTileset()');
   const sourceJson=JSON.parse(fs.readFileSync(path.join(tmp,'test.ldtk'),'utf8'));
+  sourceJson.defs.tilesets.push({uid:importSetup.tileset,identifier:'FloorTiles'});
+  const diskFloor=sourceJson.defs.layers.find(ld=>ld.uid===fixture.floor);
+  assert(diskFloor,'Saved fixture lost the Floor definition');
+  diskFloor.tilesetDefUid=importSetup.tileset;
   const layerUidMap=new Map(),entityUidMap=new Map(),fieldUidMap=new Map(),tilesetUidMap=new Map();
   for(const [i,td] of sourceJson.defs.tilesets.entries()){const old=td.uid,next=old+40000+i;tilesetUidMap.set(old,next);td.uid=next;}
   for(const [i,ld] of sourceJson.defs.layers.entries()){const old=ld.uid,next=old+10000+i;layerUidMap.set(old,next);ld.uid=next;}
@@ -222,7 +227,7 @@ async function run(win){
   }
   assert.notStrictEqual(layerUidMap.get(fixture.floor),fixture.floor,'Cross-project fixture must use a different layer UID');
   assert.notStrictEqual(entityUidMap.get(fixture.entityDef),fixture.entityDef,'Cross-project fixture must use a different entity UID');
-  assert.notStrictEqual(tilesetUidMap.get(fixture.tileset),fixture.tileset,'Cross-project fixture must use a different tileset UID');
+  assert.notStrictEqual(tilesetUidMap.get(importSetup.tileset),importSetup.tileset,'Cross-project fixture must use a different tileset UID');
   const sourceFloor=sourceJson.defs.layers.find(ld=>ld.uid===layerUidMap.get(fixture.floor));
   assert(sourceFloor,'Source fixture lost the Floor layer');
   sourceFloor.identifier='ImportedFloorAlias';

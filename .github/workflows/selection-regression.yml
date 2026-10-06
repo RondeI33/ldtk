@@ -70,6 +70,12 @@ jobs:
             echo 'ERROR: baseline failed for a different reason, not the reproduced bug'
             exit 1
           }
+          for suffix in json png; do
+            file="app/test-results/selection/input-failure.$suffix"
+            if [ -f "$file" ]; then
+              mv "$file" "app/test-results/selection/expected-baseline-failure.$suffix"
+            fi
+          done
           echo 'Confirmed: the old source fails specifically because a marquee starts a move.'
       - name: Selection model, input handlers, overlap and whole-grid regression
         working-directory: app
@@ -79,7 +85,7 @@ jobs:
         run: xvfb-run -a -s '-screen 0 1600x1000x24' npm run test:templates
       - name: PSD import regression
         working-directory: app
-        run: npm run test:psd-import
+        run: xvfb-run -a npx electron --no-sandbox scripts/psd-import-smoke.cjs
       - name: Verify tests did not change tracked sources
         run: git diff --exit-code -- src app/scripts
       - name: Save test evidence

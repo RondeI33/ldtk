@@ -1135,7 +1135,8 @@ class GenericLevelElementGroup {
 			var srcWorldY = srcLi.level.worldY + srcLi.pxTotalOffsetY + s.cy*grid;
 			var pcx = M.round( (srcWorldX + dx - dstLi.level.worldX - dstLi.pxTotalOffsetX) / grid );
 			var pcy = M.round( (srcWorldY + dy - dstLi.level.worldY - dstLi.pxTotalOffsetY) / grid );
-			var dstFi = dstEi.getFieldInstance(s.fi.def,true);
+			var pointFd = editor.project.defs.getFieldDef(s.fi.defUid);
+			var dstFi = pointFd==null ? null : dstEi.getFieldInstance(pointFd,true);
 			if( dstFi!=null && s.arrayIdx<dstFi.getArrayLength() ) {
 				dstFi.parseValue(s.arrayIdx, pcx+Const.POINT_SEPARATOR+pcy);
 				elements[s.elementIdx] = PointField(dstLi,dstEi,dstFi,s.arrayIdx);

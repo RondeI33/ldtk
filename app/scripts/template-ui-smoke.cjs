@@ -220,6 +220,9 @@ async function run(win){
       if(fd.allowedRefsEntityUid!=null)fd.allowedRefsEntityUid=entityUidMap.get(fd.allowedRefsEntityUid)??fd.allowedRefsEntityUid;
     }
   }
+  assert.notStrictEqual(layerUidMap.get(fixture.floor),fixture.floor,'Cross-project fixture must use a different layer UID');
+  assert.notStrictEqual(entityUidMap.get(fixture.entityDef),fixture.entityDef,'Cross-project fixture must use a different entity UID');
+  assert.notStrictEqual(tilesetUidMap.get(fixture.tileset),fixture.tileset,'Cross-project fixture must use a different tileset UID');
   const sourceFloor=sourceJson.defs.layers.find(ld=>ld.uid===layerUidMap.get(fixture.floor));
   assert(sourceFloor,'Source fixture lost the Floor layer');
   sourceFloor.identifier='ImportedFloorAlias';

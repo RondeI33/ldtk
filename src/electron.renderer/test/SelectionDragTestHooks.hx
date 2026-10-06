@@ -50,6 +50,10 @@ class SelectionDragTestHooks {
 		var big=p.defs.createLayerDef(Tiles,"BigTiles");
 		a.gridSize=b.gridSize=ig.gridSize=ent.gridSize=16;
 		big.gridSize=32;
+		var sharedTileset=p.defs.createTilesetDef();
+		sharedTileset.identifier="SharedTiles";
+		sharedTileset.tileGridSize=16;
+		a.tilesetDefUid=b.tilesetDefUid=big.tilesetDefUid=sharedTileset.uid;
 		a.canSelectWhenInactive=b.canSelectWhenInactive=ig.canSelectWhenInactive=ent.canSelectWhenInactive=big.canSelectWhenInactive=true;
 		ig.intGridValues=[
 			{value:1,identifier:"Keep",color:0x446688,tile:null,groupUid:0},
@@ -179,6 +183,82 @@ class SelectionDragTestHooks {
 
 	static function tileStack(li:data.inst.LayerInstance,cx:Int,cy:Int):Array<Dynamic>
 		return [for(t in li.getGridTileStack(cx,cy)) {tileId:t.tileId,flips:t.flips}];
+
+
+	public static function prepareLayerTransfer(blockDestination=false, fromB=false, mixed=false):Void {
+		var a=tilesA(),b=tilesB();
+		clearLayerGrid(a);clearLayerGrid(b);clearLayerGrid(ints());clearLayerGrid(bigTiles());
+
+		var source=fromB ? b : a;
+		var target=fromB ? a : b;
+		source.addGridTile(2,2,10,0,false,false);
+		source.addGridTile(2,2,11,1,true,false);
+		source.addGridTile(4,2,20,2,false,false);
+		source.addGridTile(6,2,66,0,false,false);
+		// This lies inside the visual selection rectangle but is not selected data.
+		target.addGridTile(3,2,88,0,false,false);
+		if(blockDestination)
+			target.addGridTile(4,2,77,0,false,false);
+
+		var e=editor();
+		e.selectionTool.clear();
+		e.selectLayerInstance(source);
+		e.selectionTool.select([
+			GridCell(source,2,2),
+			GridCell(source,4,2),
+		]);
+		e.selectionTool.group.addSelectionRect(2*16,5*16,2*16,3*16);
+		if(mixed)
+			e.selectionTool.select([GridCell(target,3,2)],true);
+	}
+
+
+	public static function layerTransfer(direction:Int):Bool
+		return editor().selectionTool.moveSelectionToCompatibleLayer(direction);
+
+
+	public static function layerTransferShortcut(direction:Int):Bool {
+		@:privateAccess App.ME.jsKeyDowns.set(K.CTRL,true);
+		@:privateAccess App.ME.jsKeyDowns.set(K.ALT,true);
+		var handled=false;
+		try handled=editor().selectionTool.handleLayerTransferShortcut(direction<0 ? K.UP : K.DOWN)
+		catch(e:Dynamic) {
+			@:privateAccess App.ME.jsKeyDowns.remove(K.CTRL);
+			@:privateAccess App.ME.jsKeyDowns.remove(K.ALT);
+			throw e;
+		}
+		@:privateAccess App.ME.jsKeyDowns.remove(K.CTRL);
+		@:privateAccess App.ME.jsKeyDowns.remove(K.ALT);
+		return handled;
+	}
+
+
+	public static function layerTransferState():Dynamic {
+		var e=editor();
+		return {
+			a22:tileStack(tilesA(),2,2),
+			a32:tileStack(tilesA(),3,2),
+			a42:tileStack(tilesA(),4,2),
+			a62:tileStack(tilesA(),6,2),
+			b22:tileStack(tilesB(),2,2),
+			b32:tileStack(tilesB(),3,2),
+			b42:tileStack(tilesB(),4,2),
+			b62:tileStack(tilesB(),6,2),
+			active:e.curLayerInstance==null ? null : e.curLayerInstance.def.identifier,
+			selectionLayers:e.selectionTool.group.getSelectedLayerInstances().map(li->li.def.identifier),
+		};
+	}
+
+
+	public static function prepareIntGridLayerTransfer():Void {
+		clearLayerGrid(ints());
+		ints().setIntGrid(2,2,2,false);
+		var e=editor();
+		e.selectionTool.clear();
+		e.selectLayerInstance(ints());
+		e.selectionTool.select([GridCell(ints(),2,2)]);
+	}
+
 
 	public static function state():Dynamic {
 		var dx=caseDx,dy=caseDy;

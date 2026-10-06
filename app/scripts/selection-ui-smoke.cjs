@@ -64,6 +64,9 @@ async function run(win){
   async function until(code,message){for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
   const pass=m=>{passed.push(m);console.log('PASS: '+m);};
   await until('(window.SelectionDragTestHooks=window.SelectionDragTestHooks || (typeof exports!=="undefined" && exports.SelectionDragTestHooks)) && document.querySelector("#page")','Selection test hooks unavailable');
+  // Let the normal app boot finish before replacing Home with the isolated
+  // regression Editor. Otherwise late startup can replace the fixture page.
+  await delay(700);
   win.setSize(1400,900);win.show();win.focus();win.webContents.setBackgroundThrottling(false);
   await ev(`SelectionDragTestHooks.setup(${JSON.stringify(path.join(tmp,'selection.ldtk'))})`);
   await until('SelectionDragTestHooks.ready()','Editor did not finish loading the selection regression project');

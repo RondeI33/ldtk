@@ -121,8 +121,8 @@ async function run(win){
     b22:s.b22,b32:s.b32,b42:s.b42,b62:s.b62,
   });
 
-  // Ctrl+Alt+Down moves the exact selected tile stacks to the next compatible
-  // layer. Empty cells in the visual rectangle remain transparent.
+  // Ctrl+Alt+Up moves the exact selected tile stacks to the previous compatible
+  // layer in the actual LDtk layer-list order. Empty rectangle cells stay transparent.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,false,false)');
   const beforeLayerDown=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(1)'),true,'Ctrl+Alt+Down was not handled');
@@ -143,9 +143,9 @@ async function run(win){
   assert.deepStrictEqual(transfer.b22,[{tileId:10,flips:0},{tileId:11,flips:1}]);
   assert.deepStrictEqual(transfer.b42,[{tileId:20,flips:2}]);
   expectTile(transfer.b32,88);
-  pass('Ctrl+Alt+Down transfers selected tile stacks atomically and Undo/Redo restores both layers');
+  pass('Ctrl+Alt+Up transfers selected tile stacks atomically and Undo/Redo restores both layers');
 
-  // Up uses the same path in reverse.
+  // Down uses the same path in reverse.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,true,false)');
   assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(-1)'),true,'Ctrl+Alt+Up was not handled');
   transfer=await ev('SelectionDragTestHooks.layerTransferState()');
@@ -154,13 +154,13 @@ async function run(win){
   expectTile(transfer.a32,88);
   assert.strictEqual(transfer.active,'Tiles_A');
   assert.deepStrictEqual(transfer.selectionLayers,['Tiles_A']);
-  pass('Ctrl+Alt+Up transfers the selection to the previous compatible same-tileset layer');
+  pass('Ctrl+Alt+Down transfers the selection to the next compatible same-tileset layer');
 
   // Occupied destinations must reject the entire transfer. No source cell may
   // be removed when even one target cell is blocked.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(true,false,false)');
   const blockedBefore=await ev('SelectionDragTestHooks.layerTransferState()');
-  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(1)'),false,'Blocked destination unexpectedly accepted transfer');
+  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(-1)'),false,'Blocked destination unexpectedly accepted transfer');
   const blockedAfter=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(blockedAfter,blockedBefore,'Blocked transfer partially mutated source/destination');
   pass('Occupied target cells reject the whole transfer without data loss');
@@ -176,10 +176,10 @@ async function run(win){
   pass('Mixed-layer and non-Tiles selections reject safely');
 
   // BigTiles deliberately uses the same tileset with a different 32px grid.
-  // Moving down from Tiles_B scans to it and must reject without distortion.
+  // Moving up from Tiles_B scans to it and must reject without distortion.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,true,false)');
   const gridBefore=await ev('SelectionDragTestHooks.layerTransferState()');
-  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(1)'),false,'Different-grid same-tileset layer unexpectedly accepted transfer');
+  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(-1)'),false,'Different-grid same-tileset layer unexpectedly accepted transfer');
   assert.deepStrictEqual(await ev('SelectionDragTestHooks.layerTransferState()'),gridBefore,'Different-grid rejection changed data');
   pass('Same tileset with incompatible grid size is rejected safely');
 

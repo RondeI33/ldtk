@@ -201,6 +201,10 @@ class SelectionDragTestHooks {
 			target.addGridTile(4,2,77,0,false,false);
 
 		var e=editor();
+		// The fixture mutates layer data directly after hundreds of history-free
+		// matrix cases. Record this exact pre-transfer state so Undo validates the
+		// transfer itself instead of restoring an unrelated earlier test state.
+		e.curLevelTimeline.saveLayerStates([a,b]);
 		e.selectionTool.clear();
 		e.selectLayerInstance(source);
 		e.selectionTool.select([

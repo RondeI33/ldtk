@@ -125,7 +125,7 @@ async function run(win){
   // layer in the actual LDtk layer-list order. Empty rectangle cells stay transparent.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,false,false)');
   const beforeLayerDown=await ev('SelectionDragTestHooks.layerTransferState()');
-  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(1)'),true,'Ctrl+Alt+Down was not handled');
+  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(-1)'),true,'Ctrl+Alt+Up was not handled');
   let transfer=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(transfer.a22,[]);
   assert.deepStrictEqual(transfer.a42,[]);
@@ -147,7 +147,7 @@ async function run(win){
 
   // Down uses the same path in reverse.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,true,false)');
-  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(-1)'),true,'Ctrl+Alt+Up was not handled');
+  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(1)'),true,'Ctrl+Alt+Down was not handled');
   transfer=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(transfer.a22,[{tileId:10,flips:0},{tileId:11,flips:1}]);
   assert.deepStrictEqual(transfer.a42,[{tileId:20,flips:2}]);
@@ -169,7 +169,7 @@ async function run(win){
   // harmless no-ops rather than partial moves or crashes.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,false,true)');
   const mixedBefore=await ev('SelectionDragTestHooks.layerTransferState()');
-  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(1)'),false,'Mixed-layer selection unexpectedly transferred');
+  assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(-1)'),false,'Mixed-layer selection unexpectedly transferred');
   assert.deepStrictEqual(await ev('SelectionDragTestHooks.layerTransferState()'),mixedBefore,'Mixed-layer rejection changed data');
   await ev('SelectionDragTestHooks.prepareIntGridLayerTransfer()');
   assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(1)'),false,'IntGrid selection unexpectedly transferred as Tiles');

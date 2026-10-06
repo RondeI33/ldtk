@@ -250,6 +250,10 @@ async function run(win){
   const importTemplates=['src-a','src-b','src-c'].map((id,i)=>{const t=remapTemplateToSource(baseTemplate);t.id=id;t.name='Imported '+String.fromCharCode(65+i);return t;});
   importTemplates[0].cells.push({kind:'tiles',layerDefUid:layerUidMap.get(fixture.floor),gridSize:16,relX:0,relY:0,tiles:[{tileId:7,flips:0}]});
   fs.writeFileSync(sourceProject+'-templates.json',JSON.stringify({format:1,projectIid:'other-project',templates:importTemplates},null,2));
+  const remapA=await ev(`TemplateTestHooks.debugImportRemap(${JSON.stringify(sourceProject)},0)`);
+  assert(remapA.ok,'Imported A remap failed before picker: '+remapA.error);
+  const remapC=await ev(`TemplateTestHooks.debugImportRemap(${JSON.stringify(sourceProject)},2)`);
+  assert(remapC.ok,'Imported C remap failed before picker: '+remapC.error);
   await ev(`TemplateTestHooks.openImportPicker(${JSON.stringify(sourceProject)})`);
   await until('document.querySelector(".selectionTemplateImportPicker")','Selective template import picker did not open');
   assert.strictEqual(await ev('document.querySelectorAll(".selectionTemplateImportPicker input[type=checkbox]").length'),3);

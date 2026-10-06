@@ -297,6 +297,69 @@ class SelectionTool extends Tool<Int> {
 		group.invalidateSelectRender();
 	}
 
+
+	/**
+		Ctrl+Alt+Up/Down (Control+Option on macOS) moves a single-layer Tiles
+		selection to the nearest layer in that direction using the same tileset.
+		Returns TRUE when the key combination belongs to this feature, even when
+		the transfer is rejected, so no other editor action consumes the arrows.
+	**/
+	public function handleLayerTransferShortcut(keyId:Int) : Bool {
+		if( keyId!=K.UP && keyId!=K.DOWN )
+			return false;
+
+		var ctrlDown = App.isMac() ? App.ME.isMacCtrlDown() : App.ME.isCtrlCmdDown();
+		if( !ctrlDown || !App.ME.isAltDown() || App.ME.isShiftDown() )
+			return false;
+
+		moveSelectionToCompatibleLayer(keyId==K.UP ? -1 : 1);
+		return true;
+	}
+
+
+	public function moveSelectionToCompatibleLayer(direction:Int) : Bool {
+		if( direction==0 || isRunning() || isEmpty() )
+			return false;
+
+		var sourceLi = group.getSingleTilesLayerForTransfer();
+		if( sourceLi==null ) {
+			N.quick("Select tiles from one manual Tiles layer first.");
+			return false;
+		}
+
+		var tilesetUid = sourceLi.getTilesetUid();
+		if( tilesetUid==null ) {
+			N.quick("The selected layer has no tileset.");
+			return false;
+		}
+
+		var defs = editor.project.defs.layers;
+		var sourceIdx = defs.indexOf(sourceLi.def);
+		if( sourceIdx<0 )
+			return false;
+
+		var step = direction<0 ? -1 : 1;
+		var idx = sourceIdx + step;
+		while( idx>=0 && idx<defs.length ) {
+			var candidate = editor.curLevel.getLayerInstance(defs[idx]);
+			if( candidate!=null && candidate.def.type==Tiles && candidate.getTilesetUid()==tilesetUid ) {
+				var changed = group.transferSelectedTilesToLayer(candidate);
+				if( changed.length==0 )
+					return false;
+
+				editor.curLevelTimeline.saveLayerStates(changed);
+				editor.selectLayerInstance(candidate);
+				editor.invalidateResizeTool();
+				N.quick('Selection moved to "${candidate.def.identifier}".');
+				return true;
+			}
+			idx += step;
+		}
+
+		N.quick("No compatible Tiles layer using the same tileset in that direction.");
+		return false;
+	}
+
 	override function onMouseMove(ev:hxd.Event, m:Coords) {
 		// Start moving before Tool.onMouseMove() calls useAt(). This makes the
 		// first movement event past the drag threshold render the selection ghost

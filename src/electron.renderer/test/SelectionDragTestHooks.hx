@@ -157,6 +157,7 @@ class SelectionDragTestHooks {
 	}
 
 	public static function drag(isCopy:Bool,originX:Int,originY:Int,toX:Int,toY:Int,saveHistory=false):Dynamic {
+		var e=editor(); // resync Editor.ME for Coords helpers immediately before use
 		var g=testGroup;
 		var o=Coords.fromLevelCoords(originX,originY);
 		var t=Coords.fromLevelCoords(toX,toY);

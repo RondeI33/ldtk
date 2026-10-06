@@ -140,6 +140,151 @@ class GenericLevelElementGroup {
 		return lis;
 	}
 
+
+	/**
+		Return the single manual Tiles layer that owns every selected element.
+		Layer transfer deliberately rejects mixed selections, entities and IntGrid
+		content so an incompatible shortcut can never partially mutate the level.
+	**/
+	public function getSingleTilesLayerForTransfer() : Null<data.inst.LayerInstance> {
+		if( elements.length==0 )
+			return null;
+
+		var source : Null<data.inst.LayerInstance> = null;
+		for(ge in elements)
+			switch ge {
+				case GridCell(li,cx,cy):
+					if( li.def.type!=Tiles || !li.hasAnyGridTile(cx,cy) )
+						return null;
+					if( source==null )
+						source = li;
+					else if( source!=li )
+						return null;
+
+				case Entity(_, _), PointField(_, _, _, _):
+					return null;
+			}
+
+		return source;
+	}
+
+
+	/**
+		Move selected manual tile cells to another layer without moving them in
+		level space. The operation is fully validated before the first mutation:
+		both layers must use the same tileset and grid, offsets must map exactly,
+		and every destination cell must be empty. Empty cells represented only by
+		the selection rectangle stay transparent and never erase destination data.
+	**/
+	public function transferSelectedTilesToLayer(targetLi:data.inst.LayerInstance) : Array<data.inst.LayerInstance> {
+		var sourceLi = getSingleTilesLayerForTransfer();
+		if( sourceLi==null || targetLi==null || sourceLi==targetLi )
+			return [];
+
+		if( sourceLi.level!=targetLi.level || sourceLi.def.type!=Tiles || targetLi.def.type!=Tiles ) {
+			N.warning("Selection can only move between manual Tiles layers in the same level.");
+			return [];
+		}
+
+		var sourceTilesetUid = sourceLi.getTilesetUid();
+		if( sourceTilesetUid==null || targetLi.getTilesetUid()!=sourceTilesetUid ) {
+			N.warning("Target layer must use the same tileset as the selected tiles.");
+			return [];
+		}
+
+		if( sourceLi.def.gridSize!=targetLi.def.gridSize ) {
+			N.warning("Target layer uses the same tileset but a different grid size.");
+			return [];
+		}
+
+		var grid = sourceLi.def.gridSize;
+		var pending : Array<Dynamic> = [];
+		var targetCells : Map<String,Bool> = new Map();
+
+		// Validate the complete transfer before touching history or layer data.
+		for(i in 0...elements.length)
+			switch elements[i] {
+				case GridCell(li,cx,cy):
+					if( li!=sourceLi || !li.hasAnyGridTile(cx,cy) )
+						return [];
+
+					var px = sourceLi.pxTotalOffsetX + cx*grid;
+					var py = sourceLi.pxTotalOffsetY + cy*grid;
+					var rx = px - targetLi.pxTotalOffsetX;
+					var ry = py - targetLi.pxTotalOffsetY;
+
+					if( rx%grid!=0 || ry%grid!=0 ) {
+						N.warning("Target layer offset does not align with the selected tile grid.");
+						return [];
+					}
+
+					var tcx = Std.int(rx/grid);
+					var tcy = Std.int(ry/grid);
+					if( !targetLi.isValid(tcx,tcy) ) {
+						N.warning("Selection would fall outside the target layer.");
+						return [];
+					}
+
+					var key = tcx+":"+tcy;
+					if( targetCells.exists(key) ) {
+						N.warning("Selection cannot be mapped safely to the target layer.");
+						return [];
+					}
+					targetCells.set(key,true);
+
+					// Never destroy existing target content. A blocked transfer is a no-op.
+					if( targetLi.hasAnyGridTile(tcx,tcy) ) {
+						N.warning('Target layer "${targetLi.def.identifier}" already contains tiles at part of this selection.');
+						return [];
+					}
+
+					pending.push({
+						elementIdx:i,
+						cx:cx,
+						cy:cy,
+						tcx:tcx,
+						tcy:tcy,
+						tiles:[
+							for(t in sourceLi.getGridTileStack(cx,cy))
+								{ tileId:t.tileId, flips:t.flips }
+						],
+					});
+
+				case Entity(_, _), PointField(_, _, _, _):
+					return [];
+			}
+
+		if( pending.length==0 )
+			return [];
+
+		// Mark both sides before mutation so Undo/Redo remains one atomic action.
+		for(p in pending) {
+			editor.curLevelTimeline.markGridChange(sourceLi,p.cx,p.cy);
+			editor.curLevelTimeline.markGridChange(targetLi,p.tcx,p.tcy);
+		}
+
+		for(p in pending)
+			sourceLi.removeAllGridTiles(p.cx,p.cy,false);
+
+		for(p in pending) {
+			var tiles : Array<Dynamic> = p.tiles;
+			var stacking = tiles.length>1 || App.ME.settings.v.tileStacking;
+			for(t in tiles)
+				targetLi.addGridTile(p.tcx,p.tcy,t.tileId,t.flips,stacking,false);
+			elements[p.elementIdx] = GridCell(targetLi,p.tcx,p.tcy);
+		}
+
+		for(li in [sourceLi,targetLi]) {
+			editor.ge.emit( LayerInstanceChangedGlobally(li) );
+			invalidateDragLayer(li);
+		}
+
+		clearGhost();
+		invalidateBounds();
+		invalidateSelectRender();
+		return [sourceLi,targetLi];
+	}
+
 	public inline function invalidateSelectRender()  invalidatedSelectRender = true;
 	public inline function invalidateBounds()  _cachedBounds = null;
 

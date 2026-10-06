@@ -581,6 +581,12 @@ class Editor extends Page {
 	override function onKeyPress(keyCode:Int) {
 		super.onKeyPress(keyCode);
 
+		// Consume layer-transfer arrows before any other tool sees them. This keeps
+		// Ctrl+Alt+Up/Down (Control+Option on macOS) isolated from navigation and
+		// brush shortcuts, including when a transfer is safely rejected.
+		if( !hasInputFocus() && !ui.Modal.hasAnyOpen() && !worldMode && selectionTool.handleLayerTransferShortcut(keyCode) )
+			return;
+
 		switch keyCode {
 			// Select layers (numbers 1-9-0)
 			case k if( k>=48 && k<=57 && !hasInputFocus() ):

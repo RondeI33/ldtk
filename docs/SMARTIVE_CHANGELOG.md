@@ -1,3 +1,24 @@
+# 1.0.25
+
+## Move selected tiles between compatible layers
+
+- Added a fast layer-transfer shortcut for normal scene selections on manual Tiles layers.
+- On macOS, use **Control + Option + Up/Down**. On Windows and Linux, use **Ctrl + Alt + Up/Down**.
+- The selection moves to the nearest visible Tiles layer in that direction that uses the same tileset and compatible grid size.
+- Transfer preserves tile coordinates, complete tile stacks, and per-tile X/Y flip flags while switching the active editor layer to the destination.
+- Empty cells inside the visual selection rectangle remain transparent and never erase content on the destination layer.
+- If any destination cell is already occupied, the whole transfer is rejected before mutation so no source or destination data is partially changed.
+- Mixed-layer selections, non-Tiles selections, incompatible grids, and unsafe mappings are rejected without modifying the level.
+- Layer transfer is stored as one atomic history operation, so Undo/Redo restores both source and destination layers together.
+- Extended the real Electron selection regression suite with Up/Down layer transfer, stack/flip preservation, occupied-target rejection, mixed/non-Tiles rejection, incompatible-grid rejection, and Undo/Redo coverage.
+- Existing selection regressions still pass all **450 move/copy matrix variants** plus the new grouped transfer scenarios.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.24
 
 ## Cross-project template definition remapping

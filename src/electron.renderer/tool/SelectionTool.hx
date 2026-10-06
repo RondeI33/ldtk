@@ -333,7 +333,9 @@ class SelectionTool extends Tool<Int> {
 			return false;
 		}
 
-		var defs = editor.project.defs.layers;
+		// Follow the same visible order the layer panel uses. Hidden/filtered layers
+		// should not unexpectedly receive content when the user presses Up/Down.
+		var defs = editor.getVisibleLayerDefsInList();
 		var sourceIdx = defs.indexOf(sourceLi.def);
 		if( sourceIdx<0 )
 			return false;
@@ -342,7 +344,12 @@ class SelectionTool extends Tool<Int> {
 		var idx = sourceIdx + step;
 		while( idx>=0 && idx<defs.length ) {
 			var candidate = editor.curLevel.getLayerInstance(defs[idx]);
-			if( candidate!=null && candidate.def.type==Tiles && candidate.getTilesetUid()==tilesetUid ) {
+			if(
+				candidate!=null
+				&& candidate.def.type==Tiles
+				&& candidate.getTilesetUid()==tilesetUid
+				&& candidate.def.gridSize==sourceLi.def.gridSize
+			) {
 				var changed = group.transferSelectedTilesToLayer(candidate);
 				if( changed.length==0 )
 					return false;

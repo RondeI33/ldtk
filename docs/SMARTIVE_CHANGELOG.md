@@ -1,3 +1,20 @@
+# 1.0.24
+
+## Cross-project template definition remapping
+
+- Fixed imported templates retaining source-project layer, entity and field definition UIDs, which caused imported templates to fail with the "entity or layer definition ... no longer exists" error.
+- Import now reads the source LDtk project's definitions and remaps matching layers, entity definitions and entity fields to the destination project's UIDs by identifier before the template is staged.
+- Tiles-backed layers also resolve through a matching tileset identifier when the source layer name differs, but only when the destination layer match is unambiguous.
+- Imported grid cells adopt the destination layer grid size, and excluded-layer UIDs are remapped instead of carrying stale source IDs.
+- Unsafe imports with missing required definitions are rejected with a clear error rather than saving a template that cannot be edited or placed.
+- Extended the real Electron template regression with a second LDtk project whose layer, entity, field and tileset UIDs are deliberately different. The test also renames the source Tiles layer to verify tileset-based matching and places the imported template after remapping.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.23
 
 ## Selection copy/move grid alignment and transparent empty cells

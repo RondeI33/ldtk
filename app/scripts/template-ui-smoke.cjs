@@ -200,10 +200,60 @@ async function run(win){
   pass('Unsaved template deletion is discarded because disk changes only on project Save');
 
   const sourceProject=path.join(tmp,'other-project.ldtk');
-  fs.writeFileSync(sourceProject,'{}');
+  const importSetup=await ev('TemplateTestHooks.configureImportTileset()');
+  const sourceJson=JSON.parse(fs.readFileSync(path.join(tmp,'test.ldtk'),'utf8'));
+  sourceJson.defs.tilesets.push({uid:importSetup.tileset,identifier:'FloorTiles'});
+  const diskFloor=sourceJson.defs.layers.find(ld=>ld.uid===fixture.floor);
+  assert(diskFloor,'Saved fixture lost the Floor definition');
+  diskFloor.tilesetDefUid=importSetup.tileset;
+  const layerUidMap=new Map(),entityUidMap=new Map(),fieldUidMap=new Map(),tilesetUidMap=new Map();
+  for(const [i,td] of sourceJson.defs.tilesets.entries()){const old=td.uid,next=40000+i;tilesetUidMap.set(old,next);td.uid=next;}
+  for(const [i,ld] of sourceJson.defs.layers.entries()){const old=ld.uid,next=10000+i;layerUidMap.set(old,next);ld.uid=next;}
+  for(const [i,ed] of sourceJson.defs.entities.entries()){
+    const old=ed.uid,next=20000+i;entityUidMap.set(old,next);ed.uid=next;
+    for(const [j,fd] of ed.fieldDefs.entries()){const fOld=fd.uid,fNext=30000+i*100+j;fieldUidMap.set(fOld,fNext);fd.uid=fNext;}
+  }
+  for(const ld of sourceJson.defs.layers){
+    if(ld.tilesetDefUid!=null)ld.tilesetDefUid=tilesetUidMap.get(ld.tilesetDefUid)??ld.tilesetDefUid;
+    if(ld.autoSourceLayerDefUid!=null)ld.autoSourceLayerDefUid=layerUidMap.get(ld.autoSourceLayerDefUid)??ld.autoSourceLayerDefUid;
+  }
+  for(const ed of sourceJson.defs.entities){
+    if(ed.tilesetId!=null)ed.tilesetId=tilesetUidMap.get(ed.tilesetId)??ed.tilesetId;
+    if(ed.tileRect&&ed.tileRect.tilesetUid!=null)ed.tileRect.tilesetUid=tilesetUidMap.get(ed.tileRect.tilesetUid)??ed.tileRect.tilesetUid;
+    for(const fd of ed.fieldDefs){
+      if(fd.tilesetUid!=null)fd.tilesetUid=tilesetUidMap.get(fd.tilesetUid)??fd.tilesetUid;
+      if(fd.allowedRefsEntityUid!=null)fd.allowedRefsEntityUid=entityUidMap.get(fd.allowedRefsEntityUid)??fd.allowedRefsEntityUid;
+    }
+  }
+  assert.notStrictEqual(layerUidMap.get(fixture.floor),fixture.floor,'Cross-project fixture must use a different layer UID');
+  assert.notStrictEqual(entityUidMap.get(fixture.entityDef),fixture.entityDef,'Cross-project fixture must use a different entity UID');
+  assert.notStrictEqual(tilesetUidMap.get(importSetup.tileset),importSetup.tileset,'Cross-project fixture must use a different tileset UID');
+  const sourceFloor=sourceJson.defs.layers.find(ld=>ld.uid===layerUidMap.get(fixture.floor));
+  assert(sourceFloor,'Source fixture lost the Floor layer');
+  sourceFloor.identifier='ImportedFloorAlias';
+  fs.writeFileSync(sourceProject,JSON.stringify(sourceJson,null,2));
+
   const baseTemplate=JSON.parse(JSON.stringify(disk.templates[0]));
-  const importTemplates=['src-a','src-b','src-c'].map((id,i)=>{const t=JSON.parse(JSON.stringify(baseTemplate));t.id=id;t.name='Imported '+String.fromCharCode(65+i);return t;});
+  const remapTemplateToSource=input=>{
+    const t=JSON.parse(JSON.stringify(input));
+    t.excludedLayerUids=(t.excludedLayerUids||[]).map(uid=>layerUidMap.get(uid)??uid);
+    for(const e of t.entities||[]){
+      e.layerDefUid=layerUidMap.get(e.layerDefUid)??e.layerDefUid;
+      e.json.defUid=entityUidMap.get(e.json.defUid)??e.json.defUid;
+      for(const fi of e.json.fieldInstances||[])fi.defUid=fieldUidMap.get(fi.defUid)??fi.defUid;
+      for(const ref of e.refs||[])ref.fieldDefUid=fieldUidMap.get(ref.fieldDefUid)??ref.fieldDefUid;
+      for(const point of e.points||[])point.fieldDefUid=fieldUidMap.get(point.fieldDefUid)??point.fieldDefUid;
+    }
+    for(const c of t.cells||[])c.layerDefUid=layerUidMap.get(c.layerDefUid)??c.layerDefUid;
+    return t;
+  };
+  const importTemplates=['src-a','src-b','src-c'].map((id,i)=>{const t=remapTemplateToSource(baseTemplate);t.id=id;t.name='Imported '+String.fromCharCode(65+i);return t;});
+  importTemplates[0].cells.push({kind:'tiles',layerDefUid:layerUidMap.get(fixture.floor),gridSize:16,relX:0,relY:0,tiles:[{tileId:7,flips:0}]});
   fs.writeFileSync(sourceProject+'-templates.json',JSON.stringify({format:1,projectIid:'other-project',templates:importTemplates},null,2));
+  const remapA=await ev(`TemplateTestHooks.debugImportRemap(${JSON.stringify(sourceProject)},0)`);
+  assert(remapA.ok,'Imported A remap failed before picker: '+remapA.error);
+  const remapC=await ev(`TemplateTestHooks.debugImportRemap(${JSON.stringify(sourceProject)},2)`);
+  assert(remapC.ok,'Imported C remap failed before picker: '+remapC.error);
   await ev(`TemplateTestHooks.openImportPicker(${JSON.stringify(sourceProject)})`);
   await until('document.querySelector(".selectionTemplateImportPicker")','Selective template import picker did not open');
   assert.strictEqual(await ev('document.querySelectorAll(".selectionTemplateImportPicker input[type=checkbox]").length'),3);
@@ -218,6 +268,27 @@ async function run(win){
   assert(stagedAfterImport.some(t=>t.name==='Imported C'));
   assert(!stagedAfterImport.some(t=>t.name==='Imported B'));
   assert(!stagedAfterImport.some(t=>t.id==='src-a'||t.id==='src-c'),'Imported templates did not receive fresh template IDs');
+
+  const importedA=stagedAfterImport.find(t=>t.name==='Imported A');
+  assert(importedA,'Imported A is missing');
+  assert(importedA.entities.every(e=>fixture.layers.includes(e.layerDefUid)),'Imported entity layers kept source UIDs');
+  assert(importedA.entities.every(e=>e.json.defUid===fixture.entityDef),'Imported entity definitions kept source UIDs');
+  const destinationFieldUids=new Set(Object.values(fixture.fields));
+  for(const e of importedA.entities){
+    for(const fi of e.json.fieldInstances||[])assert(destinationFieldUids.has(fi.defUid),'Imported field instance kept a source UID');
+    for(const ref of e.refs||[])assert(destinationFieldUids.has(ref.fieldDefUid),'Imported EntityRef kept a source field UID');
+    for(const point of e.points||[])assert(destinationFieldUids.has(point.fieldDefUid),'Imported Point kept a source field UID');
+  }
+  const importedFloor=importedA.cells.find(c=>c.kind==='tiles');
+  assert(importedFloor,'Cross-project fixture lost its tile cell');
+  assert.strictEqual(importedFloor.layerDefUid,fixture.floor,'Renamed source Tiles layer was not resolved through the matching tileset');
+  assert(importedA.excludedLayerUids.includes(fixture.walls),'Excluded layer UIDs were not remapped');
+  const importedIndex=stagedAfterImport.findIndex(t=>t.name==='Imported A');
+  const countBeforeImportedPlacement=await ev('TemplateTestHooks.entityCount()');
+  assert.strictEqual(await ev(`TemplateTestHooks.place(${importedIndex},32,160)`),true,'Remapped imported template could not be placed');
+  assert.strictEqual(await ev('TemplateTestHooks.entityCount()'),countBeforeImportedPlacement+importedA.entities.length,'Imported template placement did not create all remapped entities');
+  pass('Cross-project import remaps entity, field, layer, excluded-layer and tileset-backed layer definitions before placement');
+
   assert.strictEqual(JSON.parse(fs.readFileSync(sidecar,'utf8')).templates.length,1,'Selective import wrote to disk before project Save');
   pass('Import picker clones only checked templates with fresh IDs and stages them until project Save');
 

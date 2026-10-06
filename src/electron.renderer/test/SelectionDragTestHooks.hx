@@ -17,12 +17,13 @@ class SelectionDragTestHooks {
 	static var pointFieldUid:Int;
 	static var caseDx=0;
 	static var caseDy=0;
-	static var editorRef:page.Editor;
 
 	static function editor() {
-		if( editorRef!=null && !editorRef.destroyed && Editor.ME!=editorRef )
-			Editor.ME=editorRef;
-		return editorRef!=null ? editorRef : Editor.ME;
+		var current=Std.downcast(@:privateAccess App.ME.curPageProcess,page.Editor);
+		var e=current!=null ? current : Editor.ME;
+		if( e!=null && !e.destroyed && Editor.ME!=e )
+			Editor.ME=e;
+		return e;
 	}
 	static inline function level() return editor().curLevel;
 	static inline function tilesA() return level().getLayerInstance(tilesAUid);
@@ -33,7 +34,11 @@ class SelectionDragTestHooks {
 
 	public static function ready():Bool {
 		var e=editor();
-		return e!=null && !e.destroyed && e.selectionTool!=null;
+		return e!=null
+			&& !e.destroyed
+			&& e.selectionTool!=null
+			&& e.selectionTool.group!=null
+			&& e.selectionTool.group.allElements()!=null;
 	}
 
 	public static function setup(path:String):Dynamic {
@@ -67,8 +72,7 @@ class SelectionDragTestHooks {
 		p.tidy();
 		NT.writeFileString(path,haxe.Json.stringify(p.toJson()));
 		App.ME.loadPage(()->new page.Editor(p),false);
-		var e=Editor.ME;
-		editorRef=e;
+		var e=editor();
 		e.setWorldMode(false);
 		e.selectLayerInstance(e.curLevel.getLayerInstance(a));
 		e.camera.fit(true);

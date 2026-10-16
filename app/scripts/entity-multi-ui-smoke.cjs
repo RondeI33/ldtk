@@ -34,7 +34,7 @@ async function run(win){
  await win.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'entity-multi-fixture.js'),'utf8'),true);
  const setup=async()=>{
   console.log('SETUP fixture');
-  const data=await ev(`multiFixture.setup(${JSON.stringify(path.join(tmp,'test.ldtk'))})`);await delay(220);await ev('multiFixture.editor()&&true');return data;
+  const data=await ev(`multiFixture.setup(${JSON.stringify(path.join(tmp,'test.ldtk'))})`);await delay(450);await ev('multiFixture.editor()&&true');await ev('__ldtk.classes["ui.Modal"].closeAll()');await delay(200);return data;
  };
  const select=()=>ev('multiFixture.select()');
  const value=(name,idx=0)=>`#multi_field_${fields[name]}_${idx}`;
@@ -55,9 +55,13 @@ async function run(win){
  await until('multiFixture.keys().alt && multiFixture.keys().shift','Modifiers not delivered');
  win.webContents.sendInputEvent({type:'mouseMove',x:a.x,y:a.y,modifiers:['alt','shift']});await delay(60);
  win.webContents.sendInputEvent({type:'mouseDown',x:a.x,y:a.y,button:'left',clickCount:1,modifiers:['alt','shift']});
- win.webContents.sendInputEvent({type:'mouseMove',x:b.x,y:b.y,modifiers:['alt','shift']});await delay(90);
+ await until('multiFixture.editor().selectionTool.isRunning()','Selection did not start on mouse-down');
+ console.log('RECT start',await ev('({origin:multiFixture.editor().selectionTool.origin.levelX,originY:multiFixture.editor().selectionTool.origin.levelY,rectangle:multiFixture.editor().selectionTool.rectangle,single:__ldtk.App.ME.settings.v.singleLayerMode})'));
+ win.webContents.sendInputEvent({type:'mouseMove',x:b.x,y:b.y,modifiers:['alt','shift']});await delay(150);
  win.webContents.sendInputEvent({type:'mouseUp',x:b.x,y:b.y,button:'left',clickCount:1,modifiers:['alt','shift']});
+ await until('!multiFixture.editor().selectionTool.isRunning()','Selection did not stop on mouse-up');
  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Shift'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Alt'});
+ console.log('RECT stop',await ev('({count:multiFixture.editor().selectionTool.group.elements.length,selection:multiFixture.editor().selectionTool.debugContent(),valid:__ldtk.classes["data.MultiEntityEdit"].isValid([multiFixture.entity(0),multiFixture.entity(1)]),panel:multiFixture.state().panel})'));
  await until('document.querySelector(".multiEntityInstanceEditor") && !multiFixture.editor().selectionTool.isRunning()','Rectangle did not open multi-inspector');
  assert.equal((await state()).data,beforeSelect.data);
  assert.equal((await state()).history,beforeSelect.history);

@@ -53,9 +53,13 @@
    layers:[a.uid,b.uid],ig:ig.uid,stamps:tiles.uid,level:level.uid,second:second.uid,path,ed:ed.uid});
   return {fields:F.fields,ids:F.ids};
  };
- F.state=()=>{const e=F.editor(),l=e.get_curLevel();return {
+ F.state=()=>{const e=F.editor(),l=e.get_curLevel(),json=l.toJson(true);
+  // Native LayerInstance.fromJson normalizes an absent override to null.
+  // Compare all authored data, treating only that optional default as equal.
+  for(const li of json.layerInstances)if(li.overrideTilesetUid==null)delete li.overrideTilesetUid;
+  return {
   active:e.curLevelId,history:e.levelTimelines.h[e.curLevelId].curStateIdx,dirty:e.needSaving,
-  data:JSON.stringify(l.toJson(true)),entities:F.ids.map(id=>{const x=e.project.getEntityInstanceByIid(id);return x?x.toJson(x._li):null}),
+  data:JSON.stringify(json),entities:F.ids.map(id=>{const x=e.project.getEntityInstanceByIid(id);return x?x.toJson(x._li):null}),
   selected:e.selectionTool.group.elements.length,
   panel:!!C['ui.MultiEntityInstanceEditor'].CURRENT&&!C['ui.MultiEntityInstanceEditor'].CURRENT.destroyed
  }};

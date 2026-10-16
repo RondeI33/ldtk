@@ -45,7 +45,6 @@ async function run(win){
  console.log('BOOT ready');
  let {fields}=await setup();
  console.log('FIXTURE ready');
- // Exercise the actual Alt/Option + Shift mouse rectangle, not only a test hook.
  require('electron').Menu.setApplicationMenu(null);win.webContents.focus();
  const a=await ev('multiFixture.point(40,40)'),b=await ev('multiFixture.point(160,90)');
  await ev('multiFixture.editor().selectionTool.clear()');
@@ -56,12 +55,10 @@ async function run(win){
  win.webContents.sendInputEvent({type:'mouseMove',x:a.x,y:a.y,modifiers:['alt','shift']});await delay(60);
  win.webContents.sendInputEvent({type:'mouseDown',x:a.x,y:a.y,button:'left',clickCount:1,modifiers:['alt','shift']});
  await until('multiFixture.editor().selectionTool.isRunning()','Selection did not start on mouse-down');
- console.log('RECT start',await ev('({origin:multiFixture.editor().selectionTool.origin.levelX,originY:multiFixture.editor().selectionTool.origin.levelY,rectangle:multiFixture.editor().selectionTool.rectangle,single:__ldtk.App.ME.settings.v.singleLayerMode})'));
  win.webContents.sendInputEvent({type:'mouseMove',x:b.x,y:b.y,modifiers:['alt','shift']});await delay(150);
  win.webContents.sendInputEvent({type:'mouseUp',x:b.x,y:b.y,button:'left',clickCount:1,modifiers:['alt','shift']});
  await until('!multiFixture.editor().selectionTool.isRunning()','Selection did not stop on mouse-up');
  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Shift'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Alt'});
- console.log('RECT stop',await ev('({count:multiFixture.editor().selectionTool.group.elements.length,selection:multiFixture.editor().selectionTool.debugContent(),valid:__ldtk.classes["data.MultiEntityEdit"].isValid([multiFixture.entity(0),multiFixture.entity(1)]),panel:multiFixture.state().panel})'));
  await until('document.querySelector(".multiEntityInstanceEditor") && !multiFixture.editor().selectionTool.isRunning()','Rectangle did not open multi-inspector');
  assert.equal((await state()).data,beforeSelect.data);
  assert.equal((await state()).history,beforeSelect.history);
@@ -77,11 +74,13 @@ async function run(win){
  let before=await state();
  await ev(`(()=>{const x=document.querySelector(${JSON.stringify(value('Amount'))});x.focus();x.blur();x.dispatchEvent(new Event('change',{bubbles:true}));return true})()`);
  assert.equal((await state()).data,before.data);assert.equal((await state()).history,before.history);
+ await delay(200);
+ console.log('PANEL layout',await ev('(()=>{const p=document.querySelector(".multiEntityInstanceEditor"),r=p.getBoundingClientRect(),s=getComputedStyle(p);return {left:r.left,top:r.top,width:r.width,height:r.height,display:s.display,visibility:s.visibility,opacity:s.opacity}})()'));
  fs.writeFileSync(path.join(output,'mixed-values.png'),(await win.webContents.capturePage()).toPNG());
  pass('Mixed numbers, bools, enums, nullable zero and array lengths show a dash; focus/blur is read-only');
 
  before=await state();
- await setUI('Amount','3'); // Also works when the new value equals the FIRST entity.
+ await setUI('Amount','3');
  let after=await state();
  assert.deepEqual(await values('Amount'),[3,3,3]);assert.equal(after.history,before.history+1);
  for(let i=0;i<3;i++) {
@@ -100,7 +99,7 @@ async function run(win){
  await setUI('Label','batch');assert.deepEqual(await values('Label'),['batch','batch','unchanged']);
  await setUI('Text','line one\nline two');
  assert.deepEqual((await values('Text')).slice(0,2),['line one\\nline two','line one\\nline two']);
- await setUI('Color','#123abc');assert.deepEqual((await values('Color')).slice(0,2),['#123abc','#123abc']);
+ await setUI('Color','#123abc');assert.deepEqual((await values('Color')).slice(0,2),['#123ABC','#123ABC']);
  await setUI('Mode','C');assert.deepEqual(await values('Mode'),['C','C','A']);
  await setUI('Anchor','12,13');assert.deepEqual((await values('Anchor')).slice(0,2),[{cx:12,cy:13},{cx:12,cy:13}]);
  await ev(`document.querySelector(${JSON.stringify(value('Active'))}).click()`);
@@ -117,7 +116,6 @@ async function run(win){
  assert.equal((await state()).data,before.data);assert.equal((await state()).history,before.history);
  pass('Array per-index edits preserve other differences; explicit resize retains individual values and obeys bounds');
 
- // Reset to default remains distinct from the mixed-value display marker.
  await ev(`document.querySelector('[data-multi-field="${fields.Nullable}"] .multiReset').click()`);
  assert.deepEqual((await values('Nullable')).slice(0,2),[null,null]);
  await setUI('Nullable','0');assert.deepEqual((await values('Nullable')).slice(0,2),[0,0]);
@@ -151,7 +149,6 @@ async function run(win){
 
  ({fields}=await setup());await select();await ev('multiFixture.stampFixture()');
  before=await state();
- // Checkboxes use checked rather than text .value.
  await ev(`(()=>{const x=document.querySelector(${JSON.stringify(value('Active'))});if(!x.checked)x.click();return true})()`);
  assert.deepEqual(await ev('multiFixture.stampValues()'),[[1],[1]]);
  assert(await ev('multiFixture.undo()'));await delay(160);

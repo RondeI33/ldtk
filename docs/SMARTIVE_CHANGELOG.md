@@ -1,3 +1,22 @@
+# 1.0.26
+
+## Cross-level Entity editing and Undo/Redo history stability
+
+- Fixed a stale selection-drop target that could switch the editor back to an earlier level when clicking an Entity to edit its fields after moving between levels.
+- Only a currently running selection drag can activate its destination level. An ordinary click, repeated mouse-up or tool stop no longer replays an earlier drop.
+- Fixed the `LevelTimeline.prolongatePreviousStates` crash when no previous history state was available to provide `layerJsons`.
+- Uninitialized history now records a complete checkpoint; it does not invent a nonexistent pre-edit state.
+- Empty or null layer-history saves are ignored rather than consuming an Undo entry or deleting the Redo tail.
+- Added permanent real-Electron regression coverage for cross-level Entity selection, repeated click/navigation cycles, Entity field editing, Undo/Redo, history wraparound, cancellation, Entity reference preservation and save/reload.
+- Release workflow gates Windows, macOS and Linux packaging on successful freshly compiled Entity regression tests on both Linux and macOS **and** the existing selection and template regressions.
+- Compatible with the existing LDtk project JSON format; no project migration required.
+
+### Build targets
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.25
 
 ## Move selected tiles between compatible layers

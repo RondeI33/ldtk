@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.26",
+	"version": "1.0.27",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -38,7 +38,8 @@
 		"qt-cpp": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.cpp",
 		"test:templates": "node scripts/run-template-tests.cjs",
 		"test:selection": "node scripts/run-selection-tests.cjs",
-		"test:entity-history": "node scripts/run-entity-history-tests.cjs"
+		"test:entity-history": "node scripts/run-entity-history-tests.cjs",
+		"test:entity-multi": "node scripts/run-entity-multi-tests.cjs"
 	},
 	"repository": {
 		"type": "git",

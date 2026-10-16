@@ -14,6 +14,10 @@ on:
       - src/electron.renderer/ui/ProjectSaver.hx
       - src/electron.renderer/tool/SelectionTemplateTool.hx
       - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/LevelTimeline.hx
+      - src/electron.renderer/tool/lt/EntityTool.hx
+      - src/electron.renderer/ui/EntityInstanceEditor.hx
+      - app/scripts/*entity-history*
       - src/electron.renderer/GenericLevelElementGroup.hx
       - src/electron.renderer/test/SelectionDragTestHooks.hx
       - app/scripts/selection-*.cjs
@@ -109,8 +113,46 @@ jobs:
           echo "Smartive version: $VERSION"
           echo "LDtk JSON compatibility version: $(tr -d '\r\n' < docs/version.txt)"
 
-  windows:
+  entity-runtime:
+    # Gate EVERY platform package job on real Haxe-compiled editor regressions.
+    # No installers may be built if entity selection/history fails.
     needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Entity selection/history real Electron regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" node scripts/run-entity-history-tests.cjs
+      - name: Entity selection/history real Electron regression (macOS)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: node scripts/run-entity-history-tests.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
+          path: app/test-results/entity-history
+          if-no-files-found: warn
+
+  windows:
+    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: windows-latest
     env:
@@ -183,7 +225,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    needs: prepare
+    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: macos-latest
     env:
@@ -235,7 +277,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    needs: prepare
+    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:
@@ -335,7 +377,7 @@ jobs:
           if-no-files-found: warn
 
   publish:
-    needs: [prepare, windows, macos, linux, template-runtime, selection-runtime]
+    needs: [prepare, entity-runtime, windows, macos, linux, template-runtime, selection-runtime]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:

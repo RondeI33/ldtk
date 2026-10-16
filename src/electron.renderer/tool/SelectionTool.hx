@@ -476,9 +476,13 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function stopUsing(m:Coords) {
+		// Only this running drag may request a level switch. The group retains
+		// its last drop target across clicks and Editor calls stopUsing on idle
+		// tools too; replaying that target sends the user back to an old level.
+		var completedDrag = isRunning() && moveStarted;
 		super.stopUsing(m);
 
-		var dropTarget = group.getLastDropTargetLevel();
+		var dropTarget = completedDrag ? group.getLastDropTargetLevel() : null;
 		movePreview.clear();
 		if( moveStarted ) {
 			group.onMoveEnd();
@@ -507,6 +511,11 @@ class SelectionTool extends Tool<Int> {
 				}
 			}
 		}
+
+		// Finish gesture state before emitting LevelSelected, including repeated
+		// mouse-up/focus-loss callbacks after an already completed drag.
+		moveStarted = false;
+		startedOverSelecton = false;
 
 		// Cross-level drop becomes the active level only after Tool.stopUsing()
 		// has finished, avoiding a LevelSelected event while the tool is running.

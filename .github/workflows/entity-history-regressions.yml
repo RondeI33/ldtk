@@ -1,0 +1,28 @@
+name: Entity history regressions
+
+on:
+  push:
+    branches: [fix/entity-cross-level-history]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect source and regression harness for investigation
+        run: |
+          git archive --format=zip --output=entity-history-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: entity-history-source
+          path: entity-history-source.zip
+          retention-days: 1
+      - name: Trace entity selection and history lifecycle
+        run: |
+          grep -n -E 'selectLevel|selectLayerInstance|LevelSelected|EntityInstanceChanged|LevelTimeline|editEntityInstance|getGenericLevelElementAt' src/electron.renderer/page/Editor.hx
+          grep -n -E 'getEntity|registerEntity|unregisterEntity' src/electron.renderer/data/Project.hx
+          ls app/scripts src/electron.renderer/test

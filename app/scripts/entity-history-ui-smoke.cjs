@@ -5,7 +5,14 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
 const output=path.join(root,'test-results/entity-history');fs.mkdirSync(output,{recursive:true});
 process.chdir(root);app.setPath('userData',tmp);if(app.setAppPath)app.setAppPath(root);else app.getAppPath=()=>root;
 process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
-app.commandLine.appendSwitch('no-sandbox');app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');
+app.commandLine.appendSwitch('no-sandbox');
+// Linux CI needs a software WebGL renderer under Xvfb. Forcing ANGLE +
+// SwiftShader on macOS arm64 can prevent Electron from creating any graphics
+// context, so let Chromium select the native macOS backend there.
+if(process.platform==='linux'){
+ app.commandLine.appendSwitch('use-gl','angle');
+ app.commandLine.appendSwitch('use-angle','swiftshader');
+}
 const timer=setTimeout(()=>{console.error('FAIL: entity history regression timed out');app.exit(1);},90000);
 let running=false;const passed=[],delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.on('browser-window-created',(_,win)=>{

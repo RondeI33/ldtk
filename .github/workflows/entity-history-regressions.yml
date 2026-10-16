@@ -3,6 +3,8 @@ name: Entity history regressions
 on:
   push:
     branches: [fix/entity-cross-level-history]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -14,8 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Collect source and regression harness for investigation
-        run: |
-          git archive --format=zip --output=entity-history-source.zip HEAD
+        run: git archive --format=zip --output=entity-history-source.zip HEAD
       - uses: actions/upload-artifact@v4
         with:
           name: entity-history-source

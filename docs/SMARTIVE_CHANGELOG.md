@@ -1,3 +1,26 @@
+# 1.0.27
+
+## Multi-entity field editing with mixed values
+
+- Select two or more entities of the same type using the existing **Shift + Option** rectangle on macOS or **Shift + Alt** on Windows/Linux. A contextual multi-entity inspector opens automatically, including selections across entity layers in the same level.
+- Fields with identical values show their common value. Different values show **—** instead of silently displaying the first entity's value; boolean fields use an indeterminate checkbox.
+- Editing a field applies the entered value to every selected entity. Other fields, unselected entities, positions and entity IIDs are preserved.
+- Focus, blur and cancelled edits do not apply the mixed-value placeholder as data. Invalid numbers, out-of-range values and invalid references are rejected before any selected entity changes.
+- Supports numeric, string, multiline text, boolean, color, enum, point, file-path, tile and ordinary entity-reference fields through typed controls.
+- Arrays expose their common indices without overwriting different unedited elements. Explicit array resizing preserves existing individual values and obeys configured limits.
+- Batch edits, including conditional tile-stamp updates on other layers, are saved as one Undo/Redo transaction.
+- Conditional field visibility and enum options use only fields and choices allowed for every selected entity.
+- Mixed entity types retain the normal selection behavior. Symmetrical entity-reference fields explicitly require individual editing to avoid conflicting reverse links.
+- The inspector closes safely on deselection, single-entity selection, deletion, Undo/Redo and level changes. Existing selection shortcuts and custom bindings are unchanged.
+- Added real Electron regressions for Shift+Option/Alt selection, pointer reachability, mixed-value display, field edits, validation, arrays, references, tile stamps, Undo/Redo and save/reload. Release packaging is gated on these tests as well as the existing entity-history, selection and template suites.
+- No LDtk JSON format changes or Unity importer changes are required.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.26
 
 ## Cross-level Entity editing and Undo/Redo history stability

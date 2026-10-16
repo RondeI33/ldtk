@@ -69,6 +69,7 @@ class SelectionTool extends Tool<Int> {
 
 		if( settings.v.emptySpaceSelection && !group.isEmpty() )
 			group.addSelectionRect(0, level.pxWid, 0, level.pxHei);
+		ui.MultiEntityInstanceEditor.sync(group.allElements());
 	}
 
 	public function select(?elems:Array<GenericLevelElement>, append=false) {
@@ -82,8 +83,10 @@ class SelectionTool extends Tool<Int> {
 		if( group.selectedElementsCount()>1 ) {
 			editor.clearResizeTool();
 			ui.EntityInstanceEditor.closeExisting();
+			ui.MultiEntityInstanceEditor.sync(group.allElements());
 		}
 		else if( group.selectedElementsCount()==1 ) {
+			ui.MultiEntityInstanceEditor.closeExisting();
 			var ge = group.getElement(0);
 			var li = group.getSmartRelativeLayerInstance();
 
@@ -275,6 +278,7 @@ class SelectionTool extends Tool<Int> {
 
 	public inline function get() return getSelectedValue();
 	public function clear() {
+		ui.MultiEntityInstanceEditor.closeExisting();
 		if( !isEmpty() ) {
 			group.clear();
 			ui.EntityInstanceEditor.closeExisting();

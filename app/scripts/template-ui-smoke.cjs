@@ -6,7 +6,7 @@ const output=path.join(root,'test-results/templates');fs.mkdirSync(output,{recur
 process.chdir(root);app.setPath('userData',tmp);if(app.setAppPath)app.setAppPath(root);else app.getAppPath=()=>root;
 process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
 app.commandLine.appendSwitch('no-sandbox');app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');
-const timer=setTimeout(()=>{console.error('FAIL: UI smoke test timed out');app.exit(1);},60000);
+const timer=setTimeout(()=>{console.error('FAIL: UI smoke test timed out');app.exit(1);},120000);
 let running=false,passed=[];
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 app.on('browser-window-created',(_,win)=>{
@@ -17,7 +17,7 @@ app.on('browser-window-created',(_,win)=>{
 });
 async function run(win){
   const ev=code=>win.webContents.executeJavaScript(code,true);
-  async function until(code,message){for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
+  async function until(code,message,attempts=200){for(let i=0;i<attempts;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
   const pass=m=>{passed.push(m);console.log('PASS: '+m);};
   const click=selector=>ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});e.click();})()`);
   const edit=(selector,value)=>ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing input '+${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'a'}));})()`);
@@ -292,9 +292,19 @@ async function run(win){
   assert.strictEqual(JSON.parse(fs.readFileSync(sidecar,'utf8')).templates.length,1,'Selective import wrote to disk before project Save');
   pass('Import picker clones only checked templates with fresh IDs and stages them until project Save');
 
-  await delay(180);
+  // Imported placement can still be releasing UI/selection locks. Avoid a
+  // false failed save caused by onSave() returning early while the editor is
+  // locked. Do not bypass the normal save flow or ignore a failed callback.
+  await until('!TemplateTestHooks.inputState().locked && !TemplateTestHooks.saveInProgress()',
+    'Editor remained locked before saving imported templates',500);
   await ev('TemplateTestHooks.saveProject()');
-  await until('TemplateTestHooks.saveDidComplete()','Project Save after import callback did not finish');
+  try {
+    await until('TemplateTestHooks.saveDidComplete()',
+      'Project Save after import callback did not finish',750);
+  } catch(error) {
+    const state=await ev('({locked:TemplateTestHooks.inputState().locked,saveInProgress:TemplateTestHooks.saveInProgress(),needSaving:TemplateTestHooks.needSaving(),saved:TemplateTestHooks.saveDidComplete(),activeModals:document.querySelectorAll(".modal").length})');
+    throw Error(error.message+'; save diagnostics='+JSON.stringify(state));
+  }
   assert.strictEqual(await ev('TemplateTestHooks.needSaving()'),false,'Project remained dirty after saving imported templates');
   disk=JSON.parse(fs.readFileSync(sidecar,'utf8'));
   assert.strictEqual(disk.templates.length,3);

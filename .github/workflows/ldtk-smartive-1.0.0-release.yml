@@ -122,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15-intel]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +140,9 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: app
         run: xvfb-run -a -s "-screen 0 1600x1000x24" node scripts/run-entity-history-tests.cjs
-      - name: Entity selection/history real Electron regression (macOS)
+      # Electron 24 cannot initialize WebGL on headless GitHub macOS ARM64;
+      # run GUI regression on Intel, and keep universal arm64+Intel packaging.
+      - name: Entity selection/history real Electron regression (macOS Intel)
         if: runner.os == 'macOS'
         working-directory: app
         run: node scripts/run-entity-history-tests.cjs

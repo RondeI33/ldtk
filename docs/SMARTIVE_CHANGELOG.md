@@ -1,3 +1,22 @@
+# 1.0.28
+
+## Auto-chain return references
+
+- EntityRef auto chaining can now set a separately configured return field on the target. For example, placing VeinCable segments creates both `previous.To = new` and `new.From = previous`.
+- Configure `autoChainBackRefs` in the existing entity UID entry in `<project>.ldtk-fork.json`, using field identifiers: `[{ "chainField": "To", "backField": "From" }]`. Existing sidecar appearance overrides and other authoring settings are retained. See [the configuration guide](FORK_AUTO_CHAIN_BACK_REFS.md).
+- Applies both when placing a new entity and when clicking an existing one. Both directions are saved in one link-history checkpoint, including entities on different layers of the same level, and both affected entities emit change events.
+- Existing scalar return references are preserved and conflicts are logged. Array return fields append without removing earlier values or adding duplicate references, and respect their maximum length. Missing, incompatible or disallowed return fields leave the ordinary forward link intact.
+- Cross-level chaining retains its existing history rule. Return-field restrictions are checked against the actual source entity and source level.
+- Symmetrical return fields cannot overwrite an occupied counterpart. Retargeting a configured forward link also preserves the reverse-IID cache when another field still refers to the old target.
+- Entity definitions without this optional configuration keep the original auto-chain behavior. No changes to the LDtk JSON schema or Unity importer are required.
+- Added real Electron regressions for placement, existing targets, Undo/Redo, multiple layers and levels, scalar conflicts, arrays, symmetry, reference-cache integrity, sidecar persistence and legacy chaining. Both Linux and macOS regression gates run before release packaging.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.27
 
 ## Multi-entity field editing with mixed values

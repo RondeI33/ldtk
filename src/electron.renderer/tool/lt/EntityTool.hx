@@ -451,17 +451,88 @@ class EntityTool extends tool.LayerTool<Int> {
 		if( !chainFi.def.acceptsEntityRefTo(sourceEi, targetEi.def, curLevel) )
 			return false;
 
+		var backField = project.forkConfig.getAutoChainBackRef(sourceEi.def, chainFi.def);
+		var oldChainTarget = backField==null || chainFi.def.isArray ? null : chainFi.getEntityRefInstance(0);
 		if( chainFi.def.isArray )
 			chainFi.addArrayValue();
 		chainFi.setEntityRefTo(chainFi.getArrayLength()-1, sourceEi, targetEi);
+		// The reverse-IID cache is per entity pair, not per field. A different
+		// field (eg. From) may still reference the old To after this replacement.
+		if( oldChainTarget!=null && sourceEi.hasEntityRefTo(oldChainTarget) )
+			project.registerReverseIidRef(sourceEi.iid, oldChainTarget.iid);
+		var backRefChanged = tryToSetChainBackRef(sourceEi, targetEi, backField);
 
 		// Save history properly (only if both entities are in the same level)
 		if( sourceEi._li.levelId==targetEi._li.levelId ) {
 			editor.curLevelTimeline.markEntityChange(sourceEi);
-			editor.curLevelTimeline.saveLayerState(sourceEi._li);
+			if( backRefChanged ) {
+				editor.curLevelTimeline.markEntityChange(targetEi);
+				// One checkpoint for both directions, including different entity layers.
+				var layers = [ sourceEi._li ];
+				if( targetEi._li!=sourceEi._li )
+					layers.push(targetEi._li);
+				editor.curLevelTimeline.saveLayerStates(layers);
+			}
+			else
+				editor.curLevelTimeline.saveLayerState(sourceEi._li);
 		}
 		editor.ge.emit( EntityInstanceChanged(sourceEi) );
+		if( backRefChanged && targetEi!=sourceEi )
+			editor.ge.emit( EntityInstanceChanged(targetEi) );
 		return chainFi.def.isArray || !chainFi.def.symmetricalRef;
+	}
+
+
+	/** Add the explicitly configured return link without replacing existing references. */
+	function tryToSetChainBackRef(sourceEi:data.inst.EntityInstance, targetEi:data.inst.EntityInstance, backField:Null<String>) : Bool {
+		if( backField==null )
+			return false;
+
+		var backFd = targetEi.def.getFieldDef(backField);
+		if( backFd==null || backFd.type!=F_EntityRef ) {
+			LOG.add("fork", 'Skipping auto-chain back reference: ${targetEi.def.identifier}.$backField is not an EntityRef field');
+			return false;
+		}
+		if( !backFd.acceptsEntityRefTo(targetEi, sourceEi.def, sourceEi._li.level) ) {
+			LOG.add("fork", 'Skipping auto-chain back reference: ${targetEi.def.identifier}.$backField does not accept $sourceEi');
+			return false;
+		}
+
+		var backFi = targetEi.getFieldInstance(backFd, true);
+		for(i in 0...backFi.getArrayLength())
+			if( backFi.getEntityRefIid(i)==sourceEi.iid )
+				return false; // The requested link already exists; do not append duplicates.
+		if( !canSetChainBackRef(backFi, targetEi, sourceEi) )
+			return false;
+
+		// setEntityRefTo also writes the same field on the other end when symmetry
+		// is enabled. Preflight that write too, so it cannot replace an older link.
+		if( backFd.symmetricalRef && sourceEi.hasField(backFd) ) {
+			var mirrorFi = sourceEi.getFieldInstance(backFd, true);
+			if( !canSetChainBackRef(mirrorFi, sourceEi, targetEi) )
+				return false;
+		}
+
+		if( backFd.isArray )
+			backFi.addArrayValue();
+		backFi.setEntityRefTo(backFi.getArrayLength()-1, targetEi, sourceEi);
+		return true;
+	}
+
+	function canSetChainBackRef(fi:data.inst.FieldInstance, owner:data.inst.EntityInstance, target:data.inst.EntityInstance) : Bool {
+		for(i in 0...fi.getArrayLength())
+			if( fi.getEntityRefIid(i)==target.iid )
+				return true;
+
+		if( !fi.def.isArray && fi.getEntityRefIid(0)!=null ) {
+			LOG.add("fork", 'Skipping auto-chain back reference: $owner.${fi.def.identifier} already refers to ${fi.getEntityRefIid(0)}');
+			return false;
+		}
+		if( fi.def.isArray && fi.getArrayMaxLength()>=0 && fi.getArrayLength()>=fi.getArrayMaxLength() ) {
+			LOG.add("fork", 'Skipping auto-chain back reference: $owner.${fi.def.identifier} has reached its maximum array length');
+			return false;
+		}
+		return true;
 	}
 
 

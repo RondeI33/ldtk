@@ -141,12 +141,51 @@ class ForkConfig {
 		return out;
 	}
 
+	function readAutoChainBackRefs(ed:data.def.EntityDef, cfg:Dynamic) : Array<{ chainField:String, backField:String }> {
+		var out : Array<{ chainField:String, backField:String }> = [];
+		var rules = getDyn(cfg,"autoChainBackRefs");
+		if( rules==null )
+			return out;
+		if( !Std.isOfType(rules,Array) ) {
+			App.LOG.add("fork", 'Ignoring invalid autoChainBackRefs for "${ed.identifier}": expected an array');
+			return out;
+		}
+
+		var seen : Map<String,Bool> = new Map();
+		for(raw in (cast rules:Array<Dynamic>)) {
+			var chain = getDyn(raw,"chainField");
+			var back = getDyn(raw,"backField");
+			if( !Std.isOfType(chain,String) || !Std.isOfType(back,String) || chain.length==0 || back.length==0 ) {
+				App.LOG.add("fork", 'Ignoring invalid autoChainBackRefs rule for "${ed.identifier}": expected field identifiers');
+				continue;
+			}
+			if( seen.exists(chain) ) {
+				App.LOG.add("fork", 'Ignoring duplicate autoChainBackRefs rule for "${ed.identifier}.$chain"');
+				continue;
+			}
+			seen.set(chain,true);
+			out.push({ chainField:chain, backField:back });
+		}
+		return out;
+	}
+
+	/** Back fields are resolved on the target, which may have a different entity definition. */
+	public function getAutoChainBackRef(ed:data.def.EntityDef, chainFd:data.def.FieldDef) : Null<String> {
+		if( ed==null || chainFd==null )
+			return null;
+		for(rule in ed.autoChainBackRefs)
+			if( rule.chainField==chainFd.identifier )
+				return rule.backField;
+		return null;
+	}
+
 	public function load() {
 		trackedEntities = new Map();
 
 		// Clear all sidecar-only runtime state. Legacy embedded autoChildren are intentionally kept
 		// until/unless the sidecar contains an explicit autoChildren entry, allowing one-time migration.
 		for(ed in project.defs.entities) {
+			ed.autoChainBackRefs = [];
 			ed.appearanceOverrides = [];
 			ed.tileStamps = [];
 			for(fd in ed.fieldDefs) {
@@ -212,6 +251,7 @@ class ForkConfig {
 					}
 				}
 
+				ed.autoChainBackRefs = readAutoChainBackRefs(ed,cfg);
 				ed.appearanceOverrides = getArray(cfg,"appearanceOverrides").map(raw->normalizeAppearance(ed,raw));
 				ed.tileStamps = getArray(cfg,"tileStamps").map(raw->normalizeStamp(ed,raw));
 
@@ -304,7 +344,7 @@ class ForkConfig {
 					});
 				}
 
-			if( ed.autoChildren.length==0 && ed.appearanceOverrides.length==0 && ed.tileStamps.length==0 && !hasFields )
+			if( ed.autoChildren.length==0 && ed.autoChainBackRefs.length==0 && ed.appearanceOverrides.length==0 && ed.tileStamps.length==0 && !hasFields )
 				continue;
 
 			var autoChildren : Array<Dynamic> = [];
@@ -331,13 +371,16 @@ class ForkConfig {
 				});
 			}
 
-			Reflect.setField(entities, Std.string(ed.uid), {
+			var cfg : Dynamic = {
 				identifier: ed.identifier,
 				autoChildren: autoChildren,
 				appearanceOverrides: ed.appearanceOverrides.map(raw->enrichAppearance(ed,raw)),
 				tileStamps: ed.tileStamps.map(raw->enrichStamp(ed,raw)),
 				fields: fields,
-			});
+			};
+			if( ed.autoChainBackRefs.length>0 )
+				Reflect.setField(cfg,"autoChainBackRefs",ed.autoChainBackRefs.map(rule->{ chainField:rule.chainField, backField:rule.backField }));
+			Reflect.setField(entities, Std.string(ed.uid), cfg);
 		}
 
 		var root : Dynamic = {

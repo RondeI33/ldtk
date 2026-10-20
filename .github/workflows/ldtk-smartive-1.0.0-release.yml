@@ -16,11 +16,14 @@ on:
       - src/electron.renderer/tool/SelectionTool.hx
       - src/electron.renderer/LevelTimeline.hx
       - src/electron.renderer/tool/lt/EntityTool.hx
+      - src/electron.renderer/data/ForkConfig.hx
+      - src/electron.renderer/data/def/EntityDef.hx
       - src/electron.renderer/ui/EntityInstanceEditor.hx
       - src/electron.renderer/data/MultiEntityEdit.hx
       - src/electron.renderer/ui/MultiEntityInstanceEditor.hx
       - app/scripts/*entity-multi*
       - app/scripts/*entity-history*
+      - app/scripts/*entity-chain*
       - src/electron.renderer/GenericLevelElementGroup.hx
       - src/electron.renderer/test/SelectionDragTestHooks.hx
       - app/scripts/selection-*.cjs
@@ -118,7 +121,7 @@ jobs:
 
   entity-runtime:
     # Gate EVERY platform package job on real Haxe-compiled editor regressions.
-    # No installers may be built if entity selection/history or multi-edit fails.
+    # No installers may be built if entity history, auto-chain or multi-edit fails.
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
@@ -149,6 +152,14 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: app
         run: node scripts/run-entity-history-tests.cjs
+      - name: Auto-chain back references real Electron regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:entity-chain
+      - name: Auto-chain back references real Electron regression (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:entity-chain
       - name: Multi-entity field editor real Electron regression
         if: runner.os == 'Linux'
         working-directory: app
@@ -163,6 +174,7 @@ jobs:
           name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
           path: |
             app/test-results/entity-history
+            app/test-results/entity-chain
             app/test-results/entity-multi
           if-no-files-found: warn
 

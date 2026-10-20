@@ -9,9 +9,12 @@ on:
       - src/electron.renderer/LevelTimeline.hx
       - src/electron.renderer/tool/SelectionTool.hx
       - src/electron.renderer/tool/lt/EntityTool.hx
+      - src/electron.renderer/data/ForkConfig.hx
+      - src/electron.renderer/data/def/EntityDef.hx
       - src/electron.renderer/GenericLevelElementGroup.hx
       - src/electron.renderer/ui/EntityInstanceEditor.hx
       - app/scripts/*entity-history*
+      - app/scripts/*entity-chain*
       - .github/workflows/entity-history-regressions.yml
   workflow_dispatch:
 
@@ -52,6 +55,14 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: app
         run: node scripts/run-entity-history-tests.cjs
+      - name: Auto-chain back references on Linux
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:entity-chain
+      - name: Auto-chain back references on macOS
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:entity-chain
       - name: Existing selection move/copy regression
         if: runner.os == 'Linux'
         working-directory: app

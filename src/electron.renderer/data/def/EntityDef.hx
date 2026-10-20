@@ -48,6 +48,7 @@ class EntityDef {
 	public var fieldDefs : Array<data.def.FieldDef> = [];
 	// Fork-only authoring configuration. These are loaded from <project>.ldtk-fork.json.
 	public var autoChildren : Array<EntityAutoChildDef> = [];
+	public var autoChainBackRefs : Array<{ chainField:String, backField:String }> = [];
 	public var appearanceOverrides : Array<Dynamic> = [];
 	public var tileStamps : Array<Dynamic> = [];
 

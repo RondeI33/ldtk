@@ -1,3 +1,18 @@
+# 1.0.29
+
+## Point placement over entities
+
+- Fixed **Set point** selecting or deselecting an entity instead of placing the point when the destination overlaps its owner, another entity or the current selection. This includes cable endpoints such as `FromPoint` and `ToPoint`.
+- The point/link preview remains visible while hovering over entities, selections and resize handles. Resize handles no longer intercept point-placement clicks.
+- Point picking takes priority only while the point tool is active. Normal entity selection, dragging, template placement, panning and existing shortcuts keep their previous behavior.
+- Added real Electron regressions for point placement, overlap, cancellation, arrays, Undo/Redo and save/reload. Linux and macOS point tests gate release packaging alongside the existing entity, selection and template suites.
+
+### Builds
+
+- Windows x64 installer.
+- Universal macOS DMG.
+- Linux x64 AppImage.
+
 # 1.0.28
 
 ## Auto-chain return references

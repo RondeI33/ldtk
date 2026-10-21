@@ -1159,14 +1159,18 @@ class Editor extends Page {
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);
 
-		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() )
+		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) )
 			resizeTool.onMouseDown( ev, m );
 
 		if( !ev.cancel && !project.isBackup() && !ui.ValuePicker.exists() )
 			rulers.onMouseDown( ev, m );
 
 		if( !ev.cancel && !worldMode && !project.isBackup() ) {
-			if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
+			// A point destination may overlap its owner, another entity or a selection.
+			// SelectionTool.startUsing() would cancel the picker before it receives the click.
+			if( isSpecialToolActive(tool.PickPoint) )
+				specialTool.startUsing( ev, m );
+			else if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
 				selectionTool.startUsing( ev, m );
 			else if( isSpecialToolActive() )
 				specialTool.startUsing( ev, m )
@@ -1224,13 +1228,18 @@ class Editor extends Page {
 				ui.ValuePicker.ME.onMouseMoveCursor(cursorEvent,m);
 			}
 
-			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() ) {
+			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) ) {
 				resizeTool.onMouseMove(ev,m);
 				resizeTool.onMouseMoveCursor(cursorEvent,m);
 			}
 
 			if( !ev.cancel && !worldMode && !ui.ValuePicker.exists() ) {
-				if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
+				// Match mouse-down priority so the point/link preview stays visible over entities.
+				if( isSpecialToolActive(tool.PickPoint) ) {
+					specialTool.onMouseMove(ev,m);
+					specialTool.onMouseMoveCursor(cursorEvent,m);
+				}
+				else if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
 					selectionTool.onMouseMove(ev,m);
 					selectionTool.onMouseMoveCursor(cursorEvent,m);
 				}

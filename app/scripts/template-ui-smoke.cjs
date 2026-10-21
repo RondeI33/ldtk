@@ -136,9 +136,14 @@ async function run(win){
   const occupiedAfter=await ev('TemplateTestHooks.overwriteGridState()');
   assert.strictEqual(occupiedAfter.intGrid,2,'Occupied IntGrid value was not replaced');
   assert.deepStrictEqual(occupiedAfter.tiles,[{tileId:7,flips:1},{tileId:8,flips:2}],'Occupied tile stack was merged instead of replaced');
+  const layerRestoresBefore=await ev('TemplateTestHooks.processedLayerRestoreCount()');
   await ev('TemplateTestHooks.undo()');
   assert.deepStrictEqual(await ev('TemplateTestHooks.overwriteGridState()'),occupiedBefore,'Undo did not restore overwritten grid contents');
-  await delay(200); // allow LayerInstancesRestoredFromHistory end-of-frame cleanup to settle before activating another special tool
+  // The editor dispatches LayerInstancesRestoredFromHistory at end-of-frame and
+  // clears any active special tool. Wait for that exact event before clicking
+  // Place: a fixed sleep can race the renderer on slower GitHub runners.
+  await until(`TemplateTestHooks.processedLayerRestoreCount()>${layerRestoresBefore}`,
+    'Undo did not dispatch its deferred layer-restoration event',500);
   pass('Template placement replaces occupied IntGrid values and entire Tiles stacks');
 
   const walls=await ev('TemplateTestHooks.wallState()');

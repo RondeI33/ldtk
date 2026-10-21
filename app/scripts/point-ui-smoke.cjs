@@ -26,12 +26,28 @@ async function run(win){
   const r=await win.webContents.executeJavaScript(`(()=>{try{return {ok:true,value:(${code})}}catch(e){return {ok:false,error:String(e&&e.stack||e)}}})()`,true);
   if(!r||!r.ok)throw Error(code+'\n'+String(r&&r.error));return r.value;
  };
- const until=async(code,message)=>{for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40)}throw Error(message);};
- await until('globalThis.__ldtk && __ldtk.App.ME && document.querySelector("#page")','Editor bootstrap unavailable');
+ const until=async(code,message)=>{for(let i=0;i<200;i++){const value=await ev(code);if(value)return value;await delay(40)}throw Error(message);};
+ await until('!!(globalThis.__ldtk && __ldtk.App.ME && document.querySelector("#page"))','Editor bootstrap unavailable');
  await delay(750);win.setSize(1600,1000);win.show();win.focus();win.webContents.focus();win.webContents.setBackgroundThrottling(false);Menu.setApplicationMenu(null);
  await win.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'point-fixture.js'),'utf8'),true);
+ await ev(`(()=>{window.pointMouseDelivery={sequence:0,x:null,y:null};document.addEventListener('mousemove',event=>{
+  pointMouseDelivery={sequence:pointMouseDelivery.sequence+1,x:event.clientX,y:event.clientY};
+ },true);return true})()`);
  const call=(name,...args)=>ev(`pointFixture.${name}(${args.map(arg=>JSON.stringify(arg)).join(',')})`);
  const state=()=>call('state');
+ const frame=()=>win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error('Editor frame did not complete')),8000),P=__ldtk.classes['dn.Process'];
+  P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{clearTimeout(timer);resolve(true)}));
+ })`,true);
+ const nativeMove=async p=>{
+  const sequence=await ev('pointMouseDelivery.sequence');
+  win.webContents.sendInputEvent({type:'mouseMove',...p});
+  await until(`pointMouseDelivery.sequence>${sequence} && pointMouseDelivery.x===${p.x} && pointMouseDelivery.y===${p.y}`,
+   'Native mouse movement was not delivered');
+  // Chromium delivers DOM input asynchronously, then Heaps consumes its event
+  // queue during an editor frame. Receiving DOM input alone is not a hover update.
+  await frame();
+ };
  let fields,ids,setupCount=0;
  const setup=async options=>{
   ({fields,ids}=await call('setup',path.join(tmp,`points-${++setupCount}.ldtk`),options||{}));
@@ -44,12 +60,16 @@ async function run(win){
  const move=async(x,y)=>{
   const p=await call('screen',x,y);
   assert.equal(await ev(`document.elementFromPoint(${p.x},${p.y})?.id`),'webgl','Map target is covered by UI');
-  win.webContents.sendInputEvent({type:'mouseMove',...p});await delay(100);
-  if(process.env.LDTK_POINT_DIAGNOSTICS)console.log('POINT MOVE enter',await call('debug'));
-  // Entering the canvas from an inspector control can produce only EOver in
-  // Heaps. Move within the canvas as a real pointer does before checking EMove.
-  win.webContents.sendInputEvent({type:'mouseMove',x:p.x+1,y:p.y});await delay(60);
-  win.webContents.sendInputEvent({type:'mouseMove',...p});await delay(100);
+  // Enter the canvas, then deliver a distinct in-canvas movement. Await each
+  // event and its frame instead of caching a cursor before CI has processed it.
+  await nativeMove({x:p.x+1,y:p.y});
+  await nativeMove(p);
+  if(await ev('pointFixture.state().picker')){
+   try{
+    await until(`(()=>{const t=pointFixture.editor().specialTool;return t&&t.lastMouse&&t.lastMouse.pageX===${p.x}&&t.lastMouse.pageY===${p.y}})()`,
+     'Point picker did not receive the native target movement');
+   }catch(error){throw Error(error.message+'; '+JSON.stringify({target:p,editor:await call('debug')}));}
+  }
   if(process.env.LDTK_POINT_DIAGNOSTICS)console.log('POINT MOVE settled',await call('debug'));
   return p;
  };
@@ -59,7 +79,8 @@ async function run(win){
   win.webContents.sendInputEvent({type:'mouseUp',...p,button,clickCount:1});await delay(140);
  };
  const clickSelector=async selector=>{
-  const p=await ev(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing inspector control: '+${JSON.stringify(selector)});el.scrollIntoView({block:'nearest'});const r=el.getBoundingClientRect(),x=Math.round(r.left+r.width/2),y=Math.round(r.top+r.height/2);if(!el.contains(document.elementFromPoint(x,y)))throw Error('Inspector control is covered');return {x,y}})()`);
+  const p=await until(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'nearest'});const r=el.getBoundingClientRect(),x=Math.round(r.left+r.width/2),y=Math.round(r.top+r.height/2);return r.width>0&&r.height>0&&el.contains(document.elementFromPoint(x,y))?{x,y}:null})()`,
+   'Inspector control did not become visible and clickable: '+selector);
   await clickAt(p);
  };
  const begin=async(name,array=false)=>{
@@ -69,13 +90,13 @@ async function run(win){
  };
  const choose=async(x,y,{keepPicking=false,release=null}={})=>{
   const p=await move(x,y),before=await state();
+  assert.equal(before.linkPreview,true,'Point preview was replaced by entity/selection/resize hover; '+JSON.stringify(await call('debug')));
   win.webContents.sendInputEvent({type:'mouseDown',...p,button:'left',clickCount:1});
   await until('(()=>{const s=pointFixture.state();return s.pickerRunning||!s.picker||s.selectionRunning||s.resizing})()',
    'Native point mouse-down was not processed');
   const held=await state();
   if(process.env.LDTK_POINT_DIAGNOSTICS)console.log('POINT HELD',JSON.stringify({before,held,debug:await call('debug')}));
   assert.equal(held.pickerRunning,true,'Canvas mouse-down did not reach the active point picker');
-  assert.equal(before.linkPreview,true,'Point preview was replaced by entity/selection/resize hover');
   assert.equal(held.selectionRunning,false,'Point picking started a selection drag');assert.equal(held.resizing,false,'Point picking started an entity resize');
   const end=release?await move(release.x,release.y):p;
   win.webContents.sendInputEvent({type:'mouseUp',...end,button:'left',clickCount:1});

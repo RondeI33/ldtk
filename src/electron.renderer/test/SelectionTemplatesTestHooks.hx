@@ -11,6 +11,8 @@ package test;
 class SelectionTemplatesTestHooks {
 	static var devices:Array<data.inst.EntityInstance>=[];
 	static var saveCompleted=false;
+	// Wait for the actual end-of-frame history notification, not a guessed sleep.
+	static var processedLayerRestores=0;
 	static var walls:data.inst.LayerInstance;
 	static var floor:data.inst.LayerInstance;
 	public static function setup(path:String):Dynamic {
@@ -47,7 +49,14 @@ class SelectionTemplatesTestHooks {
 		p.tidy();
 		NT.writeFileString(path,haxe.Json.stringify(p.toJson()));
 		App.ME.loadPage(()->new page.Editor(p),false);
-		var editor=Editor.ME;editor.setWorldMode(false);editor.selectLayerInstance(l.getLayerInstance(la));editor.camera.fit(true);
+		var editor=Editor.ME;
+		// Editor's own event listener runs first and clears stale special tools.
+		// This test-only observer marks the restore as fully dispatched.
+		editor.ge.addGlobalListener(e->switch(e) {
+			case LayerInstancesRestoredFromHistory(_): processedLayerRestores++;
+			case _:
+		});
+		editor.setWorldMode(false);editor.selectLayerInstance(l.getLayerInstance(la));editor.camera.fit(true);
 		return {ids:devices.map(e->e.iid),walls:ld.uid,floor:floorLd.uid,entityDef:ed.uid,layers:[la.uid,lb.uid],fields:{target:link.uid,targets:many.uid,amount:amount.uid,label:label.uid,path:points.uid}};
 	}
 	public static function selectAll():Void {
@@ -180,6 +189,7 @@ class SelectionTemplatesTestHooks {
 			tiles:[for(t in curFloor.getGridTileStack(2,2)) {tileId:t.tileId,flips:t.flips}],
 		};
 	}
+	public static function processedLayerRestoreCount():Int return processedLayerRestores;
 	public static function undo():Void Editor.ME.curLevelTimeline.undo();
 	public static function redo():Void Editor.ME.curLevelTimeline.redo();
 	public static function wallState():String { var j:Dynamic=Editor.ME.curLevel.getLayerInstance(walls.layerDefUid).toJson(); if(j.overrideTilesetUid==null) Reflect.deleteField(j,"overrideTilesetUid"); return haxe.Json.stringify(j); }

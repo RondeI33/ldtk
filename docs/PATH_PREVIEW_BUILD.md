@@ -1,17 +1,15 @@
 # Build the CargoLine preview for manual testing
 
 Open [the manual build workflow](https://github.com/RondeI33/ldtk/actions/workflows/test-windows.yml).
-The existing workflow can still appear as **test-windows** in the Actions sidebar until the
-feature version has been run.
+Branch **main** contains the manual installer-testing workflow. Select **main** in the Run workflow branch selector.
 
 1. Click **Run workflow**.
-2. In the branch selector, select **feature/cargo-path-preview**. This selection is required:
-   the current default branch has the older compile-only version of this workflow.
+2. In the branch selector, select **main** (not `master`).
 3. Click the green **Run workflow** button.
 4. Open the new run. After it succeeds, download the Windows x64, universal macOS or Linux x64
    installer from **Artifacts** at the bottom of the run page. Extract the downloaded ZIP first.
 
-The feature branch's workflow runs the path preview tests, point picking regressions and
+The `main` branch's workflow runs the path preview tests, point picking regressions and
 auto-chain/sidecar regressions in the compiled editor on Linux and macOS Intel. The Linux gate
 also runs the selection move/copy regressions. All installer jobs depend on those regressions
 passing. It then builds the three platform packages and uploads

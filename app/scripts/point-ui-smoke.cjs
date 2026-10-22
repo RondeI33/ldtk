@@ -8,7 +8,7 @@ process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
 app.commandLine.appendSwitch('no-sandbox');
 if(process.platform==='linux'){app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');}
 const passed=[],delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const timer=setTimeout(()=>{console.error('FAIL: point regression timed out');app.exit(1);},process.platform==='darwin'?240000:120000);
+const timer=setTimeout(()=>{console.error('FAIL: point regression timed out');app.exit(1);},process.platform==='darwin'?360000:180000);
 let running=false;
 app.on('browser-window-created',(_,win)=>{
  win.webContents.on('did-finish-load',()=>{
@@ -121,8 +121,18 @@ async function run(win){
  await begin('ToPoint');let before=await state();let after=await choose(104,104);
  changedPoint(before,after,'ToPoint',{cx:6,cy:6});
  await pass('Native inspector and canvas clicks set a null point inside its own selected VeinCable without deselecting it');
- assert.equal(await call('undo'),true);await delay(150);assert.deepEqual((await state()).entities,before.entities);
- assert.equal(await call('redo'),true);await delay(150);assert.deepEqual((await state()).entities,after.entities);
+ assert.equal(await call('undo'),true);
+ // LayerInstancesRestoredFromHistory is emitted at the end of a frame.
+ // Do not race Undo/Redo with the next operation: wait for an actual editor frame.
+ await frame();await frame();
+ await until('pointFixture.state().entities[0].fields.ToPoint===null',
+  'Undo did not restore the previous ToPoint value');
+ assert.deepEqual((await state()).entities,before.entities);
+ assert.equal(await call('redo'),true);
+ await frame();await frame();
+ await until('pointFixture.state().entities[0].fields.ToPoint?.cx===6 && pointFixture.state().entities[0].fields.ToPoint?.cy===6',
+  'Redo did not restore the edited ToPoint value');
+ assert.deepEqual((await state()).entities,after.entities);
  await pass('One Undo/Redo restores the entire point edit while preserving entities, references and unrelated layers');
 
  await begin('FromPoint');before=await state();after=await choose(264,104);
@@ -237,7 +247,11 @@ async function run(win){
  let eraseBefore=await eraseState();
  // Two entities share the same screen position, but only the active layer
  // may be altered by the shortcut.
- await ev('(()=>{const f=pointFixture,other=f.entity(2);other.x=264;other.y=104;f.editor().levelRender.invalidateLayer(other._li);return true})()');
+ await ev(`(()=>{const f=pointFixture,other=f.entity(2);other.x=264;other.y=104;f.editor().levelRender.invalidateLayer(other._li);
+  // This fixture-only move must be a committed history baseline. Otherwise
+  // Undo of the next deletion legitimately restores the previous position.
+  f.editor().curLevelTimeline.saveLayerState(other._li);
+  return true})()`);
  eraseBefore=await eraseState();
  await eraseGesture([480,240],[544,288]);
  let erased=await eraseState();

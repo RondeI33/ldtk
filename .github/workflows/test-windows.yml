@@ -1,7 +1,7 @@
 name: LDTK-Smartive manual artifact build
 
-# Keep this existing workflow path so it can be selected from Actions before
-# the feature branch is merged. Select feature/cargo-path-preview in Run workflow.
+# Run this workflow manually from branch main. It gates installation artifacts
+# on real editor regressions, and never publishes a GitHub release.
 on:
   workflow_dispatch:
 

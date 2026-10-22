@@ -1166,7 +1166,10 @@ class Editor extends Page {
 
 		var m = getMouse();
 
-		panTool.startUsing(ev,m);
+		// On macOS a physical Control+left click may arrive as a secondary click.
+		// Do not let viewport panning consume Ctrl+Shift entity erase.
+		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
+			panTool.startUsing(ev,m);
 
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);

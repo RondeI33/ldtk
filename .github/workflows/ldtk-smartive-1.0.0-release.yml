@@ -454,6 +454,7 @@ jobs:
         
       - name: Notify Slack about new release
         if: success()
+        continue-on-error: true
         shell: bash
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -462,8 +463,8 @@ jobs:
           set -euo pipefail
 
           if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-            echo "::error::Existing SLACK_WEBHOOK_URL secret is not configured; release was published but Slack was not notified"
-            exit 1
+            echo "::warning::SLACK_WEBHOOK_URL is not configured"
+            exit 0
           fi
 
           gh release view "$SMARTIVE_TAG" \
@@ -472,34 +473,82 @@ jobs:
 
           jq -e '.isDraft == false and .isPrerelease == false' release.json >/dev/null
 
+          RELEASE_URL=$(jq -r '.url' release.json)
+          RELEASE_VERSION="$SMARTIVE_TAG"
+          RELEASE_BODY=$(jq -r '.body' release.json)
+
+          PATCH_NOTES=$(printf '%s\n' "$RELEASE_BODY" | awk '
+            BEGIN { count=0 }
+            /^LDTK-Smartive / { next }
+            /^Compatibility:/ { next }
+            /^#+[[:space:]]/ { next }
+            /^[[:space:]]*$/ { next }
+            {
+              line=$0
+              gsub(/\*\*/, "", line)
+              sub(/^- /, "", line)
+              if (line != "") {
+                print "•  " line
+                count++
+              }
+              if (count == 3) exit
+            }
+          ')
+
+          if [ -z "${PATCH_NOTES:-}" ]; then
+            PATCH_NOTES="•  Pełne patch notes znajdziesz na stronie release."
+          fi
+
           jq -n \
-            --arg version "$SMARTIVE_TAG" \
-            --arg title "$(jq -r '.name' release.json)" \
-            --arg url "$(jq -r '.url' release.json)" \
-            --arg notes "$(jq -r '.body[:2800]' release.json)" \
+            --arg version "$RELEASE_VERSION" \
+            --arg url "$RELEASE_URL" \
+            --arg patch_notes "$PATCH_NOTES" \
             '{
-              text: ("New LDTK-Smartive release: " + $version),
+              text: ("Nowa wersja LDTK-Smartive " + $version),
               blocks: [
                 {
-                  type: "header",
+                  type: "section",
                   text: {
-                    type: "plain_text",
-                    text: ("LDTK-Smartive " + $version)
+                    type: "mrkdwn",
+                    text: ("*Nowa wersja LDTK-Smartive " + $version + "*")
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: ("*New version available!*\n<" + $url + "|Download release>")
+                    text: "Dostępna jest nowa wersja edytora!"
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: ("*Patch notes:*\n" + $notes)
+                    text: ("*Patch notes*\n\n" + $patch_notes)
                   }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: "Windows · macOS · Linux"
+                    }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "Pobierz aktualizację"
+                      },
+                      url: $url,
+                      style: "primary"
+                    }
+                  ]
                 }
               ]
             }' > slack-payload.json
@@ -510,4 +559,3 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @slack-payload.json \
             "$SLACK_WEBHOOK_URL"
-

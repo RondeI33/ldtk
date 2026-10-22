@@ -172,7 +172,18 @@ async function run(win){
  await call('select',0);await delay(120);
  await clickSelector(`.entityInstanceEditor [defuid="${fields.To}"] button.pickRef`);
  await until('pointFixture.state().valuePicker','Entity-reference picker did not open');
- before=await state();await clickAt(await move(440,120));after=await state();
+ const refTarget=await move(440,120);
+ // Prove that the real picker accepts the hovered entity before dispatching
+ // native mouse input. This distinguishes a hit-test bug from a delayed event.
+ const hoveredRef=await ev('(()=>{const p=__ldtk.classes["ui.ValuePicker"].ME;return p&&p.pickAt(pointFixture.editor().getMouse())?.iid||null})()');
+ assert.equal(hoveredRef,ids[2],'Reference picker is not targeting the visible cross-layer entity');
+ before=await state();
+ win.webContents.sendInputEvent({type:'mouseDown',...refTarget,button:'left',clickCount:1});
+ await until('!pointFixture.state().valuePicker','Reference picker did not accept native mouse-down');
+ win.webContents.sendInputEvent({type:'mouseUp',...refTarget,button:'left',clickCount:1});
+ await until('pointFixture.state().entities[0].fields.To===pointFixture.ids[2]',
+  'Reference picker closed but did not store the target entity');
+ await frame();after=await state();
  const refExpected=JSON.parse(JSON.stringify(before.entities));refExpected[0].fields.To=ids[2];
  assert.deepEqual(after.entities,refExpected);assert.equal(after.valuePicker,false);assert.equal(after.activeLayer,before.activeLayer);
  await pass('The entity-reference picker still receives its native entity click and preserves the source layer');
@@ -250,7 +261,7 @@ async function run(win){
  await ev(`(()=>{const f=pointFixture,other=f.entity(2);other.x=264;other.y=104;f.editor().levelRender.invalidateLayer(other._li);
   // This fixture-only move must be a committed history baseline. Otherwise
   // Undo of the next deletion legitimately restores the previous position.
-  f.editor().curLevelTimeline.saveLayerState(other._li);
+  const editor=f.editor();editor.levelTimelines.h[editor.curLevelId].saveLayerState(other._li);
   return true})()`);
  eraseBefore=await eraseState();
  await eraseGesture([480,240],[544,288]);
@@ -262,9 +273,9 @@ async function run(win){
  assert.deepEqual(erased.source,[],'Rectangle did not remove both covered active-layer entities');
  assert.deepEqual(erased.other,eraseBefore.other,'Rectangle removed an entity from another layer');
  assert.equal(erased.history,eraseBefore.history+1,'Rectangle erase must be one undo transaction');
- assert.equal(await call('undo'),true);await delay(180);
+ assert.equal(await call('undo'),true);await frame();await frame();
  eraseCompare(await eraseState(),eraseBefore);
- assert.equal(await call('redo'),true);await delay(180);
+ assert.equal(await call('redo'),true);await frame();await frame();
  assert.deepEqual((await eraseState()).source,[]);
  assert.deepEqual((await eraseState()).other,eraseBefore.other);
  await erasePass('Ctrl+Shift rectangle erases active Entities only and Undo/Redo restores all at once');
@@ -277,9 +288,28 @@ async function run(win){
  assert.equal(erased.source[0].iid,eraseBefore.source[0].iid,'Single erase removed the wrong entity');
  assert.deepEqual(erased.other,eraseBefore.other,'Single erase changed another entity layer');
  assert.equal(erased.history,eraseBefore.history+1,'Single-click erase must be undoable');
- assert.equal(await call('undo'),true);await delay(160);
+ assert.equal(await call('undo'),true);await frame();await frame();
  eraseCompare(await eraseState(),eraseBefore);
  await erasePass('Ctrl+Shift clicking a selected entity erases it without selection interception');
+
+ // A foreground entity on another visible Entities layer must never be erased,
+ // including when the user Ctrl+Shift-clicks at its exact same coordinates.
+ await setup();await call('select',1);await delay(120);
+ await ev(`(()=>{const f=pointFixture,e=f.editor(),other=f.entity(2);
+  other.x=264;other.y=104;
+  e.levelRender.invalidateLayer(other._li);
+  e.levelTimelines.h[e.curLevelId].saveLayerState(other._li);
+  return true})()`);
+ eraseBefore=await eraseState();
+ await eraseGesture([264,104]);
+ erased=await eraseState();
+ assert.equal(erased.source.length,1,'Overlapping Ctrl+Shift click failed to remove the active-layer target');
+ assert.equal(erased.source[0].iid,eraseBefore.source[0].iid,'Overlapping click erased the wrong source entity');
+ assert.deepEqual(erased.other,eraseBefore.other,'Overlapping click removed an entity from another layer');
+ assert.equal(erased.history,eraseBefore.history+1,'Overlapping erase did not create a history checkpoint');
+ assert.equal(await call('undo'),true);await frame();await frame();
+ eraseCompare(await eraseState(),eraseBefore);
+ await erasePass('Ctrl+Shift single-click removes only active-layer entities even when two layers overlap');
 
  if(process.platform==='darwin'){
   // macOS may translate a physical Control+left-click to a secondary click.

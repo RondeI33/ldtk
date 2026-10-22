@@ -404,7 +404,10 @@ class EntityTool extends tool.LayerTool<Int> {
 
 
 	function removeAnyEntityOrPointAt(m:Coords) {
-		var ge = editor.getGenericLevelElementAt(m, true);
+		// Never delete an entity from a different (even overlapping) layer.
+		// Use the same current-layer constraint for the single-click erase as
+		// for the Ctrl+Shift drag rectangle.
+		var ge = editor.getGenericLevelElementAt(m, Entities, true);
 		switch ge {
 			case Entity(li, instance):
 				addForkTouched(project.forkConfig.eraseEntityStamps(instance));

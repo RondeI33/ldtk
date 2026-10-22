@@ -462,7 +462,7 @@ jobs:
             --arg version "$SMARTIVE_TAG" \
             --arg title "$(jq -r '.name' release.json)" \
             --arg url "$(jq -r '.url' release.json)" \
-            --arg notes "$(jq -r '.body' release.json | head -c 12000)" \
+            --arg notes "$(jq -r '.body[:2800]' release.json)" \            
             '{
               text: ("New LDTK-Smartive release: " + $version),
               blocks: [

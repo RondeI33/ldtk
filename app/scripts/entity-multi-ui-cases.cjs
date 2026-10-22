@@ -87,8 +87,20 @@ async function run(win){
   const strip=e=>({...e,fieldInstances:e.fieldInstances.filter(f=>f.defUid!==fields.Amount)});
   assert.deepEqual(strip(after.entities[i]),strip(before.entities[i]));
  }
- assert(await ev('multiFixture.undo()'));await delay(160);assert.equal((await state()).data,before.data);
- assert(await ev('multiFixture.redo()'));await delay(160);assert.deepEqual(await values('Amount'),[3,3,3]);
+ // Every Undo/Redo must atomically update the level snapshots AND the
+ // project-wide IID lookup cache, even before deferred editor events run.
+ assert(await ev('multiFixture.undo()'));
+ assert.equal((await state()).data,before.data,'Undo must restore the original multi-layer snapshot');
+ assert.deepEqual(await values('Amount'),[3,8,3],
+  'Undo left the IID lookup cache pointing at edited (detached) entities');
+ assert(await ev('multiFixture.redo()'));
+ assert.deepEqual(await values('Amount'),[3,3,3],
+  'Redo left the IID lookup cache pointing at an old entity on another layer');
+ const redoState=await state();
+ assert.equal(redoState.history,before.history+1,'Redo must restore a single history transaction');
+ assert.equal(redoState.entities[1].fieldInstances.find(f=>f.defUid===fields.Amount).__value,3,
+  'Redo snapshot did not update the other Entities layer');
+
  await select();const noOp=await state();await setUI('Amount','3');assert.equal((await state()).history,noOp.history);
  pass('Mixed-to-first-value edit affects only the chosen field; one Undo/Redo restores all selected layers');
 

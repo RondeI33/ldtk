@@ -431,8 +431,16 @@ class LevelTimeline {
 			}
 		}
 
-		if( restoreds.length>0 )
+		if( restoreds.length>0 ) {
+			// Restoring layer instances replaces the EntityInstance objects. Their
+			// IID lookups and reverse-reference cache must point to these NEW
+			// objects as soon as undo()/redo() returns, not only after the
+			// deferred history event runs on the next editor frame. Otherwise
+			// multi-layer edits can report old field values immediately after
+			// Redo (and can use detached entities for subsequent operations).
+			project.initEntityIidsCache();
 			editor.ge.emitAtTheEndOfFrame( LayerInstancesRestoredFromHistory(restoreds) );
+		}
 
 		invalidatedDebug = true;
 	}

@@ -10,6 +10,7 @@
 
 - **Ctrl+Shift + left-click or drag** erases entities on the active Entities layer, with rectangular erasing and single-step Undo/Redo. Other entity layers remain unchanged even when objects overlap. On macOS, the physical Control key is used.
 - Fixed conflicting point-placement clicks over entity bodies, selection handles and other layers and stabilized related editor-history and reference-picking regression tests.
+- Fixed stale entity IID lookup data immediately after Undo/Redo of edits spanning multiple Entities layers. History restores now update the entity and reverse-reference caches before any code can read an old detached entity.
 
 ## Builds and notifications
 

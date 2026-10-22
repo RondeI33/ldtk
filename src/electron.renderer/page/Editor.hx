@@ -64,33 +64,6 @@ class Editor extends Page {
 		inline function get_curLevelTimeline() return levelTimelines.get(curLevelId);
 
 
-	public function ensureLevelTimeline(l:data.Level) : LevelTimeline {
-		if( !levelTimelines.exists(l.uid) )
-			levelTimelines.set(l.uid, new LevelTimeline(l.uid, l._world.iid, true));
-		return levelTimelines.get(l.uid);
-	}
-
-
-	public function saveLayerStatesByLevel(lis:Array<data.inst.LayerInstance>) {
-		var byLevel : Map<Int,Array<data.inst.LayerInstance>> = new Map();
-		for(li in lis) {
-			if( li==null )
-				continue;
-			if( !byLevel.exists(li.levelId) )
-				byLevel.set(li.levelId, []);
-			var arr = byLevel.get(li.levelId);
-			if( arr.indexOf(li)<0 )
-				arr.push(li);
-		}
-
-		for(levelId in byLevel.keys()) {
-			var l = project.getLevelAnywhere(levelId);
-			if( l!=null )
-				ensureLevelTimeline(l).saveLayerStates(byLevel.get(levelId));
-		}
-	}
-
-
 	public function new(p:data.Project, ?loadLevelIndex:Int) {
 		super();
 
@@ -252,8 +225,6 @@ class Editor extends Page {
 			if( ev.keyCode==K.SPACE && !e.is("input") && !e.is("textarea") )
 				ev.preventDefault();
 		});
-
-		data.SelectionTemplates.installUi(this);
 	}
 
 	public function setPermanentNotification(id:String, ?jContent:js.jquery.JQuery) {
@@ -315,7 +286,6 @@ class Editor extends Page {
 
 		project = p;
 		project.tidy();
-		data.SelectionTemplates.attachProject(project);
 
 		var all = ui.ProjectSaver.listBackupFiles(project.getBackupId(), project.getAbsBackupDir());
 
@@ -580,12 +550,6 @@ class Editor extends Page {
 
 	override function onKeyPress(keyCode:Int) {
 		super.onKeyPress(keyCode);
-
-		// Consume layer-transfer arrows before any other tool sees them. This keeps
-		// Ctrl+Alt+Up/Down (Control+Option on macOS) isolated from navigation and
-		// brush shortcuts, including when a transfer is safely rejected.
-		if( !hasInputFocus() && !ui.Modal.hasAnyOpen() && !worldMode && selectionTool.handleLayerTransferShortcut(keyCode) )
-			return;
 
 		switch keyCode {
 			// Select layers (numbers 1-9-0)
@@ -932,15 +896,8 @@ class Editor extends Page {
 				onNavigateShortcut(1, 0, true);
 		}
 
-		if( curTool!=null ) {
-			// Keep flip shortcuts command-driven: user/custom key mappings remain
-			// untouched. When a flippable scene selection exists, the same command
-			// transforms that selection instead of changing the tileset brush state.
-			if( selectionTool.canFlipSelection() && ( cmd==C_FlipX || cmd==C_FlipY ) )
-				selectionTool.onAppCommand(cmd);
-			else
-				curTool.onAppCommand(cmd);
-		}
+		if( curTool!=null )
+			curTool.onAppCommand(cmd);
 	}
 
 
@@ -1024,18 +981,6 @@ class Editor extends Page {
 		clearSpecialTool();
 		specialTool = t;
 		updateTool();
-	}
-
-	/** Ctrl+Shift + left drag erases a rectangle on the active Entities layer. */
-	function isEntityRectangleEraseShortcut():Bool {
-		return curLayerDef!=null && curLayerDef.type==Entities
-			&& tool.lt.EntityTool.isCtrlShiftEraseInput();
-	}
-
-	function isEntityRectangleEraseRunning():Bool {
-		return curLayerDef!=null && curLayerDef.type==Entities
-			&& Std.isOfType(curTool,tool.lt.EntityTool)
-			&& (cast curTool:tool.lt.EntityTool).isEraseRectangleRunning();
 	}
 
 	function hasEntityInThisLayer(m:Coords) {
@@ -1166,28 +1111,19 @@ class Editor extends Page {
 
 		var m = getMouse();
 
-		// On macOS a physical Control+left click may arrive as a secondary click.
-		// Do not let viewport panning consume Ctrl+Shift entity erase.
-		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
-			panTool.startUsing(ev,m);
+		panTool.startUsing(ev,m);
 
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);
 
-		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() )
+		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() )
 			resizeTool.onMouseDown( ev, m );
 
 		if( !ev.cancel && !project.isBackup() && !ui.ValuePicker.exists() )
 			rulers.onMouseDown( ev, m );
 
 		if( !ev.cancel && !worldMode && !project.isBackup() ) {
-			// A point destination may overlap its owner, another entity or a selection.
-			// SelectionTool.startUsing() would cancel the picker before it receives the click.
-			if( isSpecialToolActive(tool.PickPoint) )
-				specialTool.startUsing( ev, m );
-			else if( (ev.button==0 || App.isMac() && ev.button==1) && isEntityRectangleEraseShortcut() )
-				curTool.startUsing( ev, m );
-			else if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
+			if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
 				selectionTool.startUsing( ev, m );
 			else if( isSpecialToolActive() )
 				specialTool.startUsing( ev, m )
@@ -1245,22 +1181,13 @@ class Editor extends Page {
 				ui.ValuePicker.ME.onMouseMoveCursor(cursorEvent,m);
 			}
 
-			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() && !isEntityRectangleEraseRunning() ) {
+			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() ) {
 				resizeTool.onMouseMove(ev,m);
 				resizeTool.onMouseMoveCursor(cursorEvent,m);
 			}
 
 			if( !ev.cancel && !worldMode && !ui.ValuePicker.exists() ) {
-				// Match mouse-down priority so the point/link preview stays visible over entities.
-				if( isSpecialToolActive(tool.PickPoint) ) {
-					specialTool.onMouseMove(ev,m);
-					specialTool.onMouseMoveCursor(cursorEvent,m);
-				}
-				else if( isEntityRectangleEraseRunning() ) {
-					curTool.onMouseMove(ev,m);
-					curTool.onMouseMoveCursor(cursorEvent,m);
-				}
-				else if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
+				if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
 					selectionTool.onMouseMove(ev,m);
 					selectionTool.onMouseMoveCursor(cursorEvent,m);
 				}
@@ -2662,7 +2589,6 @@ class Editor extends Page {
 				case Entities:
 					_createGuideBlock([K.ALT], "mouseLeft", L.t._("Pick"));
 					_createGuideBlock([K.CTRL,K.ALT], "mouseLeft", L.t._("Copy"));
-					_createGuideBlock([K.CTRL,K.SHIFT], "mouseLeft", L.t._("Erase area"));
 					// _createGuideBlock([K.CTRL], null, L.t._("(while moving) Free mode"));
 
 				case Tiles:

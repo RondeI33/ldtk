@@ -5,14 +5,13 @@ class Panel extends ui.Modal {
 	var jLinkedButton : Null<js.jquery.JQuery>;
 	var jCloseButton : js.jquery.JQuery;
 
-	public function new(preserveSelection=false) {
+	public function new() {
 		super();
 
 		LOG.userAction("Opened panel "+this);
 		ui.Modal.closeAll(this);
 
-		if( !preserveSelection )
-			editor.selectionTool.clear();
+		editor.selectionTool.clear();
 
 		var mainPanel = new J("#mainPanel");
 
@@ -49,18 +48,6 @@ class Panel extends ui.Modal {
 
 	}
 
-
-	public function allowCanvasInteraction() {
-		// Keep the native Panel lifecycle/linking, but do not intercept map input
-		// outside the actual panel wrapper.
-		if( jPanelMask!=null )
-			jPanelMask.css("pointer-events","none");
-		if( jMask!=null )
-			jMask.css("pointer-events","none");
-		jModalAndMask.css("pointer-events","none");
-		jWrapper.css("pointer-events","auto");
-	}
-
 	function checkBackup() {
 		if( !project.isBackup() )
 			return;
@@ -91,7 +78,7 @@ class Panel extends ui.Modal {
 		jCloseButton.show().appendTo(jTitle);
 	}
 
-	public function linkToButton(selector:String) {
+	function linkToButton(selector:String) {
 		jLinkedButton = new J(selector);
 		jLinkedButton.addClass("active");
 		jLinkedButton.closest(".buttons").addClass("faded");

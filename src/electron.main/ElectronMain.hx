@@ -16,9 +16,6 @@ class ElectronMain {
 			App.commandLine.appendSwitch("force_high_performance_gpu");
 
 		App.whenReady().then( (_)->showSplashWindow() );
-		App.on('before-quit', function() {
-			SmartiveControlServer.stop();
-		});
 
 		// Mac
 		App.on('window-all-closed', function() {
@@ -49,14 +46,6 @@ class ElectronMain {
 			mainWindow.on('move', function(ev) {
 				mainWindow.webContents.send("onWinMove");
 			});
-		});
-
-		IpcMain.handle("smartiveProjectPath", function(ev, projectPath:Null<String>) {
-			SmartiveControlServer.setProjectPath(projectPath);
-		});
-
-		IpcMain.handle("smartiveControlResponse", function(ev, requestId:Int, status:Int, json:String) {
-			SmartiveControlServer.completeRendererRequest(requestId,status,json);
 		});
 
 
@@ -119,12 +108,13 @@ class ElectronMain {
 		});
 		dn.js.ElectronTools.initMain(mainWindow);
 
-		// Window menu. Keeping Cmd/Ctrl+R as Electron window reload also prevents
-		// the renderer's old custom-command binding from consuming it.
-		enableAppMenu();
-
-		// One process-local loopback server; port 0 allows multiple editor instances.
-		SmartiveControlServer.start(mainWindow);
+		// Window menu
+		#if debug
+			enableDebugMenu();
+		#else
+			// electron.main.Menu.setApplicationMenu( electron.main.Menu.buildFromTemplate( [] ) ); // macos
+			mainWindow.removeMenu(); // windows
+		#end
 
 		// Load app page
 		var p = mainWindow.loadFile('assets/app.html');
@@ -155,41 +145,27 @@ class ElectronMain {
 	}
 
 
-	static function enableAppMenu() {
-		var fileSubmenu : Array<Dynamic> = [];
-		fileSubmenu.push(cast {
-			label: "Reload project from disk",
-			accelerator: "CmdOrCtrl+Shift+R",
-			click: function() {
-				if( mainWindow!=null )
-					mainWindow.webContents.send("smartiveManualReload");
-			},
-		});
-		fileSubmenu.push(cast { type:"separator" });
-		fileSubmenu.push(cast { role:"quit" });
 
-		var viewSubmenu : Array<Dynamic> = [];
-		viewSubmenu.push(cast {
-			label: "Reload window",
-			accelerator: "CmdOrCtrl+R",
-			click: function() {
-				if( mainWindow!=null )
-					mainWindow.reload();
-			},
-		});
-		#if debug
-		viewSubmenu.push(cast {
-			label: "Dev tools",
-			click: function() mainWindow.webContents.toggleDevTools(),
-			accelerator: "CmdOrCtrl+Shift+I",
-		});
-		#end
+	// Create a custom debug menu
+	#if debug
+	static function enableDebugMenu() {
+		var menu = electron.main.Menu.buildFromTemplate([{
+			label: "Debug tools",
+			submenu: cast [
+				{
+					label: "Reload",
+					click: function() mainWindow.reload(),
+					accelerator: "CmdOrCtrl+R",
+				},
+				{
+					label: "Dev tools",
+					click: function() mainWindow.webContents.toggleDevTools(),
+					accelerator: "CmdOrCtrl+Shift+I",
+				},
+			]
+		}]);
 
-		var template : Array<Dynamic> = [
-			cast { label:"File", submenu:fileSubmenu },
-			cast { label:"View", submenu:viewSubmenu },
-		];
-
-		mainWindow.setMenu( electron.main.Menu.buildFromTemplate(cast template) );
+		mainWindow.setMenu(menu);
 	}
+	#end
 }

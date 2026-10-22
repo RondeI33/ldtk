@@ -2,8 +2,6 @@ class Const {
 #if !macro
 	static var RAW_APP_VERSION : String = MacroTools.getAppVersion();
 	static var RAW_JSON_VERSION : String = MacroTools.getJsonVersion();
-	public static final MIN_LDTK_JSON_VERSION = "1.5.0";
-	public static final LDTK_JSON_COMPAT_FALLBACK = "1.5.3";
 
 	public static function getAppVersionStr(short=false) : String {
 		if( short )
@@ -39,17 +37,11 @@ class Const {
 
 	/**
 		The Smartive application version is independent from the LDtk JSON schema
-		version. A Smartive release number must never be written to `jsonVersion`.
-
-		The canonical value comes from docs/version.txt. The lower-bound guard is
-		intentional: if version wiring ever regresses and feeds a Smartive 1.0.x
-		value here, project files stay compatible with LDtk 1.5.x importers instead
-		of being silently corrupted.
+		version. Keeping this at the upstream compatibility version prevents a
+		Smartive 1.x release from making existing LDtk 1.5.3 projects look old.
 	**/
 	public static function getJsonVersion() : String {
-		return dn.Version.lower(RAW_JSON_VERSION, MIN_LDTK_JSON_VERSION, true)
-			? LDTK_JSON_COMPAT_FALLBACK
-			: RAW_JSON_VERSION;
+		return RAW_JSON_VERSION;
 	}
 
 	public static final APP_NAME = "LDTK-Smartive";

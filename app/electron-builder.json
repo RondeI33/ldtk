@@ -50,21 +50,15 @@
 
 	"nsis": {
 		"oneClick": true,
-		"shortcutName": "LDTK-Smartive",
-		"installerIcon": "buildAssets/icon.ico",
-		"uninstallerIcon": "buildAssets/icon.ico"
+		"shortcutName": "LDTK-Smartive"
 	},
 
 	"win": {
-		"target": "nsis",
-		"icon": "buildAssets/icon.ico"
+		"target": "nsis"
 	},
 
-	"mac": {
-		"icon": "buildAssets/icon.icns"
-	},
+	"mac": {},
 	"linux": {
-		"target": "AppImage",
-		"icon": "buildAssets/icon.png"
+		"target": "AppImage"
 	}
 }

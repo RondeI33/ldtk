@@ -21,7 +21,6 @@ class EntityRender extends dn.Process {
 	var center: h2d.Flow;
 	var beneath: h2d.Flow;
 	var fieldGraphics : h2d.Graphics;
-	var pathPreview : Null<PathPreviewRender>;
 
 	var coreInvalidated = true;
 	var layoutInvalidated = true;
@@ -62,7 +61,6 @@ class EntityRender extends dn.Process {
 		beneath = null;
 		center = null;
 		fieldGraphics = null;
-		pathPreview = null;
 		core = null;
 	}
 
@@ -299,20 +297,6 @@ class EntityRender extends dn.Process {
 		beneath.removeChildren();
 		fieldGraphics.clear();
 
-		// Sidecar-only drawing stays below the stock path points and selection handles.
-		var preview = ei._project.forkConfig.getPathPreview(ei);
-		if( preview!=null ) {
-			if( pathPreview==null ) {
-				pathPreview = new PathPreviewRender(root);
-				root.addChildAt(pathPreview,1);
-			}
-			pathPreview.render(ei,preview);
-		}
-		else if( pathPreview!=null ) {
-			pathPreview.remove();
-			pathPreview = null;
-		}
-
 		// Attach fields
 		var color = ei.getSmartColor(false);
 		var ctx : display.FieldInstanceRender.FieldRenderContext = EntityCtx(fieldGraphics, ei, ld);
@@ -429,9 +413,6 @@ class EntityRender extends dn.Process {
 
 	override function postUpdate() {
 		super.postUpdate();
-
-		if( pathPreview!=null )
-			pathPreview.visible = !PathPreviewRender.isSuppressed(ei);
 
 		if( fieldsRenderInvalidated && !cd.has("fieldsRenderLimit") ) {
 			cd.setS("fieldsRenderLimit", 0.20);

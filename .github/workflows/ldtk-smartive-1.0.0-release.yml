@@ -3,40 +3,10 @@ name: LDTK-Smartive release
 on:
   push:
     branches:
-      - master
+      - feature/auto-place-sub-entities
     paths:
       - app/package.json
       - docs/SMARTIVE_CHANGELOG.md
-      - app/scripts/template-*.cjs
-      - app/assets/js/selection-template-editor.js
-      - src/electron.renderer/data/SelectionTemplates.hx
-      - src/electron.renderer/page/Editor.hx
-      - src/electron.renderer/ui/ProjectSaver.hx
-      - src/electron.renderer/tool/SelectionTemplateTool.hx
-      - src/electron.renderer/tool/SelectionTool.hx
-      - src/electron.renderer/LevelTimeline.hx
-      - src/electron.renderer/tool/lt/EntityTool.hx
-      - src/electron.renderer/data/ForkConfig.hx
-      - src/electron.renderer/data/def/EntityDef.hx
-      - src/electron.renderer/ui/EntityInstanceEditor.hx
-      - src/electron.renderer/data/MultiEntityEdit.hx
-      - src/electron.renderer/ui/MultiEntityInstanceEditor.hx
-      - app/scripts/*entity-multi*
-      - app/scripts/*entity-history*
-      - app/scripts/*entity-chain*
-      - app/scripts/*point*
-      - src/electron.renderer/tool/PickPoint.hx
-      - src/electron.renderer/GenericLevelElementGroup.hx
-      - src/electron.renderer/test/SelectionDragTestHooks.hx
-      - app/scripts/selection-*.cjs
-      - src/electron.renderer/ui/TemplateEditorBridge.hx
-      - src/electron.renderer/ui/modal/Dialog.hx
-      - src/electron.renderer/ui/modal/Panel.hx
-      - src/electron.renderer/ui/modal/dialog/SelectionTemplateEditor.hx
-      - src/electron.renderer/ui/modal/dialog/SelectionTemplateImportPicker.hx
-      - src/electron.renderer/ui/modal/panel/SelectionTemplatesPanel.hx
-      - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
-      - app/assets/tpl/selectionTemplatesPanel.html
       - .github/workflows/ldtk-smartive-1.0.0-release.yml
   workflow_dispatch:
     inputs:
@@ -121,76 +91,8 @@ jobs:
           echo "Smartive version: $VERSION"
           echo "LDtk JSON compatibility version: $(tr -d '\r\n' < docs/version.txt)"
 
-  entity-runtime:
-    # Gate EVERY platform package job on real Haxe-compiled editor regressions.
-    # No installers may be built if point picking, entity history, auto-chain or multi-edit fails.
-    needs: prepare
-    if: needs.prepare.outputs.should_release == 'true'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-15-intel]
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: krdlab/setup-haxe@v2
-        with:
-          haxe-version: '4.3.3'
-      - run: haxe setup.hxml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Node dependencies
-        working-directory: app
-        run: npm install --no-audit --no-fund
-      - name: Point placement real Electron regression
-        if: runner.os == 'Linux'
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:points
-      - name: Point placement real Electron regression (macOS Intel)
-        if: runner.os == 'macOS'
-        working-directory: app
-        run: npm run test:points
-      - name: Entity selection/history real Electron regression
-        if: runner.os == 'Linux'
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" node scripts/run-entity-history-tests.cjs
-      # Electron 24 cannot initialize WebGL on headless GitHub macOS ARM64;
-      # run GUI regression on Intel, and keep universal arm64+Intel packaging.
-      - name: Entity selection/history real Electron regression (macOS Intel)
-        if: runner.os == 'macOS'
-        working-directory: app
-        run: node scripts/run-entity-history-tests.cjs
-      - name: Auto-chain back references real Electron regression
-        if: runner.os == 'Linux'
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:entity-chain
-      - name: Auto-chain back references real Electron regression (macOS Intel)
-        if: runner.os == 'macOS'
-        working-directory: app
-        run: npm run test:entity-chain
-      - name: Multi-entity field editor real Electron regression
-        if: runner.os == 'Linux'
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:entity-multi
-      - name: Multi-entity field editor real Electron regression (macOS Intel)
-        if: runner.os == 'macOS'
-        working-directory: app
-        run: npm run test:entity-multi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
-          path: |
-            app/test-results/points
-            app/test-results/entity-history
-            app/test-results/entity-chain
-            app/test-results/entity-multi
-          if-no-files-found: warn
-
   windows:
-    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
+    needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: windows-latest
     env:
@@ -203,7 +105,16 @@ jobs:
           haxe-version: '4.3.3'
 
       - name: Install Haxe libraries
-        run: haxe setup.hxml
+        shell: bash
+        run: |
+          haxelib install uuid --quiet
+          haxelib git castle https://github.com/ncannasse/castle
+          haxelib git heaps https://github.com/deepnight/heaps.git
+          haxelib git hxnodejs https://github.com/HaxeFoundation/hxnodejs.git
+          haxelib git electron https://github.com/tong/hxelectron.git
+          haxelib git heaps-aseprite https://github.com/AustinEast/heaps-aseprite.git
+          haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git --always
+          haxelib git deepnightLibs https://github.com/deepnight/deepnightLibs.git --always
 
       - uses: actions/setup-node@v4
         with:
@@ -212,10 +123,6 @@ jobs:
       - name: Install Node dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
-
-      - name: PSD import runtime smoke test
-        working-directory: app
-        run: npm run test:psd-import
 
       - name: Verify package version
         working-directory: app
@@ -263,7 +170,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
+    needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: macos-latest
     env:
@@ -284,10 +191,6 @@ jobs:
       - name: Install Node dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
-
-      - name: PSD import runtime smoke test
-        working-directory: app
-        run: npm run test:psd-import
 
       - name: Package universal macOS
         working-directory: app
@@ -315,7 +218,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    needs: [prepare, entity-runtime, template-runtime, selection-runtime]
+    needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:
@@ -360,62 +263,8 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-
-  template-runtime:
-    needs: prepare
-    if: needs.prepare.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: krdlab/setup-haxe@v2
-        with:
-          haxe-version: '4.3.3'
-      - run: haxe setup.hxml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Node dependencies
-        working-directory: app
-        run: npm install --no-audit --no-fund
-      - name: Template model and actual Electron UI regression
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:templates
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: template-runtime-${{ needs.prepare.outputs.version }}
-          path: app/test-results/templates
-          if-no-files-found: warn
-
-
-  selection-runtime:
-    needs: prepare
-    if: needs.prepare.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: krdlab/setup-haxe@v2
-        with:
-          haxe-version: '4.3.3'
-      - run: haxe setup.hxml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install Node dependencies
-        working-directory: app
-        run: npm install --no-audit --no-fund
-      - name: Selection move/copy Electron regression
-        working-directory: app
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: selection-runtime-${{ needs.prepare.outputs.version }}
-          path: app/test-results/selection
-          if-no-files-found: warn
-
   publish:
-    needs: [prepare, entity-runtime, windows, macos, linux, template-runtime, selection-runtime]
+    needs: [prepare, windows, macos, linux]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     env:

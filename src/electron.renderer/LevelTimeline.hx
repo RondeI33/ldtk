@@ -158,9 +158,6 @@ class LevelTimeline {
 		Save a single layer instance state
 	**/
 	public function saveLayerState(li:data.inst.LayerInstance) {
-		if( level==null || li==null )
-			return;
-
 		startTimer();
 		editor.levelRender.updateInvalidations(); // Required to make sure that latest Auto-Layers tiles are stored in the JSON
 		advanceIndex();
@@ -200,12 +197,6 @@ class LevelTimeline {
 		Save a selection of layer instances states
 	**/
 	public function saveLayerStates(lis:Array<data.inst.LayerInstance>) {
-		if( level==null || lis==null )
-			return;
-		lis = lis.filter(li->li!=null);
-		if( lis.length==0 )
-			return; // A no-op must not advance the index or discard the redo tail.
-
 		startTimer();
 		editor.levelRender.updateInvalidations(); // Required to make sure that latest Auto-Layers tiles are stored in the JSON
 		advanceIndex();
@@ -254,34 +245,19 @@ class LevelTimeline {
 		Copy previous layer instances states if they didn't change in current index
 	**/
 	function prolongatePreviousStates() {
-		checkOrInitState(curStateIdx);
-		var s = getState(curStateIdx);
+		var s = states.get(curStateIdx);
 
 		if( s.layerJsons==null )
-			s.layerJsons = new Map();
-
-		var previous = getState(curStateIdx-1);
-		if( previous==null || previous.layerJsons==null || previous.fullLevelJson==null ) {
-			// A newly initialized/reset timeline may receive a layer save before
-			// its first full snapshot. Store a complete checkpoint, not a partial
-			// state with undefined layerJsons, and do not invent a pre-edit state.
-			s.fullLevelJson = level.toJson(true);
-			for(layerJson in s.fullLevelJson.layerInstances)
-				if( !s.layerJsons.exists(layerJson.layerDefUid) )
-					s.layerJsons.set(layerJson.layerDefUid, layerJson);
-			return;
-		}
+			s.layerJsons = new Map(); // not sure why this could happen
 
 		// Layer JSONs
 		for(li in level.layerInstances)
-			if( !s.layerJsons.exists(li.layerDefUid) ) {
-				var layerJson = previous.layerJsons.get(li.layerDefUid);
-				s.layerJsons.set(li.layerDefUid, layerJson!=null ? layerJson : li.toJson());
-			}
+			if( !s.layerJsons.exists(li.layerDefUid) )
+				s.layerJsons.set(li.layerDefUid, states.get(curStateIdx-1).layerJsons.get(li.layerDefUid));
 
 		// Level JSON
 		if( s.fullLevelJson==null )
-			s.fullLevelJson = previous.fullLevelJson;
+			s.fullLevelJson = states.get(curStateIdx-1).fullLevelJson;
 	}
 
 

@@ -1,3 +1,9 @@
+# 1.0.31
+
+## Slack Flow
+
+- Update Slack Flow.
+
 # 1.0.30
 
 ## CargoLine path preview

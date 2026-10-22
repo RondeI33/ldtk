@@ -434,3 +434,66 @@ jobs:
             --title "LDTK-Smartive ${SMARTIVE_VERSION}" \
             --notes-file release-notes.md \
             --latest
+
+
+        
+      - name: Notify Slack about new release
+        if: success()
+        continue-on-error: true
+        shell: bash
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL is not configured"
+            exit 0
+          fi
+
+          gh release view "$SMARTIVE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json name,url,body,isDraft,isPrerelease > release.json
+
+          jq -e '.isDraft == false and .isPrerelease == false' release.json >/dev/null
+
+          jq -n \
+            --arg version "$SMARTIVE_TAG" \
+            --arg title "$(jq -r '.name' release.json)" \
+            --arg url "$(jq -r '.url' release.json)" \
+            --arg notes "$(jq -r '.body' release.json | head -c 12000)" \
+            '{
+              text: ("New LDTK-Smartive release: " + $version),
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ("LDTK-Smartive " + $version)
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ("*New version available!*\n<" + $url + "|Download release>")
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ("*Patch notes:*\n" + $notes)
+                  }
+                }
+              ]
+            }' > slack-payload.json
+
+          curl --fail-with-body --silent --show-error \
+            --retry 3 \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data-binary @slack-payload.json \
+            "$SLACK_WEBHOOK_URL"
+

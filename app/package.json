@@ -41,7 +41,8 @@
 		"test:entity-history": "node scripts/run-entity-history-tests.cjs",
 		"test:entity-chain": "node scripts/run-entity-chain-tests.cjs",
 		"test:entity-multi": "node scripts/run-entity-multi-tests.cjs",
-		"test:points": "node scripts/run-point-tests.cjs"
+		"test:points": "node scripts/run-point-tests.cjs",
+		"test:path-preview": "node scripts/run-path-preview-tests.cjs"
 	},
 	"repository": {
 		"type": "git",

@@ -1,0 +1,4 @@
+-cp src/electron.common
+-cp tests/path-preview
+-main PathPreviewGeometryTest
+--interp

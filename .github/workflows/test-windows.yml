@@ -1,61 +1,128 @@
-name: test-windows
+name: LDTK-Smartive manual artifact build
 
+# Keep this existing workflow path so it can be selected from Actions before
+# the feature branch is merged. Select feature/cargo-path-preview in Run workflow.
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: smartive-manual-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build:
-
+  regressions:
+    name: Preview and editor regressions (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest]
-        haxe: [4.3.3]
-      fail-fast: true
-    runs-on: windows-latest
-
+        # Electron 24 requires the Intel runner for headless macOS WebGL.
+        os: [ubuntu-latest, macos-15-intel]
     steps:
-      # Get branch name
-      - name: getBranch
-        shell: bash
-        run: echo "::set-output name=v::${GITHUB_REF#refs/heads/}"
-        id: branch
+      - uses: actions/checkout@v4
 
-      # Checkout & install haxe
-      - uses: actions/checkout@v2
       - uses: krdlab/setup-haxe@v2
         with:
-          haxe-version: ${{ matrix.haxe }}
-      - run: haxe -version
+          haxe-version: '4.3.3'
 
-      # Install libs
-      - run: haxelib install uuid
-      - run: haxelib git castle https://github.com/ncannasse/castle
-      - run: haxelib git heaps https://github.com/deepnight/heaps.git
-      - run: haxelib git hxnodejs https://github.com/HaxeFoundation/hxnodejs.git
-      - run: haxelib git electron https://github.com/tong/hxelectron.git
-      - run: haxelib git heaps-aseprite https://github.com/AustinEast/heaps-aseprite.git
+      - name: Install Haxe libraries
+        run: haxe setup.hxml
 
-      # Install haxe API from same branch (if it exists)...
-      - name: Install Haxe API from same branch
-        id: installApiBranch
-        run: haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git ${{ steps.branch.outputs.v }} --always
-        continue-on-error: true
-      # ... or from master otherwise
-      - name: Install Haxe API from master
-        if: steps.installApiBranch.outcome == 'failure'
-        run: |
-          haxelib remove ldtk-haxe-api
-          haxelib git ldtk-haxe-api https://github.com/deepnight/ldtk-haxe-api.git --always
-
-      # Install deepnightLibs
-      - run: haxelib git deepnightLibs https://github.com/deepnight/deepnightLibs.git --always
-      - run: haxelib list
-
-      # Node/NPM commands
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: cd app && npm install
-      - run: cd app && npm run compile
-      - run: cd app && npm run test:psd-import
 
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Path preview, point picking and sidecar regressions (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: |
+          xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:path-preview
+          xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:points
+          xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:entity-chain
+          xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:selection
+
+      - name: Path preview, point picking and sidecar regressions (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: |
+          npm run test:path-preview
+          npm run test:points
+          npm run test:entity-chain
+
+      - name: Upload regression evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cargo-preview-regressions-${{ matrix.os }}-${{ github.run_number }}
+          path: |
+            app/test-results/path-preview
+            app/test-results/points
+            app/test-results/entity-chain
+            app/test-results/selection
+          if-no-files-found: warn
+
+  package:
+    name: Package ${{ matrix.platform }}
+    # Do not build installers until both real-editor regression jobs pass.
+    needs: regressions
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            build_args: --win --x64
+            artifact_path: app/redist/*.exe
+          - os: macos-latest
+            platform: macos-universal
+            build_args: --mac --universal
+            artifact_path: app/redist/*.dmg
+          - os: ubuntu-latest
+            platform: linux-x64
+            build_args: --linux --x64
+            artifact_path: app/redist/*.AppImage
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+
+      - name: Install Haxe libraries
+        run: haxe setup.hxml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Compile editor and documentation
+        working-directory: app
+        run: npm run pack-prepare
+
+      - name: Package for manual testing
+        working-directory: app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder build ${{ matrix.build_args }} --publish never
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: LDTK-Smartive-cargo-preview-${{ matrix.platform }}-${{ github.run_number }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+          retention-days: 14

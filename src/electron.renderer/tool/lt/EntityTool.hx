@@ -28,6 +28,20 @@ class EntityTool extends tool.LayerTool<Int> {
 		PREV_CHAINABLE_EI = null;
 	}
 
+	/**
+		Ctrl+Shift + primary mouse button is an erase rectangle on Entity layers.
+		Use the physical Control key on macOS, just like other Ctrl shortcuts.
+		Do not remap any configurable command.
+	**/
+	public static inline function isCtrlShiftEraseInput():Bool {
+		return App.ME.isShiftDown()
+			&& (App.isMac() ? App.ME.isMacCtrlDown() : App.ME.isCtrlCmdDown())
+			&& !App.ME.isAltDown();
+	}
+
+	public inline function isEraseRectangleRunning():Bool
+		return isRunning() && rectangle && curMode==Remove;
+
 	public inline function isChainingRef() {
 		return getEntityChainableFieldInstance(PREV_CHAINABLE_EI)!=null;
 	}
@@ -96,6 +110,11 @@ class EntityTool extends tool.LayerTool<Int> {
 			editor.cursor.set(Forbidden);
 			ev.cancel = true;
 		}
+		else if( isEraseRectangleRunning() ) {
+			var r = Rect.fromCoords(origin,m);
+			editor.cursor.set( GridRect(curLayerInstance,r.left,r.top,r.wid,r.hei,0xff5959) );
+			ev.cancel = true;
+		}
 		else if( isRunning() && curMode==Remove ) {
 			editor.cursor.set( Eraser(m.levelX,m.levelY) );
 			ev.cancel = true;
@@ -123,6 +142,21 @@ class EntityTool extends tool.LayerTool<Int> {
 
 
 	override function startUsing(ev:hxd.Event, m:Coords, ?extraParam:String) {
+		if( (ev.button==0 || App.isMac() && ev.button==1) && isCtrlShiftEraseInput() ) {
+			// The ordinary entity picker/selection takes priority over painting.
+			// Skip it for Ctrl+Shift, locking this entire drag into rectangle erase.
+			super.startUsing(ev,m,extraParam);
+			if( isRunning() ) {
+				curMode = Remove; // Tool uses Ctrl as Remove only on macOS.
+				forkTouchedLayers = new Map();
+				editor.selectionTool.clear();
+				editor.clearResizeTool();
+				cancelRefChaining();
+				ev.cancel = true;
+			}
+			return;
+		}
+
 		super.startUsing(ev,m,extraParam);
 
 		var ge = editor.getGenericLevelElementAt(m, true);
@@ -240,6 +274,37 @@ class EntityTool extends tool.LayerTool<Int> {
 		}
 	}
 
+
+	/** A short Ctrl+Shift click erases just the entity/point below the cursor. */
+	override function useFloodfillAt(m:Coords):Bool {
+		return isEraseRectangleRunning() && removeAnyEntityOrPointAt(m);
+	}
+
+	/**
+		Delete entity instances whose pivot cells fall inside the dragged rectangle.
+		All removals are limited to the active Entities layer. No point belonging to
+		an entity outside the rectangle is removed, even if its path crosses it.
+	**/
+	override function useOnRectangle(m:Coords, left:Int, right:Int, top:Int, bottom:Int):Bool {
+		if( !isEraseRectangleRunning() )
+			return false;
+
+		var li = curLayerInstance;
+		var targets = li.entityInstances.filter(ei ->
+			ei.getCx(li.def)>=left && ei.getCx(li.def)<=right
+			&& ei.getCy(li.def)>=top && ei.getCy(li.def)<=bottom
+		);
+		if( targets.length==0 )
+			return false;
+
+		for(ei in targets) {
+			addForkTouched(project.forkConfig.eraseEntityStamps(ei));
+			editor.curLevelTimeline.markEntityChange(ei);
+			li.removeEntityInstance(ei);
+			editor.ge.emit( EntityInstanceRemoved(ei) );
+		}
+		return true;
+	}
 
 	function createAutoChildren(parent:data.inst.EntityInstance) : Array<data.inst.EntityInstance> {
 		var created : Array<data.inst.EntityInstance> = [];
@@ -562,11 +627,6 @@ class EntityTool extends tool.LayerTool<Int> {
 					return true;
 		}
 
-		return false;
-	}
-
-	override function useOnRectangle(m:Coords, left:Int, right:Int, top:Int, bottom:Int) {
-		super.useOnRectangle(m, left, right, top, bottom);
 		return false;
 	}
 

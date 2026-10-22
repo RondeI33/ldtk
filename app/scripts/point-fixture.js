@@ -88,6 +88,18 @@
    })
   };
  };
+ // Snapshot the complete entity JSON without dereferencing removed fixture IDs.
+ F.eraseState=()=>{
+  const e=F.editor(),level=F.level();
+  const source=level.getLayerInstance(F.layers[0]),other=level.getLayerInstance(F.layers[1]);
+  const values=li=>li.entityInstances.map(ei=>ei.toJson(li));
+  return {
+   source:values(source),other:values(other),
+   sentinel:level.getLayerInstance(F.sentinel).getIntGrid(30,18),
+   activeLayer:e.curLayerDefUid,
+   history:e.levelTimelines.h[e.curLevelId].curStateIdx,
+  };
+ };
  F.undo=()=>{const e=F.editor();return e.levelTimelines.h[e.curLevelId].undo();};
  F.redo=()=>{const e=F.editor();return e.levelTimelines.h[e.curLevelId].redo();};
  F.reload=()=>{

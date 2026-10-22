@@ -1,10 +1,24 @@
+import pathpreview.PathPreviewGeometry.PathPreviewPoint;
+
 typedef SelectionBounds = { top:Float, left:Float, right:Float, bottom:Float }
+
+private typedef PathPreviewDragSnapshot = {
+	var ei:data.inst.EntityInstance;
+	var li:data.inst.LayerInstance;
+	var pivot:PathPreviewPoint;
+	var points:Array<Null<PathPreviewPoint>>;
+	var selectedPoints:Map<Int,Bool>;
+	var entitySelected:Bool;
+}
 
 class GenericLevelElementGroup {
 	static var SELECTION_COLOR = 0xffcc00;
 	var editor(get,never): Editor; inline function get_editor() return Editor.ME;
 
 	var renderWrapper : h2d.Object;
+	var pathPreviewGhost : h2d.Object;
+	var pathPreviewDragSnapshots:Array<PathPreviewDragSnapshot> = [];
+	var suppressedPathPreviewIids:Array<String> = [];
 	var ghost : h2d.Graphics;
 	var selectRender : h2d.Graphics;
 	var arrow : h2d.Graphics;
@@ -36,6 +50,8 @@ class GenericLevelElementGroup {
 		renderWrapper = new h2d.Object();
 		editor.levelRender.root.add(renderWrapper, Const.DP_UI);
 
+		// The complete transient path stays below point/entity selection handles.
+		pathPreviewGhost = new h2d.Object(renderWrapper);
 		ghost = new h2d.Graphics(renderWrapper);
 
 		arrow = new h2d.Graphics(renderWrapper);
@@ -62,6 +78,7 @@ class GenericLevelElementGroup {
 		dragGridSnapshots = [];
 		dragEntitySnapshots = [];
 		dragPointSnapshots = [];
+		pathPreviewDragSnapshots = [];
 		elements = [];
 		originalRects = [];
 		clearGhost();
@@ -70,6 +87,8 @@ class GenericLevelElementGroup {
 	}
 
 	public function dispose() {
+		clearPathPreviewGhost();
+		pathPreviewDragSnapshots = [];
 		renderWrapper.remove();
 		originalRects = null;
 		_cachedBounds = null;
@@ -340,6 +359,7 @@ class GenericLevelElementGroup {
 	}
 
 	function clearGhost() {
+		clearPathPreviewGhost();
 		pointLinks.clear();
 		pointLinks.visible = false;
 
@@ -350,6 +370,103 @@ class GenericLevelElementGroup {
 		ghost.clear();
 		ghost.removeChildren();
 		ghostLayerStack = null;
+	}
+
+	function clearPathPreviewGhost() {
+		for(iid in suppressedPathPreviewIids)
+			display.PathPreviewRender.suppressedEntities.remove(iid);
+		suppressedPathPreviewIids = [];
+		pathPreviewGhost.removeChildren();
+		pathPreviewGhost.visible = false;
+	}
+
+	/** Capture raw Path indices before the move cuts entities from their source layer. */
+	function capturePathPreviewDragSnapshots() {
+		pathPreviewDragSnapshots = [];
+		var candidates:Map<String,data.inst.EntityInstance> = new Map();
+		for(ge in elements)
+			switch ge {
+				case Entity(_,ei), PointField(_,ei,_,_): candidates.set(ei.iid,ei);
+				case _:
+			}
+		for(ei in candidates) {
+			var config = editor.project.forkConfig.getPathPreview(ei);
+			if( config==null )
+				continue;
+			var selected:Map<Int,Bool> = new Map();
+			for(s in dragPointSnapshots) {
+				var fi:data.inst.FieldInstance = s.fi;
+				if( s.ei==ei && fi.defUid==config.pathField.uid )
+					selected.set(s.arrayIdx,true);
+			}
+			var entitySelected = isEntitySelected(ei);
+			if( !entitySelected && !selected.keys().hasNext() )
+				continue;
+			var points:Array<Null<PathPreviewPoint>> = [];
+			var fi = ei.getFieldInstance(config.pathField,false);
+			if( fi!=null )
+				for(i in 0...fi.getArrayLength()) {
+					var pt = fi.getPointGrid(i);
+					points.push(pt==null ? null : {
+						x:(pt.cx+0.5)*ei._li.def.gridSize,
+						y:(pt.cy+0.5)*ei._li.def.gridSize,
+					});
+				}
+			pathPreviewDragSnapshots.push({
+				ei:ei,li:ei._li,pivot:{x:ei.x*1.,y:ei.y*1.},points:points,
+				selectedPoints:selected,entitySelected:entitySelected,
+			});
+		}
+	}
+
+	/** Draw from snapshot overrides only. Dragging never writes temporary Point values. */
+	function renderPathPreviewGhost(origin:Coords, now:Coords, isCopy:Bool) {
+		clearPathPreviewGhost();
+		if( pathPreviewDragSnapshots.length==0 )
+			return;
+		var delta = getLogicalDragDelta(origin,now);
+		for(s in pathPreviewDragSnapshots) {
+			var li = s.li;
+			if( li.level!=editor.curLevel || !editor.levelRender.isLayerVisible(li) )
+				continue;
+			var grid = li.def.gridSize;
+			var pathPx:Array<PathPreviewPoint> = [];
+			for(i in 0...s.points.length) {
+				var pt = s.points[i];
+				if( pt==null )
+					continue;
+				if( s.selectedPoints.exists(i) ) {
+					var cx = M.round((pt.x+delta.x)/grid-0.5);
+					var cy = M.round((pt.y+delta.y)/grid-0.5);
+					if( s.entitySelected || li.isValid(cx,cy) )
+						pathPx.push({x:(cx+0.5)*grid,y:(cy+0.5)*grid});
+					// Copying a point inserts the moved point before its original value.
+					if( isCopy && !s.entitySelected )
+						pathPx.push(pt);
+				}
+				else
+					pathPx.push(pt);
+			}
+			var config = editor.project.forkConfig.getPathPreview(s.ei,{
+				pivotPx:s.entitySelected ? {x:s.pivot.x+delta.x,y:s.pivot.y+delta.y} : s.pivot,
+				pathPx:pathPx,
+			});
+			if( config==null )
+				continue;
+			var layerRoot = new h2d.Object(pathPreviewGhost);
+			var scale = li.def.getScale();
+			layerRoot.setPosition(li.pxParallaxX-li.pxTotalOffsetX*scale,li.pxParallaxY-li.pxTotalOffsetY*scale);
+			layerRoot.setScale(scale);
+			var preview = new display.PathPreviewRender(layerRoot);
+			preview.setPosition(s.ei.x,s.ei.y);
+			preview.render(s.ei,config,true);
+			pathPreviewGhost.visible = true;
+			// Entity copies retain their original line; point copies change the same line.
+			if( (!isCopy || !s.entitySelected) && !display.PathPreviewRender.suppressedEntities.exists(s.ei.iid) ) {
+				display.PathPreviewRender.suppressedEntities.set(s.ei.iid,true);
+				suppressedPathPreviewIids.push(s.ei.iid);
+			}
+		}
 	}
 
 	function renderSelection() {
@@ -731,6 +848,7 @@ class GenericLevelElementGroup {
 	public function onMoveStart(isCopy:Bool) {
 		deduplicateElementsForDrag();
 		captureDragSnapshot();
+		capturePathPreviewDragSnapshots();
 		movingGhost = true;
 		selectRender.visible = false;
 		renderGhost();
@@ -750,6 +868,7 @@ class GenericLevelElementGroup {
 		dragGridSnapshots = [];
 		dragEntitySnapshots = [];
 		dragPointSnapshots = [];
+		pathPreviewDragSnapshots = [];
 		movingGhost = false;
 		ghostFlipX = false;
 		ghostFlipY = false;
@@ -771,6 +890,7 @@ class GenericLevelElementGroup {
 		ghost.visible = true;
 		ghost.x = bounds.left + getDeltaX(origin,now);
 		ghost.y = bounds.top + getDeltaY(origin,now);
+		renderPathPreviewGhost(origin,now,isCopy);
 
 
 		// Movement arrow
@@ -1163,7 +1283,9 @@ class GenericLevelElementGroup {
 			return moveSelecteds(origin,to,isCopy);
 
 		var sourceLevel = dragSourceLevel!=null ? dragSourceLevel : editor.curLevel;
-		var targetLevel = getDragTargetLevel(to);
+		// A field point remains owned by its entity, even when dragged over another level.
+		var targetLevel = dragEntitySnapshots.length==0 && dragGridSnapshots.length==0
+			? sourceLevel : getDragTargetLevel(to);
 		lastDropTargetLevel = targetLevel;
 
 		// Ensure destination history exists BEFORE any destination mutation.
@@ -1261,6 +1383,7 @@ class GenericLevelElementGroup {
 			editor.ge.emit( EntityInstanceChanged(dstEi) );
 		}
 
+		var standalonePoints:Map<String,Array<Dynamic>> = new Map();
 		// Selected point fields that belong to a moved/copied entity follow it.
 		for(s in dragPointSnapshots) {
 			var srcEi : data.inst.EntityInstance = s.ei;
@@ -1270,8 +1393,18 @@ class GenericLevelElementGroup {
 			else if( !isCopy && movedEntityIids.exists(srcEi.iid) )
 				dstEi = srcEi;
 
-			if( dstEi==null )
+			if( dstEi==null ) {
+				// Point-only selections have no entry in movedEntityIids. They still
+				// commit into their owner; previously this branch discarded the drag.
+				if( !isEntitySelected(srcEi) ) {
+					var fi:data.inst.FieldInstance = s.fi;
+					var key = srcEi.iid+":"+fi.defUid;
+					if( !standalonePoints.exists(key) )
+						standalonePoints.set(key,[]);
+					standalonePoints.get(key).push(s);
+				}
 				continue;
+			}
 
 			var srcLi : data.inst.LayerInstance = s.li;
 			var dstLi = dstEi._li;
@@ -1287,6 +1420,49 @@ class GenericLevelElementGroup {
 				elements[s.elementIdx] = PointField(dstLi,dstEi,dstFi,s.arrayIdx);
 			}
 		}
+
+		for(snapshots in standalonePoints) {
+			// Insert/remove from the back so the captured source indices stay valid.
+			snapshots.sort((a,b)->b.arrayIdx-a.arrayIdx);
+			for(s in snapshots) {
+				var li:data.inst.LayerInstance = s.li;
+				var ei:data.inst.EntityInstance = s.ei;
+				var fi:data.inst.FieldInstance = s.fi;
+				var idx:Int = s.arrayIdx;
+				var cx = M.round(s.cx+dx/li.def.gridSize);
+				var cy = M.round(s.cy+dy/li.def.gridSize);
+				if( idx>=fi.getArrayLength() || (isCopy && !li.isValid(cx,cy)) )
+					continue;
+				editor.ensureLevelTimeline(li.level).markEntityChange(ei);
+				if( !li.isValid(cx,cy) ) {
+					fi.removeArrayValue(idx);
+					decrementAllFieldArrayIdxAbove(fi,idx);
+					elements[s.elementIdx] = null;
+				}
+				else {
+					if( isCopy && fi.def.isArray ) {
+						fi.addArrayValue();
+						var i = fi.getArrayLength()-1;
+						while( i>idx ) {
+							fi.parseValue(i,fi.getPointStr(i-1));
+							i--;
+						}
+						for(j in 0...elements.length)
+							switch elements[j] {
+								case PointField(pointLi,pointEi,pointFi,pointIdx):
+									if( pointFi==fi && pointIdx>=idx )
+										elements[j] = PointField(pointLi,pointEi,pointFi,pointIdx+1);
+								case _:
+							}
+					}
+					fi.parseValue(idx,cx+Const.POINT_SEPARATOR+cy);
+					elements[s.elementIdx] = PointField(li,ei,fi,idx);
+				}
+				changed.set(li.iid,li);
+				editor.ge.emit( EntityInstanceChanged(ei) );
+			}
+		}
+		elements = elements.filter(e->e!=null);
 
 		// Move stored rectangle into destination level space.
 		if( originalRects.length>0 )

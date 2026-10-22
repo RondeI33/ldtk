@@ -1026,6 +1026,18 @@ class Editor extends Page {
 		updateTool();
 	}
 
+	/** Ctrl+Shift + left drag erases a rectangle on the active Entities layer. */
+	function isEntityRectangleEraseShortcut():Bool {
+		return curLayerDef!=null && curLayerDef.type==Entities
+			&& tool.lt.EntityTool.isCtrlShiftEraseInput();
+	}
+
+	function isEntityRectangleEraseRunning():Bool {
+		return curLayerDef!=null && curLayerDef.type==Entities
+			&& Std.isOfType(curTool,tool.lt.EntityTool)
+			&& (cast curTool:tool.lt.EntityTool).isEraseRectangleRunning();
+	}
+
 	function hasEntityInThisLayer(m:Coords) {
 		if( curLayerInstance==null || curLayerInstance.def.type!=Entities )
 			return false;
@@ -1154,12 +1166,15 @@ class Editor extends Page {
 
 		var m = getMouse();
 
-		panTool.startUsing(ev,m);
+		// On macOS a physical Control+left click may arrive as a secondary click.
+		// Do not let viewport panning consume Ctrl+Shift entity erase.
+		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
+			panTool.startUsing(ev,m);
 
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);
 
-		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) )
+		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() )
 			resizeTool.onMouseDown( ev, m );
 
 		if( !ev.cancel && !project.isBackup() && !ui.ValuePicker.exists() )
@@ -1170,6 +1185,8 @@ class Editor extends Page {
 			// SelectionTool.startUsing() would cancel the picker before it receives the click.
 			if( isSpecialToolActive(tool.PickPoint) )
 				specialTool.startUsing( ev, m );
+			else if( (ev.button==0 || App.isMac() && ev.button==1) && isEntityRectangleEraseShortcut() )
+				curTool.startUsing( ev, m );
 			else if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
 				selectionTool.startUsing( ev, m );
 			else if( isSpecialToolActive() )
@@ -1228,7 +1245,7 @@ class Editor extends Page {
 				ui.ValuePicker.ME.onMouseMoveCursor(cursorEvent,m);
 			}
 
-			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) ) {
+			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() && !isEntityRectangleEraseRunning() ) {
 				resizeTool.onMouseMove(ev,m);
 				resizeTool.onMouseMoveCursor(cursorEvent,m);
 			}
@@ -1238,6 +1255,10 @@ class Editor extends Page {
 				if( isSpecialToolActive(tool.PickPoint) ) {
 					specialTool.onMouseMove(ev,m);
 					specialTool.onMouseMoveCursor(cursorEvent,m);
+				}
+				else if( isEntityRectangleEraseRunning() ) {
+					curTool.onMouseMove(ev,m);
+					curTool.onMouseMoveCursor(cursorEvent,m);
 				}
 				else if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
 					selectionTool.onMouseMove(ev,m);
@@ -2641,6 +2662,7 @@ class Editor extends Page {
 				case Entities:
 					_createGuideBlock([K.ALT], "mouseLeft", L.t._("Pick"));
 					_createGuideBlock([K.CTRL,K.ALT], "mouseLeft", L.t._("Copy"));
+					_createGuideBlock([K.CTRL,K.SHIFT], "mouseLeft", L.t._("Erase area"));
 					// _createGuideBlock([K.CTRL], null, L.t._("(while moving) Free mode"));
 
 				case Tiles:

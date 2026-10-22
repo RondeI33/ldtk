@@ -8,7 +8,7 @@ process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
 app.commandLine.appendSwitch('no-sandbox');
 if(process.platform==='linux'){app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');}
 const passed=[],delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const timer=setTimeout(()=>{console.error('FAIL: point regression timed out');app.exit(1);},process.platform==='darwin'?240000:120000);
+const timer=setTimeout(()=>{console.error('FAIL: point regression timed out');app.exit(1);},process.platform==='darwin'?360000:180000);
 let running=false;
 app.on('browser-window-created',(_,win)=>{
  win.webContents.on('did-finish-load',()=>{
@@ -121,8 +121,18 @@ async function run(win){
  await begin('ToPoint');let before=await state();let after=await choose(104,104);
  changedPoint(before,after,'ToPoint',{cx:6,cy:6});
  await pass('Native inspector and canvas clicks set a null point inside its own selected VeinCable without deselecting it');
- assert.equal(await call('undo'),true);await delay(150);assert.deepEqual((await state()).entities,before.entities);
- assert.equal(await call('redo'),true);await delay(150);assert.deepEqual((await state()).entities,after.entities);
+ assert.equal(await call('undo'),true);
+ // LayerInstancesRestoredFromHistory is emitted at the end of a frame.
+ // Do not race Undo/Redo with the next operation: wait for an actual editor frame.
+ await frame();await frame();
+ await until('pointFixture.state().entities[0].fields.ToPoint===null',
+  'Undo did not restore the previous ToPoint value');
+ assert.deepEqual((await state()).entities,before.entities);
+ assert.equal(await call('redo'),true);
+ await frame();await frame();
+ await until('pointFixture.state().entities[0].fields.ToPoint?.cx===6 && pointFixture.state().entities[0].fields.ToPoint?.cy===6',
+  'Redo did not restore the edited ToPoint value');
+ assert.deepEqual((await state()).entities,after.entities);
  await pass('One Undo/Redo restores the entire point edit while preserving entities, references and unrelated layers');
 
  await begin('FromPoint');before=await state();after=await choose(264,104);
@@ -187,6 +197,109 @@ async function run(win){
  const release={x:handle.x+32,y:handle.y+32};after=await choose(handle.x,handle.y,{release});
  changedPoint(before,after,'ToPoint',{cx:Math.floor(release.x/16),cy:Math.floor(release.y/16)});
  await pass('Point preview and press/drag/release over an active resize handle set the point without resizing or moving the entity');
+
+
+ // Ctrl+Shift + mouse, NOT Ctrl+Shift+W, is an Entities-layer erase
+ // rectangle. It must bypass the regular entity/selection/resize hit tests.
+ const eraseState=()=>call('eraseState');
+ const erasePass=async message=>{
+  assert.equal(await ev('__ldtk.App.ME.curPageProcess.__class__.__name__'),'page.Editor','Application entered a crash page');
+  assert.equal((await eraseState()).sentinel,1,'An unrelated layer changed during entity erase');
+  passed.push(message);console.log('PASS: '+message);
+ };
+ const modifierDown=async()=>{
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Control'});
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Shift'});
+  await delay(80);
+ };
+ const modifierUp=async()=>{
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Shift'});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Control'});
+  await delay(80);
+ };
+ const eraseGesture=async(from,to=null,button='left')=>{
+  const start=await move(from[0],from[1]);
+  await modifierDown();
+  // Re-hover while modifiers are held, so the real editor receives the same
+  // sequence as a human before the mouse press.
+  await nativeMove({x:start.x+1,y:start.y});await nativeMove(start);
+  win.webContents.sendInputEvent({type:'mouseDown',...start,button,clickCount:1,modifiers:['control','shift']});
+  await until('pointFixture.editor().get_curTool().isRunning()','Ctrl+Shift press was stolen by selection or resize');
+  assert.equal((await state()).selectionRunning,false,'Ctrl+Shift activated SelectionTool');
+  if(to){
+   const end=await call('screen',to[0],to[1]);
+   await nativeMove(end);
+   win.webContents.sendInputEvent({type:'mouseUp',...end,button,clickCount:1,modifiers:['control','shift']});
+  }else{
+   win.webContents.sendInputEvent({type:'mouseUp',...start,button,clickCount:1,modifiers:['control','shift']});
+  }
+  await until('!pointFixture.editor().get_curTool().isRunning()','Entity erase gesture did not finish');
+  await modifierUp();await delay(120);
+ };
+ const eraseCompare=(actual,expected)=>{
+  assert.deepEqual(actual.source,expected.source,'Active-layer entities differ');
+  assert.deepEqual(actual.other,expected.other,'An entity on another layer changed');
+  assert.equal(actual.sentinel,expected.sentinel,'An unrelated IntGrid layer changed');
+  assert.equal(actual.activeLayer,expected.activeLayer,'Active layer changed');
+ };
+ await setup();
+ await call('select',0);await delay(120);
+ let eraseBefore=await eraseState();
+ // Two entities share the same screen position, but only the active layer
+ // may be altered by the shortcut.
+ await ev(`(()=>{const f=pointFixture,other=f.entity(2);other.x=264;other.y=104;f.editor().levelRender.invalidateLayer(other._li);
+  // This fixture-only move must be a committed history baseline. Otherwise
+  // Undo of the next deletion legitimately restores the previous position.
+  f.editor().curLevelTimeline.saveLayerState(other._li);
+  return true})()`);
+ eraseBefore=await eraseState();
+ await eraseGesture([480,240],[544,288]);
+ let erased=await eraseState();
+ eraseCompare(erased,eraseBefore);assert.equal(erased.history,eraseBefore.history);
+ await erasePass('Ctrl+Shift dragging an empty rectangle keeps every layer and history unchanged');
+ await eraseGesture([104,104],[280,136]);
+ erased=await eraseState();
+ assert.deepEqual(erased.source,[],'Rectangle did not remove both covered active-layer entities');
+ assert.deepEqual(erased.other,eraseBefore.other,'Rectangle removed an entity from another layer');
+ assert.equal(erased.history,eraseBefore.history+1,'Rectangle erase must be one undo transaction');
+ assert.equal(await call('undo'),true);await delay(180);
+ eraseCompare(await eraseState(),eraseBefore);
+ assert.equal(await call('redo'),true);await delay(180);
+ assert.deepEqual((await eraseState()).source,[]);
+ assert.deepEqual((await eraseState()).other,eraseBefore.other);
+ await erasePass('Ctrl+Shift rectangle erases active Entities only and Undo/Redo restores all at once');
+
+ await setup();await call('select',1);await delay(120);
+ eraseBefore=await eraseState();
+ await eraseGesture([264,104]);
+ erased=await eraseState();
+ assert.equal(erased.source.length,1,'Single Ctrl+Shift click did not delete the clicked entity');
+ assert.equal(erased.source[0].iid,eraseBefore.source[0].iid,'Single erase removed the wrong entity');
+ assert.deepEqual(erased.other,eraseBefore.other,'Single erase changed another entity layer');
+ assert.equal(erased.history,eraseBefore.history+1,'Single-click erase must be undoable');
+ assert.equal(await call('undo'),true);await delay(160);
+ eraseCompare(await eraseState(),eraseBefore);
+ await erasePass('Ctrl+Shift clicking a selected entity erases it without selection interception');
+
+ if(process.platform==='darwin'){
+  // macOS may translate a physical Control+left-click to a secondary click.
+  await setup();await call('select',1);await delay(120);
+  eraseBefore=await eraseState();
+  await eraseGesture([264,104],null,'right');
+  erased=await eraseState();
+  assert.equal(erased.source.length,1,'macOS control-click was intercepted');
+  assert.equal(erased.history,eraseBefore.history+1,'macOS control-click must be undoable');
+  assert.equal(await call('undo'),true);await delay(160);
+  eraseCompare(await eraseState(),eraseBefore);
+  await erasePass('macOS Control+Shift secondary-click erases the active-layer entity only');
+ }
+
+ await setup();await call('select',0);await delay(120);
+ eraseBefore=await eraseState();
+ await clickAt(await move(104,104));
+ eraseCompare(await eraseState(),eraseBefore);
+ assert.equal((await eraseState()).history,eraseBefore.history);
+ await erasePass('An ordinary entity click without Ctrl+Shift remains non-destructive');
 
  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({status:'passed',passed,platform:process.platform,electron:process.versions.electron},null,2));
  fs.writeFileSync(path.join(output,'success.png'),(await win.webContents.capturePage()).toPNG());

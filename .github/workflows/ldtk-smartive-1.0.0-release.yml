@@ -1,43 +1,7 @@
 name: LDTK-Smartive release
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - app/package.json
-      - docs/SMARTIVE_CHANGELOG.md
-      - app/scripts/template-*.cjs
-      - app/assets/js/selection-template-editor.js
-      - src/electron.renderer/data/SelectionTemplates.hx
-      - src/electron.renderer/page/Editor.hx
-      - src/electron.renderer/ui/ProjectSaver.hx
-      - src/electron.renderer/tool/SelectionTemplateTool.hx
-      - src/electron.renderer/tool/SelectionTool.hx
-      - src/electron.renderer/LevelTimeline.hx
-      - src/electron.renderer/tool/lt/EntityTool.hx
-      - src/electron.renderer/data/ForkConfig.hx
-      - src/electron.renderer/data/def/EntityDef.hx
-      - src/electron.renderer/ui/EntityInstanceEditor.hx
-      - src/electron.renderer/data/MultiEntityEdit.hx
-      - src/electron.renderer/ui/MultiEntityInstanceEditor.hx
-      - app/scripts/*entity-multi*
-      - app/scripts/*entity-history*
-      - app/scripts/*entity-chain*
-      - app/scripts/*point*
-      - src/electron.renderer/tool/PickPoint.hx
-      - src/electron.renderer/GenericLevelElementGroup.hx
-      - src/electron.renderer/test/SelectionDragTestHooks.hx
-      - app/scripts/selection-*.cjs
-      - src/electron.renderer/ui/TemplateEditorBridge.hx
-      - src/electron.renderer/ui/modal/Dialog.hx
-      - src/electron.renderer/ui/modal/Panel.hx
-      - src/electron.renderer/ui/modal/dialog/SelectionTemplateEditor.hx
-      - src/electron.renderer/ui/modal/dialog/SelectionTemplateImportPicker.hx
-      - src/electron.renderer/ui/modal/panel/SelectionTemplatesPanel.hx
-      - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
-      - app/assets/tpl/selectionTemplatesPanel.html
-      - .github/workflows/ldtk-smartive-1.0.0-release.yml
+  # Explicit opt-in only; updates to master must not automatically publish a release.
   workflow_dispatch:
     inputs:
       force_rebuild:

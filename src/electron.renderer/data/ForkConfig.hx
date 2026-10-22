@@ -14,6 +14,10 @@ class ForkConfig {
 
 	var project : Project;
 	var trackedEntities : Map<String, Dynamic> = new Map();
+	// Keep the document, not just the editor features this build understands. Game tools
+	// may add their own sidecar keys, which must survive any editor-side save.
+	var sidecarRoot : Dynamic = {};
+	var loadedEntityKeys : Map<String, Bool> = new Map();
 
 	public function new(p:Project) {
 		project = p;
@@ -50,6 +54,69 @@ class ForkConfig {
 
 	static inline function cloneJson(v:Dynamic) : Dynamic {
 		return v==null ? null : haxe.Json.parse(haxe.Json.stringify(v));
+	}
+
+	static function isJsonObject(v:Dynamic) : Bool {
+		return v!=null && Reflect.isObject(v) && !Std.isOfType(v,Array) && !Std.isOfType(v,String);
+	}
+
+	/** Merge editor-owned properties while retaining unrecognized properties at any depth. */
+	static function mergeSidecarValue(previous:Dynamic, current:Dynamic) : Dynamic {
+		if( isJsonObject(current) ) {
+			var out : Dynamic = isJsonObject(previous) ? cloneJson(previous) : {};
+			for(key in Reflect.fields(current))
+				Reflect.setField(out,key,mergeSidecarValue(getDyn(previous,key),Reflect.field(current,key)));
+			return out;
+		}
+		if( Std.isOfType(current,Array) ) {
+			var old : Array<Dynamic> = Std.isOfType(previous,Array) ? cast previous : [];
+			var values : Array<Dynamic> = cast current;
+			var used : Map<Int,Bool> = new Map();
+			var out : Array<Dynamic> = [];
+			for(i in 0...values.length) {
+				var value = values[i];
+				var match = -1;
+				// Stable references keep unknown metadata with its rule when rules are reordered.
+				for(identity in ["chainField","fieldIdentifier","entityDefIdentifier","fieldDefUid","entityDefUid","whenFieldUid"]) {
+					if( !isJsonObject(value) || getDyn(value,identity)==null )
+						continue;
+					for(j in 0...old.length)
+						if( !used.exists(j) && getDyn(old[j],identity)==getDyn(value,identity) ) {
+							match = j;
+							break;
+						}
+					// A new identified item must not inherit another item's unknown settings.
+					break;
+				}
+				if( match<0 && i<old.length && !used.exists(i) && !hasSidecarIdentity(value) )
+					match = i;
+				if( match>=0 )
+					used.set(match,true);
+				out.push(mergeSidecarValue(match<0 ? null : old[match],value));
+			}
+			return out;
+		}
+		return cloneJson(current);
+	}
+
+	static function hasSidecarIdentity(v:Dynamic) : Bool {
+		if( !isJsonObject(v) )
+			return false;
+		for(key in ["chainField","fieldIdentifier","entityDefIdentifier","fieldDefUid","entityDefUid","whenFieldUid"])
+			if( getDyn(v,key)!=null )
+				return true;
+		return false;
+	}
+
+	public function hasPathPreview(ed:data.def.EntityDef) : Bool {
+		return ed!=null && isJsonObject(getDyn(getDyn(getDyn(sidecarRoot,"entities"),Std.string(ed.uid)),"pathPreview"));
+	}
+
+	/** Read-only adapter: never generates entities, tiles or default FieldInstances. */
+	public function getPathPreview(ei:data.inst.EntityInstance, ?overrides:PathPreviewConfig.PathPreviewOverrides) : Null<PathPreviewConfig.ResolvedPathPreview> {
+		if( ei==null || !hasPathPreview(ei.def) )
+			return null;
+		return PathPreviewConfig.resolve(ei,getDyn(getDyn(getDyn(sidecarRoot,"entities"),Std.string(ei.def.uid)),"pathPreview"),overrides);
 	}
 
 	static function sameValue(a:Dynamic, b:Dynamic) {
@@ -181,6 +248,8 @@ class ForkConfig {
 
 	public function load() {
 		trackedEntities = new Map();
+		sidecarRoot = {};
+		loadedEntityKeys = new Map();
 
 		// Clear all sidecar-only runtime state. Legacy embedded autoChildren are intentionally kept
 		// until/unless the sidecar contains an explicit autoChildren entry, allowing one-time migration.
@@ -210,21 +279,35 @@ class ForkConfig {
 
 		try {
 			var root : Dynamic = haxe.Json.parse(NT.readFileString(path));
+			if( !isJsonObject(root) )
+				throw "Expected a sidecar object";
+			sidecarRoot = cloneJson(root);
 			var entities = getDyn(root,"entities");
-			if( entities==null )
+			if( !isJsonObject(entities) )
 				return;
 
 			var remapped = false;
 			for(key in Reflect.fields(entities)) {
 				var cfg = Reflect.field(entities,key);
+				if( !isJsonObject(cfg) )
+					continue;
 				var keyUid = Std.parseInt(key);
 				var resolvedUid = resolveEntityUid(M.isValidNumber(keyUid) ? keyUid : null, getDyn(cfg,"identifier"));
 				if( resolvedUid==null ) {
 					App.LOG.add("fork", 'Ignoring fork config for missing entity "$key"');
 					continue;
 				}
-				if( !M.isValidNumber(keyUid) || resolvedUid!=keyUid )
+				var resolvedKey = Std.string(resolvedUid);
+				var savedEntities = getDyn(sidecarRoot,"entities");
+				if( !M.isValidNumber(keyUid) || resolvedUid!=keyUid ) {
 					remapped = true;
+					// Move the preserved entry as well, so the old UID cannot survive a rewrite.
+					var canonical = getDyn(entities,resolvedKey);
+					cfg = isJsonObject(canonical) ? mergeSidecarValue(cfg,canonical) : cloneJson(cfg);
+					Reflect.deleteField(savedEntities,key);
+					Reflect.setField(savedEntities,resolvedKey,cloneJson(cfg));
+				}
+				loadedEntityKeys.set(resolvedKey,true);
 
 				var ed = project.defs.getEntityDef(resolvedUid);
 
@@ -256,13 +339,23 @@ class ForkConfig {
 				ed.tileStamps = getArray(cfg,"tileStamps").map(raw->normalizeStamp(ed,raw));
 
 				var fields = getDyn(cfg,"fields");
-				if( fields!=null )
+				if( isJsonObject(fields) )
 					for(fieldKey in Reflect.fields(fields)) {
 						var fcfg = Reflect.field(fields,fieldKey);
+						if( !isJsonObject(fcfg) )
+							continue;
 						var keyFieldUid = Std.parseInt(fieldKey);
 						var fdUid = resolveFieldUid(ed, M.isValidNumber(keyFieldUid) ? keyFieldUid : null, getDyn(fcfg,"identifier"));
 						if( fdUid==null )
 							continue;
+						if( fieldKey!=Std.string(fdUid) ) {
+							remapped = true;
+							var savedFields = getDyn(getDyn(savedEntities,resolvedKey),"fields");
+							var canonical = getDyn(fields,Std.string(fdUid));
+							fcfg = isJsonObject(canonical) ? mergeSidecarValue(fcfg,canonical) : cloneJson(fcfg);
+							Reflect.deleteField(savedFields,fieldKey);
+							Reflect.setField(savedFields,Std.string(fdUid),cloneJson(fcfg));
+						}
 						var fd = ed.getFieldDef(fdUid);
 						fd.visibleWhenFieldUid = resolveFieldUid(ed, getInt(fcfg,"visibleWhenFieldUid"), getDyn(fcfg,"visibleWhenFieldIdentifier"));
 						fd.visibleWhenValues = getArray(fcfg,"visibleWhenValues");
@@ -327,24 +420,35 @@ class ForkConfig {
 		if( project.filePath==null || project.filePath.full==null || project.filePath.full.length==0 )
 			return;
 
-		var entities : Dynamic = {};
+		var root : Dynamic = cloneJson(sidecarRoot);
+		var entities : Dynamic = getDyn(root,"entities");
+		if( !isJsonObject(entities) )
+			entities = {};
+		for(key in loadedEntityKeys.keys())
+			if( project.defs.getEntityDef(Std.parseInt(key))==null )
+				Reflect.deleteField(entities,key);
 		for(ed in project.defs.entities) {
-			var fields : Dynamic = {};
-			var hasFields = false;
+			var cfg : Dynamic = getDyn(entities,Std.string(ed.uid));
+			if( !isJsonObject(cfg) )
+				cfg = {};
+			var fields : Dynamic = getDyn(cfg,"fields");
+			if( !isJsonObject(fields) )
+				fields = {};
+			var hasFields = Reflect.fields(fields).length>0;
 			for(fd in ed.fieldDefs)
-				if( fd.visibleWhenFieldUid!=null || fd.visibleWhenValues.length>0 || fd.enumValueFilter.length>0 ) {
+				if( fd.visibleWhenFieldUid!=null || fd.visibleWhenValues.length>0 || fd.enumValueFilter.length>0 || Reflect.hasField(fields,Std.string(fd.uid)) ) {
 					hasFields = true;
 					var filters = fd.enumValueFilter.map(raw->enrichEnumFilter(ed,raw));
-					Reflect.setField(fields, Std.string(fd.uid), {
+					Reflect.setField(fields, Std.string(fd.uid), mergeSidecarValue(getDyn(fields,Std.string(fd.uid)), {
 						identifier: fd.identifier,
 						visibleWhenFieldUid: fd.visibleWhenFieldUid,
 						visibleWhenFieldIdentifier: fieldIdentifier(ed,fd.visibleWhenFieldUid),
 						visibleWhenValues: fd.visibleWhenValues,
 						enumValueFilter: filters,
-					});
+					}));
 				}
 
-			if( ed.autoChildren.length==0 && ed.autoChainBackRefs.length==0 && ed.appearanceOverrides.length==0 && ed.tileStamps.length==0 && !hasFields )
+			if( ed.autoChildren.length==0 && ed.autoChainBackRefs.length==0 && ed.appearanceOverrides.length==0 && ed.tileStamps.length==0 && !hasFields && Reflect.fields(cfg).length==0 )
 				continue;
 
 			var autoChildren : Array<Dynamic> = [];
@@ -371,25 +475,27 @@ class ForkConfig {
 				});
 			}
 
-			var cfg : Dynamic = {
+			cfg = mergeSidecarValue(cfg, {
 				identifier: ed.identifier,
 				autoChildren: autoChildren,
 				appearanceOverrides: ed.appearanceOverrides.map(raw->enrichAppearance(ed,raw)),
 				tileStamps: ed.tileStamps.map(raw->enrichStamp(ed,raw)),
 				fields: fields,
-			};
+			});
 			if( ed.autoChainBackRefs.length>0 )
-				Reflect.setField(cfg,"autoChainBackRefs",ed.autoChainBackRefs.map(rule->{ chainField:rule.chainField, backField:rule.backField }));
+				Reflect.setField(cfg,"autoChainBackRefs",mergeSidecarValue(getDyn(cfg,"autoChainBackRefs"),ed.autoChainBackRefs.map(rule->{ chainField:rule.chainField, backField:rule.backField })));
+			else
+				Reflect.deleteField(cfg,"autoChainBackRefs");
 			Reflect.setField(entities, Std.string(ed.uid), cfg);
+			loadedEntityKeys.set(Std.string(ed.uid),true);
 		}
 
-		var root : Dynamic = {
-			format: FORMAT,
-			projectIid: project.iid,
-			entities: entities,
-		};
+		Reflect.setField(root,"format",FORMAT);
+		Reflect.setField(root,"projectIid",project.iid);
+		Reflect.setField(root,"entities",entities);
 		try {
 			NT.writeFileString(getPath(), haxe.Json.stringify(root,null,"\t"));
+			sidecarRoot = cloneJson(root);
 		}
 		catch(err:Dynamic) {
 			App.LOG.error('Failed to save fork sidecar "${getPath()}": '+Std.string(err));

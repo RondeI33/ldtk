@@ -1,10 +1,14 @@
 name: LDTK-Smartive manual release build
 
-# Run from master. The existing release pipeline performs all regressions,
-# packages Windows/macOS/Linux, publishes a versioned release, then notifies
-# Slack using its existing notification step and SLACK_WEBHOOK_URL secret.
+# The existing release workflow owns all tests, packaging and Slack notification.
+# Temporary opt-in push trigger for the user-requested repair/build cycle.
+# Ordinary pushes cannot publish: they lack the explicit [run-release] marker.
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/test-windows.yml
 
 permissions:
   contents: write
@@ -15,10 +19,9 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-release]')
     name: Run release regressions, package, publish and notify Slack
     uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
     with:
-      # Never overwrite a published version on an ordinary manual build.
-      # Bump app/package.json and the changelog for each new release.
       force_rebuild: false
     secrets: inherit

@@ -28,13 +28,39 @@ async function run(win){
   if(!r||!r.ok)throw Error(code+'\n'+String(r&&r.error));return r.v;
  };
  const until=async(code,msg)=>{for(let i=0;i<250;i++){if(await ev(`!!(${code})`))return;await delay(40)}throw Error(msg)};
+ const frame=()=>win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error('Editor frame did not complete')),8000),P=__ldtk.classes['dn.Process'];
+  P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{clearTimeout(timer);resolve(true)}));
+ })`,true);
  const pass=m=>{passed.push(m);console.log('PASS: '+m)};
  await until('globalThis.__ldtk && __ldtk.App.ME && document.querySelector("#page")','No app');
  await delay(750);win.setSize(1600,1000);win.show();win.focus();win.webContents.setBackgroundThrottling(false);
  await win.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'entity-multi-fixture.js'),'utf8'),true);
  const setup=async()=>{
   console.log('SETUP fixture');
-  const data=await ev(`multiFixture.setup(${JSON.stringify(path.join(tmp,'test.ldtk'))})`);await delay(450);await ev('multiFixture.editor()&&true');await ev('__ldtk.classes["ui.Modal"].closeAll()');await delay(200);return data;
+  const data=await ev(`multiFixture.setup(${JSON.stringify(path.join(tmp,'test.ldtk'))})`);await delay(450);await ev('multiFixture.editor()&&true');await ev('__ldtk.classes["ui.Modal"].closeAll()');await delay(200);
+  // Observe the real deferred history event after the editor's own listener.
+  // Restored data is immediately readable, but this event also clears the
+  // selection and inspector. Re-select only AFTER it has actually run.
+  await ev(`(()=>{
+   const editor=multiFixture.editor();
+   const kind=__ldtk.enums.GlobalEvent.LayerInstancesRestoredFromHistory([])._hx_index;
+   multiFixture.processedLayerRestores=0;
+   editor.ge.addGlobalListener(event=>{
+    if(event._hx_index===kind)multiFixture.processedLayerRestores++;
+   });
+   return true;
+  })()`);
+  return data;
+ };
+ const restoreHistory=async(operation,checkImmediate)=>{
+  assert(['undo','redo'].includes(operation),'Unknown history operation');
+  const previous=await ev('multiFixture.processedLayerRestores');
+  assert(await ev(`multiFixture.${operation}()`),operation+' did not restore a history state');
+  // Keep immediate model/cache assertions: never hide a bad restore by waiting.
+  if(checkImmediate)await checkImmediate();
+  await until(`multiFixture.processedLayerRestores>${previous}`,
+   operation+' did not dispatch LayerInstancesRestoredFromHistory');
  };
  const select=()=>ev('multiFixture.select()');
  const value=(name,idx=0)=>`#multi_field_${fields[name]}_${idx}`;
@@ -87,21 +113,24 @@ async function run(win){
   const strip=e=>({...e,fieldInstances:e.fieldInstances.filter(f=>f.defUid!==fields.Amount)});
   assert.deepEqual(strip(after.entities[i]),strip(before.entities[i]));
  }
- // Every Undo/Redo must atomically update the level snapshots AND the
- // project-wide IID lookup cache, even before deferred editor events run.
- assert(await ev('multiFixture.undo()'));
- assert.equal((await state()).data,before.data,'Undo must restore the original multi-layer snapshot');
- assert.deepEqual(await values('Amount'),[3,8,3],
-  'Undo left the IID lookup cache pointing at edited (detached) entities');
- assert(await ev('multiFixture.redo()'));
- assert.deepEqual(await values('Amount'),[3,3,3],
-  'Redo left the IID lookup cache pointing at an old entity on another layer');
- const redoState=await state();
- assert.equal(redoState.history,before.history+1,'Redo must restore a single history transaction');
- assert.equal(redoState.entities[1].fieldInstances.find(f=>f.defUid===fields.Amount).__value,3,
-  'Redo snapshot did not update the other Entities layer');
-
- await select();const noOp=await state();await setUI('Amount','3');assert.equal((await state()).history,noOp.history);
+ // Immediate model/cache correctness and deferred UI cleanup are distinct.
+ // Check the former first; wait for the latter before another UI operation.
+ await restoreHistory('undo',async()=>{
+  assert.equal((await state()).data,before.data,'Undo must restore the original multi-layer snapshot');
+  assert.deepEqual(await values('Amount'),[3,8,3],
+   'Undo left the IID lookup cache pointing at edited (detached) entities');
+ });
+ await restoreHistory('redo',async()=>{
+  assert.deepEqual(await values('Amount'),[3,3,3],
+   'Redo left the IID lookup cache pointing at an old entity on another layer');
+  const redoState=await state();
+  assert.equal(redoState.history,before.history+1,'Redo must restore a single history transaction');
+  assert.equal(redoState.entities[1].fieldInstances.find(f=>f.defUid===fields.Amount).__value,3,
+   'Redo snapshot did not update the other Entities layer');
+ });
+ await select();await frame();
+ assert.equal((await state()).panel,true,'A deferred history event closed the newly reselected inspector');
+ const noOp=await state();await setUI('Amount','3');assert.equal((await state()).history,noOp.history);
  pass('Mixed-to-first-value edit affects only the chosen field; one Undo/Redo restores all selected layers');
 
  before=await state();await setUI('Amount','abc');assert.equal((await state()).data,before.data);
@@ -163,9 +192,10 @@ async function run(win){
  before=await state();
  await ev(`(()=>{const x=document.querySelector(${JSON.stringify(value('Active'))});if(!x.checked)x.click();return true})()`);
  assert.deepEqual(await ev('multiFixture.stampValues()'),[[1],[1]]);
- assert(await ev('multiFixture.undo()'));await delay(160);
- assert.deepEqual(await ev('multiFixture.stampValues()'),[[],[]]);
- assert.deepEqual((await values('Active')).slice(0,2),[false,false]);
+ await restoreHistory('undo',async()=>{
+  assert.deepEqual(await ev('multiFixture.stampValues()'),[[],[]]);
+  assert.deepEqual((await values('Active')).slice(0,2),[false,false]);
+ });
  pass('Conditional tile stamps on both selected entities join the same Undo transaction');
 
  await ev('multiFixture.select([0,3])');assert.equal((await state()).panel,false);

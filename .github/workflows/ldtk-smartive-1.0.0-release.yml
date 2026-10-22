@@ -1,7 +1,14 @@
 name: LDTK-Smartive release
 
 on:
-  # Explicit opt-in only; updates to master must not automatically publish a release.
+  # Updates to master do not auto-publish. The manual build calls this workflow
+  # after the full editor regression gates pass, reusing its Slack notifier.
+  workflow_call:
+    inputs:
+      force_rebuild:
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       force_rebuild:
@@ -32,7 +39,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE_REBUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild || false }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild || false }}
         run: |
           set -euo pipefail
 
@@ -95,7 +102,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-15-intel]
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: krdlab/setup-haxe@v2
@@ -108,6 +115,14 @@ jobs:
       - name: Install Node dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
+      - name: CargoLine path preview real Electron regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:path-preview
+      - name: CargoLine path preview real Electron regression (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:path-preview
       - name: Point placement real Electron regression
         if: runner.os == 'Linux'
         working-directory: app
@@ -439,7 +454,6 @@ jobs:
         
       - name: Notify Slack about new release
         if: success()
-        continue-on-error: true
         shell: bash
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -448,8 +462,8 @@ jobs:
           set -euo pipefail
 
           if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-            echo "::warning::SLACK_WEBHOOK_URL is not configured"
-            exit 0
+            echo "::error::Existing SLACK_WEBHOOK_URL secret is not configured; release was published but Slack was not notified"
+            exit 1
           fi
 
           gh release view "$SMARTIVE_TAG" \
@@ -462,7 +476,7 @@ jobs:
             --arg version "$SMARTIVE_TAG" \
             --arg title "$(jq -r '.name' release.json)" \
             --arg url "$(jq -r '.url' release.json)" \
-            --arg notes "$(jq -r '.body[:2800]' release.json)" \            
+            --arg notes "$(jq -r '.body[:2800]' release.json)" \
             '{
               text: ("New LDTK-Smartive release: " + $version),
               blocks: [

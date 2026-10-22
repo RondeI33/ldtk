@@ -1,3 +1,21 @@
+# 1.0.30
+
+## CargoLine path preview
+
+- Added live editor-only previews for configurable entity paths, including block positions, indexed segments, spacing labels, loop seams, PingPong trains and warnings when geometry overlaps or exceeds its path.
+- The preview uses the existing fork sidecar configuration and updates while editing fields, dragging path points, copying entities and saving/reloading projects without modifying exported LDtk level JSON.
+- Added native Electron UI coverage and geometric regression vectors to test preview rendering, interactive point handles, Undo/Redo, layer visibility and sidecar persistence.
+
+## Entity editing and Ctrl+Shift erasing
+
+- **Ctrl+Shift + left-click or drag** erases entities on the active Entities layer, with rectangular erasing and single-step Undo/Redo. Other entity layers remain unchanged even when objects overlap. On macOS, the physical Control key is used.
+- Fixed conflicting point-placement clicks over entity bodies, selection handles and other layers and stabilized related editor-history and reference-picking regression tests.
+
+## Builds and notifications
+
+- Manual builds on **master** run the existing release pipeline, with real editor regressions required before platform packaging and publication.
+- The successful build publishes Windows x64, universal macOS and Linux x64 assets as a versioned GitHub release and invokes the **existing** Slack release notification through `SLACK_WEBHOOK_URL`.
+
 # 1.0.29
 
 ## Point placement over entities

@@ -1,22 +1,24 @@
-# Build the CargoLine preview for manual testing
+# Build and publish the CargoLine preview from master
 
-Open [the manual build workflow](https://github.com/RondeI33/ldtk/actions/workflows/test-windows.yml).
-Branch **master** contains the manual installer-testing workflow. Select **master** in the Run workflow branch selector.
+Open [the manual release build workflow](https://github.com/RondeI33/ldtk/actions/workflows/test-windows.yml).
 
-1. Click **Run workflow**.
-2. In the branch selector, select **master**.
-3. Click the green **Run workflow** button.
-4. Open the new run. After it succeeds, download the Windows x64, universal macOS or Linux x64
-   installer from **Artifacts** at the bottom of the run page. Extract the downloaded ZIP first.
+1. Click **Run workflow** and select **master**.
+2. Start the workflow. It invokes the repository's **existing** Smartive release workflow.
+3. The release pipeline first checks the package version and changelog, then runs real
+   Electron/Haxe regression tests on Linux and macOS Intel, including CargoLine preview,
+   point picking, entity history, auto-chain, entity multi-edit, selection and templates.
+4. Only if all tests and platform packages succeed, it publishes the versioned
+   [GitHub release](https://github.com/RondeI33/ldtk/releases) with Windows x64,
+   universal macOS and Linux x64 downloads and Windows update metadata.
+5. The existing **Notify Slack about new release** step posts its release message
+   and notes to the already-configured `SLACK_WEBHOOK_URL` secret. Missing or failing
+   notifications are reported as workflow failures instead of silently succeeding.
 
-The `master` branch's workflow runs the path preview tests, point picking regressions and
-auto-chain/sidecar regressions in the compiled editor on Linux and macOS Intel. The Linux gate
-also runs the selection move/copy regressions. All installer jobs depend on those regressions
-passing. It then builds the three platform packages and uploads
-them as Actions artifacts, retained for 14 days.
-
-The workflow is manual only. It has read-only repository permissions and packages with
-`--publish never`; it does not create a release, update a tag or change the package version.
+This workflow is **manual only**, not triggered by commits. It uses the existing release
+pipeline rather than duplicating its publishing or Slack logic. If the current version
+already has a published release, the pipeline skips publication; update
+`app/package.json` and `docs/SMARTIVE_CHANGELOG.md` to the next version first.
+The new version for these features is **1.0.30**.
 
 ## Ctrl+Shift entity rectangle erase
 

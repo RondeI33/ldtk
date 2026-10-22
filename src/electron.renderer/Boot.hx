@@ -17,6 +17,11 @@ class Boot extends hxd.App {
 		misc.AsepriteImportInterceptor.install();
 
 		new App();
+		var smartiveBridge : Dynamic = new misc.SmartiveEditorBridge();
+		new misc.SmartiveMcpReloadGuard(smartiveBridge);
+		ui.ForkStructuredAuthoring.install();
+		ui.NeighbourAppearanceAuthoring.install();
+		misc.NeighbourAppearance.install();
 	}
 
 	override function update(deltaTime:Float) {

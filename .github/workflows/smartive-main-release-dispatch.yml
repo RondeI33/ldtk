@@ -1,14 +1,7 @@
 name: Dispatch Smartive release from main
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - app/package.json
-      - docs/SMARTIVE_CHANGELOG.md
-      - .github/workflows/ldtk-smartive-1.0.0-release.yml
-      - .github/workflows/smartive-main-release-dispatch.yml
+  # No release on pushes to main; test builds must remain manual.
   workflow_dispatch:
 
 permissions:

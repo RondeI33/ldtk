@@ -1,0 +1,95 @@
+name: Entity history regressions
+
+on:
+  push:
+    branches: [fix/entity-cross-level-history]
+  pull_request:
+    branches: [master]
+    paths:
+      - src/electron.renderer/page/Editor.hx
+      - src/electron.renderer/tool/PickPoint.hx
+      - app/scripts/*point*
+      - src/electron.renderer/LevelTimeline.hx
+      - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/tool/lt/EntityTool.hx
+      - src/electron.renderer/data/ForkConfig.hx
+      - src/electron.renderer/data/def/EntityDef.hx
+      - src/electron.renderer/GenericLevelElementGroup.hx
+      - src/electron.renderer/ui/EntityInstanceEditor.hx
+      - app/scripts/*entity-history*
+      - app/scripts/*entity-chain*
+      - .github/workflows/entity-history-regressions.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: entity-history-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regressions:
+    name: Entity history (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - name: Install Haxe libraries
+        run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Point placement regression on Linux
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:points
+      - name: Point placement regression on macOS
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:points
+      - name: Entity history regression on Linux
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" node scripts/run-entity-history-tests.cjs
+      - name: Entity history regression on macOS
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: node scripts/run-entity-history-tests.cjs
+      - name: Auto-chain back references on Linux
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:entity-chain
+      - name: Auto-chain back references on macOS
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:entity-chain
+      - name: Existing selection move/copy regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection
+      - name: Multi-entity editor regression on Linux
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:entity-multi
+      - name: Existing template integration regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:templates
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: entity-history-results-${{ matrix.os }}
+          path: app/test-results/
+          if-no-files-found: warn
+          retention-days: 7

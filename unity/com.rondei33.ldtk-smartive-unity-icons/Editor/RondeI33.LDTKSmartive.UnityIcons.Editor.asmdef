@@ -1,0 +1,14 @@
+{
+  "name": "RondeI33.LDTKSmartive.UnityIcons.Editor",
+  "rootNamespace": "LDTKSmartive.UnityIcons",
+  "references": [],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

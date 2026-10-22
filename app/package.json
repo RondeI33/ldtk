@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.0",
+	"version": "1.0.29",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -15,6 +15,7 @@
 	"scripts": {
 		"start": "electron .",
 		"compile": "cd ..  &&  haxe main.hxml  &&  haxe renderer.hxml",
+		"test:psd-import": "electron scripts/psd-import-smoke.cjs",
 		"doc": "cd ..  &&  haxe doc.hxml",
 		"pack-prepare": "npm run doc  &&  npm run compile",
 		"pack-test": "npm run pack-prepare  &&  electron-builder build --win --dir --publish never",
@@ -34,13 +35,21 @@
 		"qt-py": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.py",
 		"qt-rs": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.rs --derive-clone --derive-debug --visibility public",
 		"qt-go": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.go",
-		"qt-cpp": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.cpp"
+		"qt-cpp": "quicktype -s schema ../docs/JSON_SCHEMA.json -o ../docs/quicktype/LdtkJson.cpp",
+		"test:templates": "node scripts/run-template-tests.cjs",
+		"test:selection": "node scripts/run-selection-tests.cjs",
+		"test:entity-history": "node scripts/run-entity-history-tests.cjs",
+		"test:entity-chain": "node scripts/run-entity-chain-tests.cjs",
+		"test:entity-multi": "node scripts/run-entity-multi-tests.cjs",
+		"test:points": "node scripts/run-point-tests.cjs",
+		"test:path-preview": "node scripts/run-path-preview-tests.cjs"
 	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/RondeI33/ldtk.git"
 	},
 	"dependencies": {
+		"ag-psd": "^31.0.2",
 		"codemirror": "^5.64.0",
 		"electron-updater": "^5.3.0",
 		"simple-color-picker": "^1.0.5",

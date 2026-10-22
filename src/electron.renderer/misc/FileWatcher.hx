@@ -87,25 +87,41 @@ class FileWatcher extends dn.Process {
 		if( relPath==null )
 			return;
 
-		var generated = AsepriteTools.getGeneratedImport(Editor.ME.project, relPath);
-		if( generated!=null ) {
-			// LDtk stores the selected-layer PNG as the actual tileset image, but
-			// watches the artist's .aseprite source. When it changes, regenerate
-			// the PNG using the exact same layer selection and reload the image.
+		var psdGenerated = PsdTools.getGeneratedImport(Editor.ME.project, relPath);
+		if( psdGenerated!=null ) {
+			// The LDtk atlas is a generated PNG, but the PSD stays the source of
+			// truth. Re-export all PSD layers so future external importer metadata
+			// remains synchronized as well as the selected display layer.
 			watch(
-				Editor.ME.project.makeAbsoluteFilePath(generated.sourceRelPath),
+				Editor.ME.project.makeAbsoluteFilePath(psdGenerated.sourceRelPath),
 				()->{
-					if( !AsepriteTools.regenerateGenerated(Editor.ME.project, relPath) )
-						throw "Aseprite selected-layer regeneration did not target the expected PNG.";
+					if( !PsdTools.regenerateGenerated(Editor.ME.project, relPath) )
+						throw "PSD layer regeneration did not target the expected PNG.";
 					Editor.ME.onProjectImageChanged(relPath);
 				}
 			);
 		}
-		else
-			watch(
-				Editor.ME.project.makeAbsoluteFilePath(relPath),
-				Editor.ME.onProjectImageChanged.bind(relPath)
-			);
+		else {
+			var generated = AsepriteTools.getGeneratedImport(Editor.ME.project, relPath);
+			if( generated!=null ) {
+				// LDtk stores the selected-layer PNG as the actual tileset image, but
+				// watches the artist's .aseprite source. When it changes, regenerate
+				// the PNG using the exact same layer selection and reload the image.
+				watch(
+					Editor.ME.project.makeAbsoluteFilePath(generated.sourceRelPath),
+					()->{
+						if( !AsepriteTools.regenerateGenerated(Editor.ME.project, relPath) )
+							throw "Aseprite selected-layer regeneration did not target the expected PNG.";
+						Editor.ME.onProjectImageChanged(relPath);
+					}
+				);
+			}
+			else
+				watch(
+					Editor.ME.project.makeAbsoluteFilePath(relPath),
+					Editor.ME.onProjectImageChanged.bind(relPath)
+				);
+		}
 	}
 
 	override function onDispose() {
@@ -124,6 +140,10 @@ class FileWatcher extends dn.Process {
 	public function stopWatchingRel(relFilePath:String) {
 		if( relFilePath==null )
 			return;
+
+		var psdGenerated = PsdTools.getGeneratedImport(Editor.ME.project, relFilePath);
+		if( psdGenerated!=null )
+			stopWatchingAbs(Editor.ME.project.makeAbsoluteFilePath(psdGenerated.sourceRelPath));
 
 		var generated = AsepriteTools.getGeneratedImport(Editor.ME.project, relFilePath);
 		if( generated!=null )

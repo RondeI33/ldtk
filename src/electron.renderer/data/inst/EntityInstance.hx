@@ -62,6 +62,12 @@ class EntityInstance {
 		this.iid = iid;
 	}
 
+	@:allow(data.inst.LayerInstance)
+	function reparentToLayer(li:LayerInstance) {
+		_li = li;
+	}
+
+
 	@:keep public function toString() {
 		return 'EntityInst "${def.identifier}" @$x,$y';
 	}

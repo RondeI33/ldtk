@@ -1,0 +1,51 @@
+name: Smartive template regressions
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - app/assets/js/selection-template-editor.js
+      - app/scripts/template-*.cjs
+      - app/scripts/selection-*.cjs
+      - src/electron.renderer/data/SelectionTemplates.hx
+      - src/electron.renderer/GenericLevelElementGroup.hx
+      - src/electron.renderer/test/SelectionTemplatesTestHooks.hx
+      - src/electron.renderer/test/SelectionDragTestHooks.hx
+      - src/electron.renderer/tool/SelectionTemplateTool.hx
+      - src/electron.renderer/tool/SelectionTool.hx
+      - src/electron.renderer/ui/TemplateEditorBridge.hx
+      - .github/workflows/smartive-template-regressions.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+
+      - name: Install Haxe libraries
+        run: haxe setup.hxml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Cross-project template integration regression
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:templates
+
+      - name: Selection move/copy regression
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection

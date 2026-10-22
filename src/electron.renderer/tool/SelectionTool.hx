@@ -5,6 +5,8 @@ class SelectionTool extends Tool<Int> {
 	var startedOverSelecton = false;
 	var movePreview : h2d.Graphics;
 	var isCopy = false;
+	var dragFlipX = false;
+	var dragFlipY = false;
 	var group : GenericLevelElementGroup;
 
 	public function new() {
@@ -67,6 +69,7 @@ class SelectionTool extends Tool<Int> {
 
 		if( settings.v.emptySpaceSelection && !group.isEmpty() )
 			group.addSelectionRect(0, level.pxWid, 0, level.pxHei);
+		ui.MultiEntityInstanceEditor.sync(group.allElements());
 	}
 
 	public function select(?elems:Array<GenericLevelElement>, append=false) {
@@ -80,8 +83,10 @@ class SelectionTool extends Tool<Int> {
 		if( group.selectedElementsCount()>1 ) {
 			editor.clearResizeTool();
 			ui.EntityInstanceEditor.closeExisting();
+			ui.MultiEntityInstanceEditor.sync(group.allElements());
 		}
 		else if( group.selectedElementsCount()==1 ) {
+			ui.MultiEntityInstanceEditor.closeExisting();
 			var ge = group.getElement(0);
 			var li = group.getSmartRelativeLayerInstance();
 
@@ -222,6 +227,9 @@ class SelectionTool extends Tool<Int> {
 
 	override function startUsing(ev:hxd.Event, m:Coords, ?extraParam:String) {
 		isCopy = App.ME.isCtrlCmdDown() && App.ME.isAltDown();
+		dragFlipX = false;
+		dragFlipY = false;
+		group.resetGhostFlip();
 		moveStarted = false;
 		startedOverSelecton = false;
 		editor.clearSpecialTool();
@@ -255,8 +263,22 @@ class SelectionTool extends Tool<Int> {
 		}
 	}
 
+	public function saveSelectionAsTemplate() {
+		if( isEmpty() || isRunning() ) {
+			N.error("Finish selecting something in the level first.");
+			return;
+		}
+		try {
+			var tpl = group.toSelectionTemplate("Template");
+			if( tpl==null ) { N.error("Nothing supported in this selection can be saved."); return; }
+			new ui.modal.dialog.SelectionTemplateEditor(tpl);
+		}
+		catch(e:Dynamic) N.error("Could not open template editor: "+Std.string(e));
+	}
+
 	public inline function get() return getSelectedValue();
 	public function clear() {
+		ui.MultiEntityInstanceEditor.closeExisting();
 		if( !isEmpty() ) {
 			group.clear();
 			ui.EntityInstanceEditor.closeExisting();
@@ -279,14 +301,86 @@ class SelectionTool extends Tool<Int> {
 		group.invalidateSelectRender();
 	}
 
-	override function onMouseMove(ev:hxd.Event, m:Coords) {
-		super.onMouseMove(ev,m);
 
-		// Start moving elements only after a small elapsed mouse distance
+	/**
+		Ctrl+Alt+Up/Down (Control+Option on macOS) moves a single-layer Tiles
+		selection to the nearest layer in that direction using the same tileset.
+		Returns TRUE when the key combination belongs to this feature, even when
+		the transfer is rejected, so no other editor action consumes the arrows.
+	**/
+	public function handleLayerTransferShortcut(keyId:Int) : Bool {
+		if( keyId!=K.UP && keyId!=K.DOWN )
+			return false;
+
+		var ctrlDown = App.isMac() ? App.ME.isMacCtrlDown() : App.ME.isCtrlCmdDown();
+		if( !ctrlDown || !App.ME.isAltDown() || App.ME.isShiftDown() )
+			return false;
+
+		moveSelectionToCompatibleLayer(keyId==K.UP ? -1 : 1);
+		return true;
+	}
+
+
+	public function moveSelectionToCompatibleLayer(direction:Int) : Bool {
+		if( direction==0 || isRunning() || isEmpty() )
+			return false;
+
+		var sourceLi = group.getSingleTilesLayerForTransfer();
+		if( sourceLi==null ) {
+			N.quick("Select tiles from one manual Tiles layer first.");
+			return false;
+		}
+
+		var tilesetUid = sourceLi.getTilesetUid();
+		if( tilesetUid==null ) {
+			N.quick("The selected layer has no tileset.");
+			return false;
+		}
+
+		// Follow the same visible order the layer panel uses. Hidden/filtered layers
+		// should not unexpectedly receive content when the user presses Up/Down.
+		var defs = editor.getVisibleLayerDefsInList();
+		var sourceIdx = defs.indexOf(sourceLi.def);
+		if( sourceIdx<0 )
+			return false;
+
+		var step = direction<0 ? -1 : 1;
+		var idx = sourceIdx + step;
+		while( idx>=0 && idx<defs.length ) {
+			var candidate = editor.curLevel.getLayerInstance(defs[idx]);
+			if(
+				candidate!=null
+				&& candidate.def.type==Tiles
+				&& candidate.getTilesetUid()==tilesetUid
+				&& candidate.def.gridSize==sourceLi.def.gridSize
+			) {
+				var changed = group.transferSelectedTilesToLayer(candidate);
+				if( changed.length==0 )
+					return false;
+
+				editor.curLevelTimeline.saveLayerStates(changed);
+				editor.selectLayerInstance(candidate);
+				editor.invalidateResizeTool();
+				N.quick('Selection moved to "${candidate.def.identifier}".');
+				return true;
+			}
+			idx += step;
+		}
+
+		N.quick("No compatible Tiles layer using the same tileset in that direction.");
+		return false;
+	}
+
+	override function onMouseMove(ev:hxd.Event, m:Coords) {
+		// Start moving before Tool.onMouseMove() calls useAt(). This makes the
+		// first movement event past the drag threshold render the selection ghost
+		// immediately instead of waiting for another mouse-move event.
 		if( isRunning() && button==0 && !moveStarted && M.dist(origin.pageX, origin.pageY, m.pageX, m.pageY) >= 10*Const.SCALE ) {
-			group.onMoveStart();
+			group.onMoveStart(isCopy);
 			moveStarted = true;
 		}
+
+		super.onMouseMove(ev,m);
 
 		if( isRunning() )
 			ev.cancel = true;
@@ -297,6 +391,39 @@ class SelectionTool extends Tool<Int> {
 		// No super() call
 	}
 
+
+	public inline function canFlipSelection() return group.hasFlippableGridContent() && ( !isRunning() || moveStarted );
+
+	override function onAppCommand(cmd:AppCommand) {
+		super.onAppCommand(cmd);
+
+		var horizontal : Null<Bool> = switch cmd {
+			case C_FlipX: true;
+			case C_FlipY: false;
+			case _: null;
+		}
+		if( horizontal==null || !canFlipSelection() )
+			return;
+
+		// While actively dragging, flip only the live ghost. The actual level
+		// data is transformed at drop time so move/copy + Undo remain atomic.
+		if( isRunning() && moveStarted ) {
+			if( horizontal )
+				dragFlipX = !dragFlipX;
+			else
+				dragFlipY = !dragFlipY;
+
+			group.setGhostFlip(dragFlipX, dragFlipY);
+			return;
+		}
+
+		var changedLayers = group.flipSelectedGridContent(horizontal);
+		if( changedLayers.length>0 ) {
+			editor.curLevelTimeline.saveLayerStates(changedLayers);
+			editor.invalidateResizeTool();
+			N.quick(horizontal ? "Selection X-flipped" : "Selection Y-flipped");
+		}
+	}
 
 	override function onKeyPress(keyId:Int) {
 		super.onKeyPress(keyId);
@@ -353,11 +480,19 @@ class SelectionTool extends Tool<Int> {
 	}
 
 	override function stopUsing(m:Coords) {
+		// Only this running drag may request a level switch. The group retains
+		// its last drop target across clicks and Editor calls stopUsing on idle
+		// tools too; replaying that target sends the user back to an old level.
+		var completedDrag = isRunning() && moveStarted;
 		super.stopUsing(m);
 
+		var dropTarget = completedDrag ? group.getLastDropTargetLevel() : null;
 		movePreview.clear();
-		if( moveStarted )
+		if( moveStarted ) {
 			group.onMoveEnd();
+			dragFlipX = false;
+			dragFlipY = false;
+		}
 		else {
 			if( startedOverSelecton && group.isOveringSelection(m) ) {
 				// Extend selection when re-selecting entity/points
@@ -380,6 +515,16 @@ class SelectionTool extends Tool<Int> {
 				}
 			}
 		}
+
+		// Finish gesture state before emitting LevelSelected, including repeated
+		// mouse-up/focus-loss callbacks after an already completed drag.
+		moveStarted = false;
+		startedOverSelecton = false;
+
+		// Cross-level drop becomes the active level only after Tool.stopUsing()
+		// has finished, avoiding a LevelSelected event while the tool is running.
+		if( dropTarget!=null && dropTarget!=editor.curLevel )
+			editor.selectLevel(dropTarget);
 	}
 
 
@@ -387,12 +532,28 @@ class SelectionTool extends Tool<Int> {
 		if( any() && isRunning() && moveStarted ) {
 			// Moving a selection
 			if( isOnStop ) {
-				// Move actual data
-				var changedLayers = group.moveSelecteds(origin, m, isCopy);
+				// Commit the captured selection into the level under the cursor.
+				// The source may already be temporarily cut for live move preview.
+				var changedLayers = group.commitDragSnapshot(origin, m, isCopy);
+
+				function addChanged(lis:Array<data.inst.LayerInstance>) {
+					for(li in lis)
+						if( li!=null && changedLayers.indexOf(li)<0 )
+							changedLayers.push(li);
+				}
+
+				// Commit the same transient flips that were shown by the live ghost.
+				if( dragFlipX )
+					addChanged( group.flipSelectedGridContent(true) );
+				if( dragFlipY )
+					addChanged( group.flipSelectedGridContent(false) );
+
 				for(li in changedLayers)
-					if( li!=curLayerInstance )
-						editor.levelRender.invalidateLayer(li); // cur is invalidated by Tool
-				editor.curLevelTimeline.saveLayerStates(changedLayers);
+					if( li.level==editor.curLevel )
+						editor.levelRender.invalidateLayer(li);
+
+				if( changedLayers.length>0 )
+					editor.saveLayerStatesByLevel(changedLayers);
 				editor.invalidateResizeTool();
 
 				return changedLayers.length>0;
@@ -493,5 +654,6 @@ class SelectionTool extends Tool<Int> {
 	override function postUpdate() {
 		super.postUpdate();
 		group.onPostUpdate();
+		data.SelectionTemplates.updateSaveState(editor);
 	}
 }

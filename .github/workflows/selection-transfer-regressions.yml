@@ -1,0 +1,52 @@
+name: Selection transfer frame-sync regression
+
+on:
+  push:
+    branches: [fix/selection-history-frame-sync]
+  pull_request:
+    branches: [master]
+    paths:
+      - 'app/scripts/selection-ui-smoke.cjs'
+      - 'src/electron.renderer/tool/SelectionTool.hx'
+      - 'src/electron.renderer/GenericLevelElementGroup.hx'
+      - '.github/workflows/selection-transfer-regressions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selection-transfer-frame-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection:
+    name: Selection regression, independent Linux run ${{ matrix.repeat }}
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Run 450 selection variants and editor-frame transfer stress
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selection-frame-sync-${{ matrix.repeat }}
+          path: app/test-results/selection
+          if-no-files-found: warn
+          retention-days: 7

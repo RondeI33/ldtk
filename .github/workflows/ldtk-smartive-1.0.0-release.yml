@@ -176,6 +176,10 @@ jobs:
         run: npm run test:drawable-shapes
       - uses: actions/upload-artifact@v4
         if: always()
+        # Test logs are diagnostic only. A transient GitHub ArtifactService outage
+        # must not block packaging after every executable regression passed.
+        # Release installer artifact uploads remain strict/fatal.
+        continue-on-error: true
         with:
           name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
           path: |
@@ -379,6 +383,10 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:templates
       - uses: actions/upload-artifact@v4
         if: always()
+        # Test logs are diagnostic only. A transient GitHub ArtifactService outage
+        # must not block packaging after every executable regression passed.
+        # Release installer artifact uploads remain strict/fatal.
+        continue-on-error: true
         with:
           name: template-runtime-${{ needs.prepare.outputs.version }}
           path: app/test-results/templates
@@ -406,6 +414,10 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:selection
       - uses: actions/upload-artifact@v4
         if: always()
+        # Test logs are diagnostic only. A transient GitHub ArtifactService outage
+        # must not block packaging after every executable regression passed.
+        # Release installer artifact uploads remain strict/fatal.
+        continue-on-error: true
         with:
           name: selection-runtime-${{ needs.prepare.outputs.version }}
           path: app/test-results/selection

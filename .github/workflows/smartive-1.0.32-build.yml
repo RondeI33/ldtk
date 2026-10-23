@@ -1,5 +1,6 @@
 name: Build LDtk Smartive 1.0.32 from master
 
+# Release retry gate: 3 independent Linux selection-history stress jobs passed.
 # Single-version master build. Changes to this workflow start the same complete
 # regression, Windows/macOS/Linux packaging and publication pipeline as the
 # manual release build. Other master pushes do not auto-publish.

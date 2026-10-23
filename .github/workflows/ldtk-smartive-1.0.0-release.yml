@@ -12,7 +12,7 @@ on:
       notify_slack:
         type: boolean
         required: false
-        default: false
+        default: true
   workflow_dispatch:
     inputs:
       force_rebuild:
@@ -24,7 +24,7 @@ on:
         description: Send the published release announcement to the configured Slack webhook
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write

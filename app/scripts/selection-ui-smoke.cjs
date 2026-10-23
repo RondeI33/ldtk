@@ -69,8 +69,10 @@ async function run(win){
   // selection created for the NEXT scenario. Await the frame boundary instead.
   const editorFrame=()=>win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(Error('Editor frame did not complete')),8000);
-    const P=__ldtk.classes['dn.Process'];
-    P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{
+    // This older instrumented selection bundle exposes SelectionDragTestHooks,
+    // not the __ldtk class registry used by newer point tests. Two renderer
+    // animation frames advance Heaps' deferred end-of-frame event queue.
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
       clearTimeout(timer);resolve(true);
     }));
   })`,true);

@@ -32,6 +32,10 @@ async function run(win){
  await win.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'point-fixture.js'),'utf8'),true);
  await ev(`(()=>{window.pointMouseDelivery={sequence:0,x:null,y:null};document.addEventListener('mousemove',event=>{
   pointMouseDelivery={sequence:pointMouseDelivery.sequence+1,x:event.clientX,y:event.clientY};
+ },true);
+ window.pointButtonDelivery={sequence:0,type:null,button:null,x:null,y:null};
+ for(const type of ['mousedown','mouseup'])document.addEventListener(type,event=>{
+  pointButtonDelivery={sequence:pointButtonDelivery.sequence+1,type:event.type,button:event.button,x:event.clientX,y:event.clientY};
  },true);return true})()`);
  const call=(name,...args)=>ev(`pointFixture.${name}(${args.map(arg=>JSON.stringify(arg)).join(',')})`);
  const state=()=>call('state');
@@ -74,9 +78,17 @@ async function run(win){
   return p;
  };
  const clickAt=async(p,button='left')=>{
-  win.webContents.sendInputEvent({type:'mouseMove',...p});await delay(40);
-  win.webContents.sendInputEvent({type:'mouseDown',...p,button,clickCount:1});await delay(60);
-  win.webContents.sendInputEvent({type:'mouseUp',...p,button,clickCount:1});await delay(140);
+  win.webContents.sendInputEvent({type:'mouseMove',...p});
+  const domButton={left:0,middle:1,right:2}[button];
+  for(const [type,domType] of [['mouseDown','mousedown'],['mouseUp','mouseup']]){
+   const sequence=await ev('pointButtonDelivery.sequence');
+   win.webContents.sendInputEvent({type,...p,button,clickCount:1});
+   await until(`pointButtonDelivery.sequence>${sequence} && pointButtonDelivery.type===${JSON.stringify(domType)} && pointButtonDelivery.button===${domButton} && pointButtonDelivery.x===${p.x} && pointButtonDelivery.y===${p.y}`,
+    `Native ${button} ${type} was not delivered`);
+   // Native input is asynchronous. Wait for both DOM receipt and the frame
+   // that consumes Heaps' input queue before releasing or inspecting state.
+   await frame();
+  }
  };
  const clickSelector=async selector=>{
   const p=await until(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'nearest'});const r=el.getBoundingClientRect(),x=Math.round(r.left+r.width/2),y=Math.round(r.top+r.height/2);return r.width>0&&r.height>0&&el.contains(document.elementFromPoint(x,y))?{x,y}:null})()`,
@@ -149,7 +161,8 @@ async function run(win){
  assert.equal(after.picker,true);assert.deepEqual(after.entities,before.entities);assert.equal(after.history,before.history);
  await escape();
  await pass('An out-of-bounds click leaves the point, data and history unchanged and allows cancellation');
- await begin('ToPoint');before=await state();await clickAt(await move(264,104),'right');after=await state();
+ await begin('ToPoint');before=await state();await clickAt(await move(264,104),'right');
+ await until('!pointFixture.state().picker','Right-click did not cancel point picking');after=await state();
  assert.equal(after.picker,false);assert.deepEqual(after.entities,before.entities);assert.equal(after.history,before.history);
  await begin('ToPoint');before=await state();await move(264,104);await escape();after=await state();
  assert.deepEqual(after.entities,before.entities);assert.equal(after.history,before.history);

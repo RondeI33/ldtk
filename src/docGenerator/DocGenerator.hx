@@ -85,13 +85,15 @@ class DocGenerator {
 		allGlobalTypes = [];
 		allEnums = [];
 
-		// Read app version from "package.json"
-		haxe.macro.Context.registerModuleDependency("DocGenerator", "app/package.json");
-		var raw = sys.io.File.getContent("app/package.json");
-		var versionReg = ~/"version"[ \t]*:[ \t]*"(.*)"/gim;
-		versionReg.match(raw);
-		appVersion.set( versionReg.matched(1) );
-		Sys.println('App version is $appVersion...');
+		// Smartive application releases and the compatible LDtk JSON format have
+		// independent versions. Packaging regenerates these docs, so using the
+		// application package version here would overwrite the format contract.
+		haxe.macro.Context.registerModuleDependency("DocGenerator", "docs/version.txt");
+		var jsonVersion = StringTools.trim(sys.io.File.getContent("docs/version.txt"));
+		if( !~/^[0-9]+\.[0-9]+\.[0-9]+$/.match(jsonVersion) )
+			throw "docs/version.txt must contain the canonical LDtk JSON format version";
+		appVersion.set(jsonVersion);
+		Sys.println('LDtk JSON format version is $appVersion...');
 
 		// Read XML file
 		if( verbose )

@@ -221,6 +221,23 @@ class FieldInstancesForm {
 				input.attr("colorTag", "e_"+fi.def.identifier);
 				input.addClass("advanced");
 				input.val(cHex);
+				input.on("colorpreview",_-> {
+					var ei=getEntityInstance();
+					if(ei!=null && fi.def.identifier=="Color" && data.DrawableShape.isEnabled(ei.def)) {
+						ui.DrawableShapeEditor.clearPreview();
+						display.EntityRender.previewColors.set(ei.iid,C.hexToInt(input.val()));
+						editor.levelRender.invalidateLayer(ei._li);
+						jWrapper.css("background-color",input.val());
+						App.ME.requestCpu();
+					}
+				});
+				input.on("colorpreviewend",_-> {
+					var ei=getEntityInstance();
+					if(ei!=null) {
+						display.EntityRender.previewColors.remove(ei.iid);
+						editor.levelRender.invalidateLayer(ei._li);
+					}
+				});
 				input.change( function(ev) {
 					fi.parseValue( arrayIdx, input.val() );
 					onFieldChange(fi);
@@ -817,6 +834,8 @@ class FieldInstancesForm {
 		// Fields
 		for(fd in fieldDefs) {
 			var relatedEi = getEntityInstance();
+			if( relatedEi!=null && data.DrawableShape.isEnabled(relatedEi.def) && data.DrawableShape.isGeneratedField(fd) )
+				continue;
 			if( relatedEi!=null && !project.forkConfig.isFieldVisible(relatedEi,fd) )
 				continue;
 			var fi = fieldInstGetter(fd);

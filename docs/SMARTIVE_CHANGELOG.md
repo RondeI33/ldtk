@@ -1,3 +1,26 @@
+# 1.0.32
+
+## Drawable entities and hazard presets
+
+- Entity definitions can opt into **Drawable shape**. Paint, erase or rectangle-fill a connected grid mask as one entity with one IID, native fields and one undo step per stroke. Concave shapes, narrow bridges and holes retain their actual occupied-cell selection and rendering.
+- Added Rectangle, Strip, LCorner, UShape, Staircase, Diamond and Ring presets, with width, height, thickness, orientation and minimum-size validation. Custom masks support row/column insertion and removal, mirroring and rotation; disconnected edits and unintended hole removal are rejected before committing.
+- Added shape-aware SolidBarrier, Spikes and EnergyPool visuals, including exposed faces, safe sides, horizontal liquid surfaces, per-instance tint, live previews, drag ghosts and saved-template thumbnails.
+- Saved configurations use the existing template library. Drop a compatible configuration onto a drawn shape to apply behavior and appearance while preserving its geometry, IID, point anchors and entity connections. Empty-space placement creates a new instance, and a saved configuration can also start a new brush-drawn shape.
+- Added native Ctrl/Cmd+C and Ctrl/Cmd+V for scene selections, using the existing template serializer and placement preview. Copies receive fresh IIDs, preserve shape fields and remap connections within the copied selection, including between levels of the same project.
+- The version 1 export contract uses ordinary LDtk fields, resolved local cells and standard position, bounds, pivot and Color serialization. The external-level example and Unity handoff fixtures include nonzero level origins and layer offsets; independently timed platform examples keep timing and color as separate native fields.
+
+## Native color picker
+
+- Added a hue wheel, saturation/value square and editable RGB controls to the native advanced color dialog. The wheel, square, color well, hex, RGB and palette stay synchronized, with live per-instance shape tint and one confirmed undo operation.
+- Preserved the existing dialog confirmation behavior, including Escape, Enter and clicking the surrounding mask. Colors continue to export as native `#RRGGBB` values.
+
+## Verification and release preparation
+
+- Added geometric, color-math and real Electron editor regressions covering drawing, connectivity, resizing, cancellation, native fields, copy identity, templates, offset layers, Undo/Redo and save/reopen. Existing point, history, chaining, multi-edit, selection and template checks remain release gates.
+- Added a nonpublishing release preflight for Linux and macOS Intel, including PSD import, schema generation and production compilation. Installer packaging starts only after editor gates pass.
+- Fixed documentation generation to retain the canonical LDtk JSON compatibility version instead of substituting the application release version.
+- Release announcements now require the explicit notification option; the drawable-shapes release path leaves it disabled.
+
 # 1.0.31
 
 ## Slack Flow

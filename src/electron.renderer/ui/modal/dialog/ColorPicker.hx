@@ -1,7 +1,10 @@
 package ui.modal.dialog;
 
 class ColorPicker extends ui.modal.Dialog {
-	var picker : simpleColorPicker.ColorPicker;
+	var picker : ui.HueWheelPicker;
+	var ready = false;
+	var validated = false;
+	var originalInputValue : Null<String>;
 	var jTargetInput : js.jquery.JQuery;
 	var originalColor : Int;
 	var usedColorsTag : Null<String>;
@@ -13,20 +16,26 @@ class ColorPicker extends ui.modal.Dialog {
 		this.usedColorsTag = usedColorsTag;
 		loadTemplate("colorPicker");
 
-		if( jTarget!=null && jTarget.is("input") )
+		if( jTarget!=null && jTarget.is("input") ) {
 			jTargetInput = jTarget;
+			originalInputValue = jTarget.val();
+		}
 
 		var jPreview = jContent.find(".preview");
 
 		// Manual text input
 		var jInput = jContent.find(".input input");
+		var editingHex = false;
 		jInput
 			.on("change keyup", (ev:js.jquery.Event)->{
 				if( jInput.val().indexOf("#")>=0 )
 					jInput.val( StringTools.replace(jInput.val(), "#", "") );
 
-				if( C.isValidHex( jInput.val() ) )
+				if( C.isValidHex( jInput.val() ) ) {
+					editingHex = true;
 					picker.setColor( C.sanitizeHexStr( jInput.val() ) );
+					editingHex = false;
+				}
 			})
 			.on( "blur", ev->jInput.val( picker.getHexString().substr(1) ) );
 
@@ -52,6 +61,7 @@ class ColorPicker extends ui.modal.Dialog {
 		if( allowNull ) {
 			nullable = true;
 			jContent.find(".nullify").click(_->{
+				validated = true;
 				onValidate(null);
 				close();
 			});
@@ -138,14 +148,30 @@ class ColorPicker extends ui.modal.Dialog {
 
 
 		// Color picker
-		picker = new simpleColorPicker.ColorPicker({});
-		picker.setSize(320, 150);
+		picker = new ui.HueWheelPicker();
 		picker.appendTo( jContent.find(".picker").get(0) );
 		picker.onChange( c->{
-			if( picker.isChoosing )
+			// Hex, RGB, wheel, square, well and live canvas tint share one value.
+			if( !editingHex || picker.isChoosing )
 				jInput.val( c.substr(1) );
+			var rgb = picker.getHexNumber();
+			jContent.find(".rgb .red").val((rgb>>16)&255);
+			jContent.find(".rgb .green").val((rgb>>8)&255);
+			jContent.find(".rgb .blue").val(rgb&255);
 			jContent.find(".copy").removeClass("done");
-			jPreview.css({ backgroundColor:picker.getHexString() });
+			jPreview.css({ backgroundColor:c });
+			if( ready ) {
+				if( jTargetInput!=null )
+					jTargetInput.val(c).trigger("colorpreview");
+				onPreview(rgb);
+			}
+		});
+		jContent.find(".rgb input").on("input change", (_:js.jquery.Event)->{
+			var r = Std.parseInt(jContent.find(".rgb .red").val());
+			var g = Std.parseInt(jContent.find(".rgb .green").val());
+			var b = Std.parseInt(jContent.find(".rgb .blue").val());
+			if( r==null || g==null || b==null ) return;
+			picker.setColor((M.iclamp(r,0,255)<<16) | (M.iclamp(g,0,255)<<8) | M.iclamp(b,0,255));
 		});
 
 		// Init color
@@ -164,6 +190,7 @@ class ColorPicker extends ui.modal.Dialog {
 		jPreview.css({ backgroundColor:picker.getHexString() });
 
 		JsTools.parseComponents(jContent);
+		ready = true;
 	}
 
 	function updatePaste() {
@@ -191,8 +218,10 @@ class ColorPicker extends ui.modal.Dialog {
 	}
 
 	function validate() {
+		if( validated ) return;
+		validated = true;
 		if( jTargetInput!=null )
-			jTargetInput.val( picker.getHexString() ).change();
+			jTargetInput.val( picker.getHexString() ).trigger("colorpreviewend").change();
 
 		if( usedColorsTag!=null ) {
 			project.unregisterColor( usedColorsTag, originalColor );
@@ -202,6 +231,7 @@ class ColorPicker extends ui.modal.Dialog {
 	}
 
 	public dynamic function onValidate(c:dn.Col) {}
+	public dynamic function onPreview(c:dn.Col) {}
 	public dynamic function onCancel() {}
 
 	override function onClickMask() {
@@ -210,8 +240,14 @@ class ColorPicker extends ui.modal.Dialog {
 	}
 
 	override function onDispose() {
+		ready = false;
+		if( jTargetInput!=null ) {
+			if( !validated ) jTargetInput.val(originalInputValue);
+			jTargetInput.trigger("colorpreviewend");
+		}
+		if( !validated ) onCancel();
 		super.onDispose();
-		picker.remove();
+		if( picker!=null ) picker.remove();
 		picker = null;
 	}
 

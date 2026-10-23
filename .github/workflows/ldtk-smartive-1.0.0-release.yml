@@ -9,10 +9,19 @@ on:
         type: boolean
         required: false
         default: false
+      notify_slack:
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       force_rebuild:
         description: Rebuild and replace the release for the current package version
+        required: false
+        type: boolean
+        default: false
+      notify_slack:
+        description: Send the published release announcement to the configured Slack webhook
         required: false
         type: boolean
         default: false
@@ -157,6 +166,14 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: app
         run: npm run test:entity-multi
+      - name: Drawable shapes and color picker real Electron regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:drawable-shapes
+      - name: Drawable shapes and color picker real Electron regression (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:drawable-shapes
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -166,6 +183,7 @@ jobs:
             app/test-results/entity-history
             app/test-results/entity-chain
             app/test-results/entity-multi
+            app/test-results/drawable-shapes
           if-no-files-found: warn
 
   windows:
@@ -453,7 +471,7 @@ jobs:
 
         
       - name: Notify Slack about new release
-        if: success()
+        if: success() && inputs.notify_slack
         continue-on-error: true
         shell: bash
         env:

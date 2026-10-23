@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.31",
+	"version": "1.0.32",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -42,7 +42,10 @@
 		"test:entity-chain": "node scripts/run-entity-chain-tests.cjs",
 		"test:entity-multi": "node scripts/run-entity-multi-tests.cjs",
 		"test:points": "node scripts/run-point-tests.cjs",
-		"test:path-preview": "node scripts/run-path-preview-tests.cjs"
+		"test:path-preview": "node scripts/run-path-preview-tests.cjs",
+		"test:drawable-shapes": "node scripts/run-drawable-shape-tests.cjs",
+		"test:color-picker": "node scripts/run-color-picker-tests.cjs",
+		"test:release-preflight": "node scripts/run-release-preflight.cjs"
 	},
 	"repository": {
 		"type": "git",

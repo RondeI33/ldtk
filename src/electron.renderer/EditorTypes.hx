@@ -220,6 +220,7 @@ enum ClipboardType {
 
 	CRuleGroup;
 	CRule;
+	CSelection;
 }
 
 typedef CachedIID = {
@@ -265,6 +266,8 @@ enum AppCommand {
 	@k("ctrl z") C_Undo;
 	@k("ctrl y") C_Redo;
 	@k("ctrl a") C_SelectAll;
+	@k("ctrl c") C_CopySelection;
+	@k("ctrl v") C_PasteSelection;
 	@k("tab") C_ZenMode;
 	@k("h") C_ShowHelp;
 	@k("shift w, ², `, [zqsd] w, [arrows] w") C_ToggleWorldMode;

@@ -21,6 +21,7 @@ class TemplateEditorBridge {
 		var ei = entity(raw);
 		var out:Array<Dynamic> = [];
 		for(fd in ei.def.fieldDefs) {
+			if( data.DrawableShape.isEnabled(ei.def) && data.DrawableShape.isGeneratedField(fd) ) continue;
 			var fi = ei.getFieldInstance(fd,true);
 			var values:Array<Dynamic> = [];
 			var defaults:Array<Bool> = [];

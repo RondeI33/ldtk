@@ -472,7 +472,7 @@ class App extends dn.Process {
 			onKeyDown(ev.keyCode);
 		jsMetaKeyDown = ev.metaKey;
 		jsKeyDowns.set(ev.keyCode, true);
-		onKeyPress(ev.keyCode);
+		onKeyPress(ev.keyCode,ev);
 	}
 
 	function onJsKeyUp(ev:js.jquery.Event) {
@@ -547,7 +547,7 @@ class App extends dn.Process {
 	}
 
 
-	function onKeyPress(keyCode:Int) {
+	function onKeyPress(keyCode:Int, ?jsEvent:js.jquery.Event) {
 		// Propagate to current page
 		if( hasPage() && !curPageProcess.isPaused() )
 			curPageProcess.onKeyPress(keyCode);
@@ -593,6 +593,11 @@ class App extends dn.Process {
 			if( kb.navKeys!=null && kb.navKeys!=settings.v.navigationKeys )
 				continue;
 
+			// Only the canvas scene commands replace browser copy/paste. Form and
+			// definition editors keep their native clipboard behavior.
+			if( jsEvent!=null && (kb.command==C_CopySelection || kb.command==C_PasteSelection)
+				&& Editor.exists() && Editor.ME.canUseSelectionClipboard() )
+				jsEvent.preventDefault();
 			executeAppCommand(kb.command);
 			break;
 		}
@@ -619,6 +624,8 @@ class App extends dn.Process {
 			case C_Undo:
 			case C_Redo:
 			case C_SelectAll:
+			case C_CopySelection:
+			case C_PasteSelection:
 			case C_ZenMode:
 			case C_ShowHelp:
 			case C_ToggleWorldMode:

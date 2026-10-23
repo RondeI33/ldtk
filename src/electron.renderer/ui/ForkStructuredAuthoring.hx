@@ -43,6 +43,7 @@ class ForkStructuredAuthoring {
 			});
 		return haxe.Json.stringify({
 			uid: ed.uid,
+			drawableShape: data.DrawableShape.isEnabled(ed),
 			appearanceOverrides: ed.appearanceOverrides,
 			tileStamps: ed.tileStamps,
 			fields: fields,
@@ -711,6 +712,7 @@ class ForkStructuredAuthoring {
 			if( showRawForkJson ) rawRoot.show(); else rawRoot.hide();
 		});
 
+		ui.DrawableShapeEditor.appendDefinition(jRoot,ed);
 		appendAppearanceSection(jRoot,ed);
 		appendStampSection(jRoot,ed);
 		appendFieldRulesSection(jRoot,ed);

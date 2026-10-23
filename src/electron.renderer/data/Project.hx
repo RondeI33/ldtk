@@ -736,7 +736,8 @@ class Project {
 		for(ed in defs.enums) {
 			ed.identifier = cleanupIdentifier(ed.identifier, identifierStyle);
 			for( ev in ed.values)
-				ev.id = cleanupIdentifier(ev.id, identifierStyle);
+				if(!DrawableShape.isContractEnumValue(ed,ev.id))
+					ev.id = cleanupIdentifier(ev.id, identifierStyle);
 		}
 
 		// Layer defs
@@ -772,7 +773,8 @@ class Project {
 					if( ed!=null && ed.isExternal() )
 						continue;
 					for(i in 0...fi.getArrayLength())
-						fi.parseValue( i, cleanupIdentifier(fi.getEnumValue(i), identifierStyle) );
+						if(!DrawableShape.isContractEnumValue(ed,fi.getEnumValue(i)))
+							fi.parseValue( i, cleanupIdentifier(fi.getEnumValue(i), identifierStyle) );
 				}
 				// Entity fields
 				for(li in l.layerInstances)
@@ -786,7 +788,8 @@ class Project {
 						continue;
 
 					for(i in 0...fi.getArrayLength())
-						fi.parseValue( i, cleanupIdentifier(fi.getEnumValue(i), identifierStyle) );
+						if(!DrawableShape.isContractEnumValue(ed,fi.getEnumValue(i)))
+							fi.parseValue( i, cleanupIdentifier(fi.getEnumValue(i), identifierStyle) );
 				}
 			}
 		}

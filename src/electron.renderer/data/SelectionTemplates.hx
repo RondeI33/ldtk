@@ -10,6 +10,7 @@ class SelectionTemplates {
 	static var jPanel : Null<J>;
 	static var jSave : Null<J>;
 	static var saveEnabled:Null<Bool>;
+	static var draggedTemplate:Null<tool.SelectionTemplateTool>;
 
 	static inline function field(o:Dynamic, name:String) : Dynamic
 		return o==null ? null : Reflect.field(o,name);
@@ -477,6 +478,25 @@ class SelectionTemplates {
 	}
 
 	public static function installUi(editor:Editor) {
+		new J(js.Browser.document).off(".drawableTemplates");
+		draggedTemplate=null;
+		new J(js.Browser.document).on("dragover.drawableTemplates",ev->{
+			if(draggedTemplate==null || draggedTemplate.destroyed || editor.worldMode) return;
+			var native:Dynamic=ev.originalEvent;
+			var m=new Coords(native.pageX,native.pageY);
+			if(!editor.curLevel.inBounds(m.levelX,m.levelY)) return;
+			ev.preventDefault();ev.stopPropagation();
+			native.dataTransfer.dropEffect="copy";
+			draggedTemplate.previewDrop(m);
+		});
+		new J(js.Browser.document).on("drop.drawableTemplates",ev->{
+			if(draggedTemplate==null || draggedTemplate.destroyed) return;
+			ev.preventDefault();ev.stopPropagation();
+			var native:Dynamic=ev.originalEvent,m=new Coords(native.pageX,native.pageY),t=draggedTemplate;
+			draggedTemplate=null;
+			if(!editor.worldMode && editor.curLevel.inBounds(m.levelX,m.levelY)) {ui.Modal.closeAll();t.dropAt(m);}
+			else editor.clearSpecialTool();
+		});
 		editor.jMainPanel.find("#selectionTemplatesTab, #selectionTemplatesPanel").remove();
 		jPanel=null;
 		jSave=null;
@@ -586,11 +606,37 @@ class SelectionTemplates {
 				var place = new J('<button>Place</button>');
 				place.appendTo(actions);
 				var captured = cloneJson(tpl);
+				place.attr("draggable","true").attr("title","Click to place, or drag onto a shape to apply compatible settings while keeping its geometry and IID.");
+				place.on("dragstart",ev->{
+					var native:Dynamic=ev.originalEvent;
+					native.dataTransfer.effectAllowed="copy";
+					native.dataTransfer.setData("application/x-ldtk-selection-template",Std.string(field(captured,"id")));
+					draggedTemplate=new tool.SelectionTemplateTool(captured);
+					editor.setSpecialTool(draggedTemplate);
+				});
+				place.on("dragend",_-> {if(draggedTemplate!=null) {draggedTemplate=null;editor.clearSpecialTool();}});
 				place.click(function(_) {
 					ui.Modal.closeAll();
 					editor.setSpecialTool(new tool.SelectionTemplateTool(captured));
 					N.quick("Template placement active. Click the level to place, Esc to cancel.");
 				});
+				if(count==1 && cellCount==0) {
+					var raw=arr(captured,"entities")[0];
+					var ed=editor.project.defs.getEntityDef(intVal(field(field(raw,"json"),"defUid"),-1));
+					if(data.DrawableShape.isEnabled(ed)) {
+						var draw=new J('<button class="drawTemplateShape">Draw configuration</button>').appendTo(actions);
+						draw.click(_->{
+							var source=ui.TemplateEditorBridge.entity(raw);
+							ui.Modal.closeAll();editor.selectionTool.clear();
+							ui.DrawableShapeEditor.placementMode="Custom";
+							ui.DrawableShapeEditor.activate(ed,null,"Paint","Custom",source);
+						});
+						try {
+							var image=ui.TemplateEditorBridge.entityImage(raw);
+							if(image!=null) new J('<img class="drawableTemplateThumbnail" style="max-width:160px;max-height:100px;image-rendering:pixelated"/>').attr("src",image.url).prependTo(row);
+						} catch(_:Dynamic) {}
+					}
+				}
 
 				var renameBtn = new J('<button class="transparent">Rename</button>');
 				renameBtn.appendTo(actions);
@@ -649,6 +695,14 @@ class SelectionTemplates {
 			var ed=project.defs.getEntityDef(intVal(raw.json.defUid,-1));
 			if(li==null || li.def.type!=Entities || ed==null) { N.error("A required entity or layer definition is missing."); return false; }
 			for(f in arr(raw.json,"fieldInstances")) if(ed.getFieldDef(intVal(f.defUid,-1))==null) { N.error("A template field definition is missing. Edit the template first."); return false; }
+			// Validate every resolved mask before attaching any part of a multi-entity
+			// template. Ordinary and unversioned legacy entities remain unchanged.
+			try {
+				var candidate=data.inst.EntityInstance.fromJson(project,li,cast cloneJson(raw.json));
+				var shape=data.DrawableShape.read(candidate);
+				if(shape!=null && shape.error!=null) { N.error("Template has invalid drawable geometry: "+shape.error); return false; }
+			}
+			catch(error:Dynamic) { N.error("Template has invalid entity fields: "+Std.string(error)); return false; }
 			var tx=atX+(flipX ? intVal(tpl.width)-intVal(raw.relX) : intVal(raw.relX));
 			var ty=atY+(flipY ? intVal(tpl.height)-intVal(raw.relY) : intVal(raw.relY));
 			if(!ed.allowOutOfBounds && !level.inBounds(tx,ty)) { N.error("Template entities would be outside the level."); return false; }
@@ -703,6 +757,12 @@ class SelectionTemplates {
 			Reflect.setField(json,"iid",newIid);
 			Reflect.setField(json,"px",[atX+rx,atY+ry]);
 			var ei = data.inst.EntityInstance.fromJson(project,li,cast json);
+			if(field(raw,"coordinateSpace")=="layer") {ei.x-=li.pxTotalOffsetX;ei.y-=li.pxTotalOffsetY;}
+			if((flipX || flipY) && data.DrawableShape.read(ei)!=null) {
+				data.DrawableShape.transform(ei,flipX,flipY);
+				if(flipX) ei.x+=M.round(ei.width*(2*ei.pivotX-1));
+				if(flipY) ei.y+=M.round(ei.height*(2*ei.pivotY-1));
+			}
 			for(fi in ei.fieldInstances) if(fi.def.type==F_EntityRef)
 				for(i in 0...fi.getArrayLength()) fi.parseValue(i,null);
 			li.attachEntityInstanceForMove(ei);

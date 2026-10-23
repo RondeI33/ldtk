@@ -6,6 +6,10 @@ typedef CoreRender = {
 }
 
 class EntityRender extends dn.Process {
+	/** Dialog-only tint overrides, removed on confirmation/disposal. Never serialized. */
+	public static var previewColors:Map<String,Int> = new Map();
+	/** During a candidate stroke the tool owns the complete preview, including erasures. */
+	public static var suppressedShapes:Map<String,Bool> = new Map();
 	var ei : data.inst.EntityInstance;
 	var ed(get,never) : data.def.EntityDef; inline function get_ed() return ei.def;
 	var settings(get,never) : Settings; inline function get_settings() return App.ME.settings;
@@ -119,6 +123,7 @@ class EntityRender extends dn.Process {
 		var pivotX = ei!=null ? ei.pivotX : ed.pivotX;
 		var pivotY = ei!=null ? ei.pivotY : ed.pivotY;
 		var color = ei!=null ? ei.getSmartColor(false) : ed.color;
+		if( ei!=null && previewColors.exists(ei.iid) ) color = previewColors.get(ei.iid);
 
 		var wrapper = new h2d.Object();
 
@@ -232,6 +237,31 @@ class EntityRender extends dn.Process {
 
 				}
 			}
+		}
+
+		// Drawable masks use the same retained core for canvas, cursor and drag ghosts.
+		// Native fields are read only; this path never stamps map tiles or changes IIDs.
+		var shape = ei==null ? null : data.DrawableShape.read(ei);
+		if( ei==null && data.DrawableShape.isEnabled(ed) ) {
+			var grid = ld==null ? Editor.ME.project.defaultGridSize : ld.gridSize;
+			var width = Std.int(Math.max(1,Math.ceil(w/grid)));
+			var height = Std.int(Math.max(1,Math.ceil(h/grid)));
+			var cells:Array<Int> = [];
+			for( y in 0...height ) for( x in 0...width ) {cells.push(x);cells.push(y);}
+			function defaultText(name:String,fallback:String):String {
+				var fd=ed.getFieldDef(name);
+				return fd==null || fd.getDefault()==null ? fallback : Std.string(fd.getDefault());
+			}
+			var defaultColor=ed.getFieldDef("Color");
+			if( defaultColor!=null && defaultColor.type==F_Color && defaultColor.getDefault()!=null )
+				color=defaultColor.getColorDefault();
+			shape = {cells:cells,grid:grid,mode:"Rectangle",preset:"Rectangle",width:width,height:height,
+				error:null,profile:defaultText("VisualProfile","SolidBarrier"),facing:defaultText("ShapeFacing","All"),
+				thickness:1,quarterTurns:0,color:color,occupied:new Map()};
+		}
+		if( shape!=null ) {
+			DrawableShapeRender.draw(g,shape,ei,ed,color);
+			return {wrapper:wrapper,g:g};
 		}
 
 		// Base render
@@ -380,6 +410,7 @@ class EntityRender extends dn.Process {
 
 		final fullVis = ei._li==Editor.ME.curLayerInstance;
 		core.alpha = fullVis ? 1 : ei._li.def.inactiveOpacity;
+		core.visible = !suppressedShapes.exists(ei.iid);
 
 		// Graphics
 		if( !fullVis && ei._li.def.hideFieldsWhenInactive )
@@ -430,6 +461,7 @@ class EntityRender extends dn.Process {
 	override function postUpdate() {
 		super.postUpdate();
 
+		core.visible = !suppressedShapes.exists(ei.iid);
 		if( pathPreview!=null )
 			pathPreview.visible = !PathPreviewRender.isSuppressed(ei);
 

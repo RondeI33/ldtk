@@ -276,6 +276,50 @@ class SelectionTool extends Tool<Int> {
 		catch(e:Dynamic) N.error("Could not open template editor: "+Std.string(e));
 	}
 
+	public function copySelectionToClipboard():Bool {
+		if( !editor.canUseSelectionClipboard() || isEmpty() )
+			return false;
+		try {
+			var tpl=group.toSelectionTemplate("Selection");
+			if( tpl==null || (cast tpl.entities:Array<Dynamic>).length==0 && (cast tpl.cells:Array<Dynamic>).length==0 ) {
+				N.error("Select an entity or grid cells to copy.");
+				return false;
+			}
+			return App.ME.clipboard.copySelection(project,tpl);
+		}
+		catch(error:Dynamic) {
+			N.error("Could not copy the selection: "+Std.string(error));
+			return false;
+		}
+	}
+
+	public function pasteSelectionFromClipboard():Bool {
+		if( !editor.canUseSelectionClipboard() )
+			return false;
+		try {
+			var tpl=App.ME.clipboard.getSelectionForProject(project);
+			if( tpl==null )
+				return false;
+			if( (cast tpl.entities:Array<Dynamic>).length==0 && (cast tpl.cells:Array<Dynamic>).length==0 ) {
+				N.error("The copied scene selection has no placeable contents.");
+				return false;
+			}
+			ui.DrawableShapeEditor.clearPreview();
+			tool.lt.EntityTool.cancelRefChaining();
+			var pasteTool=new tool.SelectionTemplateTool(tpl,false);
+			editor.setSpecialTool(pasteTool);
+			editor.clearResizeTool();
+			pasteTool.onMouseMoveCursor(new hxd.Event(EMove),editor.getMouse());
+			N.quick("Paste preview: click the level to place a fresh copy. Esc cancels.");
+			App.ME.requestCpu();
+			return true;
+		}
+		catch(error:Dynamic) {
+			N.error("Could not paste the selection: "+Std.string(error));
+			return false;
+		}
+	}
+
 	public inline function get() return getSelectedValue();
 	public function clear() {
 		ui.MultiEntityInstanceEditor.closeExisting();

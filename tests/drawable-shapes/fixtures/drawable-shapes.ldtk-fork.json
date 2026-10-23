@@ -1,0 +1,28 @@
+{
+	"entities": {
+		"4": {
+			"identifier": "DrawableHazard",
+			"drawableShape": {
+				"enabled": true,
+				"version": 1
+			},
+			"autoChildren": [],
+			"appearanceOverrides": [],
+			"tileStamps": [],
+			"fields": {}
+		},
+		"23": {
+			"identifier": "TimedPlatform",
+			"drawableShape": {
+				"enabled": true,
+				"version": 1
+			},
+			"autoChildren": [],
+			"appearanceOverrides": [],
+			"tileStamps": [],
+			"fields": {}
+		}
+	},
+	"format": 1,
+	"projectIid": "ec1cf510-bde0-11f1-ad9f-7f805917cfe9"
+}

@@ -141,6 +141,7 @@ class MultiEntityInstanceEditor extends dn.Process {
 		jFields.empty();
 		var visibleCount = 0;
 		for(fd in entities[0].def.fieldDefs) {
+			if( data.DrawableShape.isEnabled(entities[0].def) && data.DrawableShape.isGeneratedField(fd) ) continue;
 			var visible = true;
 			for(ei in entities)
 				if( !owner.project.forkConfig.isFieldVisible(ei,fd) ) visible=false;

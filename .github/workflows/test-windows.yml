@@ -1,10 +1,16 @@
 name: LDTK-Smartive manual release build
 
 # Run from master. The existing release pipeline performs all regressions,
-# packages Windows/macOS/Linux, publishes a versioned release, then notifies
-# Slack using its existing notification step and SLACK_WEBHOOK_URL secret.
+# packages Windows/macOS/Linux and publishes a versioned release. Sending a
+# Slack announcement through the existing webhook is an explicit opt-in.
 on:
   workflow_dispatch:
+    inputs:
+      notify_slack:
+        description: Send the published release announcement to Slack
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,10 +21,11 @@ concurrency:
 
 jobs:
   release:
-    name: Run release regressions, package, publish and notify Slack
+    name: Run release regressions, package and publish
     uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
     with:
       # Never overwrite a published version on an ordinary manual build.
       # Bump app/package.json and the changelog for each new release.
       force_rebuild: false
+      notify_slack: ${{ inputs.notify_slack }}
     secrets: inherit

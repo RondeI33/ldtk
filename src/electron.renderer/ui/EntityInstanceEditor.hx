@@ -62,6 +62,7 @@ class EntityInstanceEditor extends dn.Process {
 
 	override function onDispose() {
 		super.onDispose();
+		ui.DrawableShapeEditor.clearPreview();
 
 		js.Browser.document.removeEventListener("mousemove", resizeDrag);
 		js.Browser.document.removeEventListener("mouseup", resizeDrag);
@@ -256,7 +257,7 @@ class EntityInstanceEditor extends dn.Process {
 			()->ei.width,
 			(v)->ei.customWidth = v
 		);
-		i.setEnabled( ei.def.resizableX );
+		i.setEnabled( ei.def.resizableX && data.DrawableShape.read(ei)==null );
 		i.enableSlider(sliderSpeed, false);
 		i.setBounds(ei.def.minWidth==null ? 1 : ei.def.minWidth, ei.def.maxWidth);
 		i.linkEvent( EntityInstanceChanged(ei) );
@@ -270,7 +271,7 @@ class EntityInstanceEditor extends dn.Process {
 			()->ei.height,
 			(v)->ei.customHeight = v
 		);
-		i.setEnabled( ei.def.resizableY );
+		i.setEnabled( ei.def.resizableY && data.DrawableShape.read(ei)==null );
 		i.enableSlider(sliderSpeed, false);
 		i.setBounds(ei.def.minHeight==null ? 1 : ei.def.minHeight, ei.def.maxHeight);
 		i.linkEvent( EntityInstanceChanged(ei) );
@@ -296,7 +297,10 @@ class EntityInstanceEditor extends dn.Process {
 
 
 	function updateCustomFields() {
+		ui.DrawableShapeEditor.clearPreview();
 		customFieldsForm.use( Entity(ei), ei.def.fieldDefs, (fd)->ei.getFieldInstance(fd,true) );
+		jWrapper.find(".drawableShapeInspector").remove();
+		ui.DrawableShapeEditor.appendInspector(jWrapper.find(".customFieldsWrapper"),ei);
 	}
 
 

@@ -21,6 +21,7 @@ class GenericLevelElementGroup {
 	var suppressedPathPreviewIids:Array<String> = [];
 	var ghost : h2d.Graphics;
 	var selectRender : h2d.Graphics;
+	var shapeSelectRender : h2d.Graphics;
 	var arrow : h2d.Graphics;
 	var pointLinks : h2d.Graphics;
 	var ghostLayerStack : Null<h2d.Layers>;
@@ -61,6 +62,14 @@ class GenericLevelElementGroup {
 		f.setPartialKnockout(0.66);
 		selectRender.filter = new h2d.filter.Group([
 			f, new dn.heaps.filter.PixelOutline(0x0),
+		]);
+		// Shapes need a lighter interior so native per-instance colors remain visible.
+		// Use the same opaque mask/outline with a separate interior knockout value.
+		shapeSelectRender = new h2d.Graphics(renderWrapper);
+		var shapeOutline = new dn.heaps.filter.PixelOutline(SELECTION_COLOR);
+		shapeOutline.setPartialKnockout(0.15);
+		shapeSelectRender.filter = new h2d.filter.Group([
+			shapeOutline, new dn.heaps.filter.PixelOutline(0x0),
 		]);
 		invalidateBounds();
 	}
@@ -471,11 +480,12 @@ class GenericLevelElementGroup {
 
 	function renderSelection() {
 		selectRender.clear();
+		shapeSelectRender.clear();
 		if( movingGhost ) {
-			selectRender.visible = false;
+			selectRender.visible = shapeSelectRender.visible = false;
 			return;
 		}
-		selectRender.visible = true;
+		selectRender.visible = shapeSelectRender.visible = true;
 		var c = SELECTION_COLOR;
 		var alpha = 1;
 
@@ -500,13 +510,24 @@ class GenericLevelElementGroup {
 					);
 
 				case Entity(li, ei):
-					selectRender.beginFill(c, alpha);
-					selectRender.drawRect(
-						li.pxParallaxX + ( ei.x - ei.width * ei.pivotX ) * li.def.getScale(),
-						li.pxParallaxY + ( ei.y - ei.height * ei.pivotY ) * li.def.getScale(),
-						ei.width * li.def.getScale(),
-						ei.height * li.def.getScale()
-					);
+					if(display.EntityRender.suppressedShapes.exists(ei.iid)) continue;
+					var shape=data.DrawableShape.read(ei);
+					if(shape!=null && shape.error==null) {
+						shapeSelectRender.beginFill(c,alpha);
+						var scale=li.def.getScale(),g=shape.grid*scale;
+						for(i in 0...Std.int(shape.cells.length/2)) shapeSelectRender.drawRect(
+							li.pxParallaxX+ei.left*scale+shape.cells[i*2]*g,
+							li.pxParallaxY+ei.top*scale+shape.cells[i*2+1]*g,g,g);
+					}
+					else if(shape==null) {
+						selectRender.beginFill(c,alpha);
+						selectRender.drawRect(
+							li.pxParallaxX + ( ei.x - ei.width * ei.pivotX ) * li.def.getScale(),
+							li.pxParallaxY + ( ei.y - ei.height * ei.pivotY ) * li.def.getScale(),
+							ei.width * li.def.getScale(),
+							ei.height * li.def.getScale()
+						);
+					}
 
 				case PointField(li, ei, fi, arrayIdx):
 					selectRender.beginFill(c, alpha);
@@ -665,10 +686,11 @@ class GenericLevelElementGroup {
 
 				case Entity(li, ei):
 					var core = display.EntityRender.renderCore(ei);
-					ghost.addChild(core.wrapper);
+					if(data.DrawableShape.read(ei)!=null) ghostLayerStack.addChild(core.wrapper); else ghost.addChild(core.wrapper);
 					core.wrapper.alpha = 0.5;
-					core.wrapper.x = li.pxParallaxX + ei.x - bounds.left;
-					core.wrapper.y = li.pxParallaxY + ei.y - bounds.top;
+					core.wrapper.setScale(li.def.getScale());
+					core.wrapper.x = li.pxParallaxX + ei.x*li.def.getScale() - bounds.left;
+					core.wrapper.y = li.pxParallaxY + ei.y*li.def.getScale() - bounds.top;
 
 				case PointField(li, ei, fi, arrayIdx):
 					var pt = fi.getPointGrid(arrayIdx);
@@ -850,7 +872,7 @@ class GenericLevelElementGroup {
 		captureDragSnapshot();
 		capturePathPreviewDragSnapshots();
 		movingGhost = true;
-		selectRender.visible = false;
+		selectRender.visible = shapeSelectRender.visible = false;
 		renderGhost();
 
 		// A true move previews the source hole immediately. Copy keeps source.
@@ -883,7 +905,7 @@ class GenericLevelElementGroup {
 		origin = origin.cloneRelativeToLayer(rel);
 		now = now.cloneRelativeToLayer(rel);
 
-		selectRender.visible = false;
+		selectRender.visible = shapeSelectRender.visible = false;
 
 		// Preview movement is derived only from snapped cell deltas. Drop commit
 		// uses the same cell delta (converted to logical/unscaled LDtk pixels).
@@ -1529,7 +1551,8 @@ class GenericLevelElementGroup {
 
 				case Entity(li,ei):
 					selectedEntities.set(ei.iid,true);
-					addBounds(ei.left,ei.top,ei.width,ei.height);
+					var shape=data.DrawableShape.read(ei)!=null;
+					addBounds(ei.left+(shape ? li.pxTotalOffsetX : 0),ei.top+(shape ? li.pxTotalOffsetY : 0),ei.width,ei.height);
 					for(fi in ei.fieldInstances)
 						if( fi.def.type==F_Point )
 							for(i in 0...fi.getArrayLength()) {
@@ -1597,8 +1620,9 @@ class GenericLevelElementGroup {
 					entityData.push({
 						sourceIid: ei.iid,
 						layerDefUid: li.layerDefUid,
-						relX: ei.x-minX,
-						relY: ei.y-minY,
+						relX: ei.x-minX+(data.DrawableShape.read(ei)!=null ? li.pxTotalOffsetX : 0),
+						relY: ei.y-minY+(data.DrawableShape.read(ei)!=null ? li.pxTotalOffsetY : 0),
+						coordinateSpace: data.DrawableShape.read(ei)!=null ? "layer" : "legacy",
 						json: ei.toJson(li),
 						refs: refs,
 						points: points,
@@ -1917,6 +1941,9 @@ class GenericLevelElementGroup {
 						case Entities, AutoLayer:
 					}
 
+				case Entity(_,ei):
+					var shape=data.DrawableShape.read(ei);
+					if(shape!=null && shape.error==null) return true;
 				case _:
 			}
 		return false;
@@ -1958,6 +1985,12 @@ class GenericLevelElementGroup {
 						includeRect(left, top, left+grid, top+grid);
 					}
 
+				case Entity(li,ei):
+					var shape=data.DrawableShape.read(ei);
+					if(shape!=null && shape.error==null) {
+						var scale=li.def.getScale();
+						includeRect(li.pxParallaxX+ei.left*scale,li.pxParallaxY+ei.top*scale,li.pxParallaxX+ei.right*scale,li.pxParallaxY+ei.bottom*scale);
+					}
 				case _:
 			}
 
@@ -1973,6 +2006,7 @@ class GenericLevelElementGroup {
 		var flipBit = horizontal ? 1 : 2;
 		var pendingTiles : Array<Dynamic> = [];
 		var pendingIntGrid : Array<Dynamic> = [];
+		var pendingShapes:Array<data.inst.EntityInstance>=[];
 
 		inline function getTarget(li:data.inst.LayerInstance, cx:Int, cy:Int) {
 			var grid = li.def.scaledGridSize;
@@ -2035,10 +2069,27 @@ class GenericLevelElementGroup {
 				case _:
 			}
 
-		if( pendingTiles.length==0 && pendingIntGrid.length==0 )
+		for(ge in elements) switch ge {
+			case Entity(_,ei):
+				var shape=data.DrawableShape.read(ei);
+				if(shape!=null && shape.error==null) pendingShapes.push(ei);
+			case _:
+		}
+		if( pendingTiles.length==0 && pendingIntGrid.length==0 && pendingShapes.length==0 )
 			return [];
 
 		var changedLayers : Map<data.inst.LayerInstance,data.inst.LayerInstance> = [];
+		for(ei in pendingShapes) {
+			var li=ei._li,scale=li.def.getScale();
+			var left=horizontal ? (flipBounds.left+flipBounds.right-li.pxParallaxX-ei.right*scale-li.pxParallaxX)/scale : ei.left;
+			var top=horizontal ? ei.top : (flipBounds.top+flipBounds.bottom-li.pxParallaxY-ei.bottom*scale-li.pxParallaxY)/scale;
+			var error=data.DrawableShape.transform(ei,horizontal,!horizontal);
+			if(error!=null) {N.error(error);continue;}
+			ei.x=M.round(left+ei.width*ei.pivotX);ei.y=M.round(top+ei.height*ei.pivotY);
+			editor.ensureLevelTimeline(li.level).markEntityChange(ei);
+			editor.ge.emit(EntityInstanceChanged(ei));
+			changedLayers.set(li,li);
+		}
 
 		// Remove all sources first so mirrored positions can swap safely.
 		for(c in pendingTiles) {
@@ -2118,7 +2169,7 @@ class GenericLevelElementGroup {
 
 	public function onPostUpdate() {
 		if( movingGhost ) {
-			selectRender.visible = false;
+			selectRender.visible = shapeSelectRender.visible = false;
 			return;
 		}
 

@@ -112,6 +112,22 @@ class ForkConfig {
 		return ed!=null && isJsonObject(getDyn(getDyn(getDyn(sidecarRoot,"entities"),Std.string(ed.uid)),"pathPreview"));
 	}
 
+	public function hasDrawableShape(ed:data.def.EntityDef) : Bool {
+		var cfg=getDyn(getDyn(getDyn(sidecarRoot,"entities"),ed==null ? "":Std.string(ed.uid)),"drawableShape");
+		return cfg==true || isJsonObject(cfg) && getDyn(cfg,"enabled")!=false;
+	}
+
+	/** UI capability only: every per-instance runtime value lives in native fields. */
+	public function setDrawableShapeEnabled(ed:data.def.EntityDef,enabled:Bool) {
+		var entities=getDyn(sidecarRoot,"entities");
+		if(!isJsonObject(entities)) {entities={};Reflect.setField(sidecarRoot,"entities",entities);}
+		var id=Std.string(ed.uid),cfg=getDyn(entities,id);
+		if(!isJsonObject(cfg)) {cfg={};Reflect.setField(entities,id,cfg);}
+		Reflect.setField(cfg,"identifier",ed.identifier);
+		Reflect.setField(cfg,"drawableShape",mergeSidecarValue(getDyn(cfg,"drawableShape"),{enabled:enabled,version:1}));
+		loadedEntityKeys.set(id,true);
+	}
+
 	/** Read-only adapter: never generates entities, tiles or default FieldInstances. */
 	public function getPathPreview(ei:data.inst.EntityInstance, ?overrides:PathPreviewConfig.PathPreviewOverrides) : Null<PathPreviewConfig.ResolvedPathPreview> {
 		if( ei==null || !hasPathPreview(ei.def) )
@@ -548,6 +564,8 @@ class ForkConfig {
 	}
 
 	public function hasValidationError(ei:data.inst.EntityInstance) {
+		var shape=DrawableShape.read(ei);
+		if(shape!=null && shape.error!=null)return true;
 		for(fd in ei.def.fieldDefs)
 			if( fd.enumValueFilter.length>0 )
 				switch fd.type {
@@ -626,6 +644,7 @@ class ForkConfig {
 	}
 
 	function paintStampAt(ei:data.inst.EntityInstance, stamp:Dynamic, px:Int, py:Int, touched:Map<Int,data.inst.LayerInstance>) {
+		if(DrawableShape.hasMetadata(ei))return;
 		var li = findStampLayer(ei,stamp);
 		if( li==null )
 			return;
@@ -653,6 +672,7 @@ class ForkConfig {
 	}
 
 	function eraseStampAt(ei:data.inst.EntityInstance, stamp:Dynamic, px:Int, py:Int, touched:Map<Int,data.inst.LayerInstance>) {
+		if(DrawableShape.hasMetadata(ei))return;
 		var li = findStampLayer(ei,stamp);
 		if( li==null )
 			return;
@@ -684,6 +704,7 @@ class ForkConfig {
 	}
 
 	public function paintEntityStamps(ei:data.inst.EntityInstance) : Array<data.inst.LayerInstance> {
+		if(DrawableShape.hasMetadata(ei))return [];
 		var touched : Map<Int,data.inst.LayerInstance> = new Map();
 		for(stamp in ei.def.tileStamps)
 			if( stampIsActive(ei,stamp) )
@@ -693,6 +714,7 @@ class ForkConfig {
 	}
 
 	public function eraseEntityStamps(ei:data.inst.EntityInstance) : Array<data.inst.LayerInstance> {
+		if(DrawableShape.hasMetadata(ei)) {trackedEntities.remove(ei.iid);return [];}
 		var touched : Map<Int,data.inst.LayerInstance> = new Map();
 		for(stamp in ei.def.tileStamps)
 			if( stampIsActive(ei,stamp) )
@@ -702,6 +724,7 @@ class ForkConfig {
 	}
 
 	public function trackEntity(ei:data.inst.EntityInstance) {
+		if(DrawableShape.hasMetadata(ei)) {trackedEntities.remove(ei.iid);return;}
 		var gates = [];
 		for(stamp in ei.def.tileStamps)
 			gates.push(stampIsActive(ei,stamp));
@@ -709,6 +732,7 @@ class ForkConfig {
 	}
 
 	public function syncTrackedEntity(ei:data.inst.EntityInstance) : Array<data.inst.LayerInstance> {
+		if(DrawableShape.hasMetadata(ei)) {trackedEntities.remove(ei.iid);return [];}
 		var old = trackedEntities.get(ei.iid);
 		if( old==null ) {
 			trackEntity(ei);
@@ -744,9 +768,10 @@ class ForkConfig {
 		for(li in level.layerInstances)
 			if( li.def.type==Entities )
 				for(ei in li.entityInstances)
-					for(stamp in ei.def.tileStamps)
-						if( stampIsActive(ei,stamp) )
-							paintStampAt(ei,stamp,ei.x,ei.y,touched);
+					if(!DrawableShape.hasMetadata(ei))
+						for(stamp in ei.def.tileStamps)
+							if( stampIsActive(ei,stamp) )
+								paintStampAt(ei,stamp,ei.x,ei.y,touched);
 		for(li in level.layerInstances)
 			if( li.def.type==Entities )
 				for(ei in li.entityInstances)

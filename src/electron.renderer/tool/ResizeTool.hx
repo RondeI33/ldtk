@@ -21,17 +21,73 @@ class ResizeTool extends Tool<Int> {
 	var invalidated = true;
 	var _rect : Null<ResizeRect>;
 	var rect(get,never) : ResizeRect;
+	var shapeSource:Null<data.inst.EntityInstance>;
+	var shapeSnapshot:Dynamic;
+	var shapeCandidate:Null<data.inst.EntityInstance>;
+	var shapeGhost:Null<h2d.Graphics>;
+	var shapeError:Null<String>;
+	var shapeEditor:Editor;
 
 
 	public function new(ge:GenericLevelElement) {
 		super();
 		this.ge = ge;
+		shapeEditor=editor;
 		createRootInLayers(editor.levelRender.root, Const.DP_UI);
 		g = new h2d.Graphics(root);
 		g.alpha = DEFAULT_ALPHA;
 
 		_handlePosIterator = RectHandlePos.getConstructors().map( k->RectHandlePos.createByName(k) );
+		editor.ge.addGlobalListener(onShapeContextEvent);
 		render();
+	}
+
+	override function onDispose() {
+		clearShapePreview();
+		if(shapeEditor.ge!=null) shapeEditor.ge.removeListener(onShapeContextEvent);
+		super.onDispose();
+	}
+
+	function clearShapePreview() {
+		if(shapeSource!=null) {
+			display.EntityRender.suppressedShapes.remove(shapeSource.iid);
+			if(!shapeEditor.destroyed) {
+				if(shapeSource._li==shapeEditor.curLayerInstance) shapeEditor.levelRender.invalidateLayer(shapeSource._li);
+				shapeEditor.selectionTool.invalidateRender();
+			}
+		}
+		if(shapeGhost!=null) shapeGhost.remove();
+		shapeGhost=null;shapeSource=null;shapeSnapshot=null;shapeCandidate=null;shapeError=null;
+	}
+
+	function cancelShapeResize() {
+		clearShapePreview();
+		draggedHandle=null;curMode=null;resizedAnything=false;
+		invalidate();
+	}
+
+	function onShapeContextEvent(ev:GlobalEvent) {
+		if(shapeSource==null) return;
+		switch ev {
+			case LevelSelected(_), LayerInstanceSelected(_), LevelRestoredFromHistory(_), LayerInstancesRestoredFromHistory(_):
+				cancelShapeResize();
+			case EntityInstanceRemoved(ei): if(ei==shapeSource) cancelShapeResize();
+			case _:
+		}
+	}
+
+	/** Shape positions are layer-local; handles are drawn and hit-tested in level space. */
+	function shapeLayer():Null<data.inst.LayerInstance> {
+		return switch ge {
+			case Entity(li,ei): data.DrawableShape.hasMetadata(ei) ? li : null;
+			case _: null;
+		}
+	}
+
+	function shapeContextIsCurrent():Bool {
+		return editor==shapeEditor && shapeSource!=null && shapeSource._li==curLayerInstance
+			&& shapeSource._li.levelId==editor.curLevelId
+			&& project.getEntityInstanceByIid(shapeSource.iid)==shapeSource;
 	}
 
 	function render() {
@@ -115,18 +171,24 @@ class ResizeTool extends Tool<Int> {
 	}
 
 	function getHandleX(pos:RectHandlePos) : Float {
+		var li=shapeLayer(),scale=li==null ? 1. : li.def.getScale();
+		var x=li==null ? rect.x : li.pxParallaxX+rect.x*scale;
+		var w=rect.w*scale;
 		return switch pos {
-			case Top, Bottom: rect.x + rect.w*0.5;
-			case Left, TopLeft, BottomLeft: rect.x - HANDLE_RADIUS;
-			case Right, TopRight, BottomRight: rect.x + rect.w-1 + HANDLE_RADIUS;
+			case Top, Bottom: x + w*0.5;
+			case Left, TopLeft, BottomLeft: x - HANDLE_RADIUS;
+			case Right, TopRight, BottomRight: x + w-(li==null ? 1 : 0) + HANDLE_RADIUS;
 		}
 	}
 
 	function getHandleY(pos:RectHandlePos) : Float {
+		var li=shapeLayer(),scale=li==null ? 1. : li.def.getScale();
+		var y=li==null ? rect.y : li.pxParallaxY+rect.y*scale;
+		var h=rect.h*scale;
 		return switch pos {
-			case Left,Right: rect.y + rect.h*0.5;
-			case Top, TopLeft, TopRight: rect.y - HANDLE_RADIUS;
-			case Bottom, BottomLeft, BottomRight: rect.y + rect.h + HANDLE_RADIUS;
+			case Left,Right: y + h*0.5;
+			case Top, TopLeft, TopRight: y - HANDLE_RADIUS;
+			case Bottom, BottomLeft, BottomRight: y + h + HANDLE_RADIUS;
 		}
 	}
 
@@ -155,9 +217,57 @@ class ResizeTool extends Tool<Int> {
 		}
 
 		dragOrigin = m;
+		clearShapePreview();
+		switch ge {
+			case Entity(li,ei):
+				var state=data.DrawableShape.read(ei);
+				if(state!=null) {
+					if(state.error!=null) {
+						N.error("Shape unchanged: "+state.error);
+						draggedHandle=null;
+						return;
+					}
+					shapeSource=ei;
+					shapeSnapshot=ei.toJson(li);
+					shapeGhost=new h2d.Graphics();
+					editor.levelRender.root.add(shapeGhost,Const.DP_UI);
+					shapeGhost.setPosition(li.pxParallaxX+ei.left*li.def.getScale(),li.pxParallaxY+ei.top*li.def.getScale());
+					shapeGhost.setScale(li.def.getScale());shapeGhost.alpha=0.85;
+					display.DrawableShapeRender.draw(shapeGhost,state,ei,ei.def);
+					display.EntityRender.suppressedShapes.set(ei.iid,true);
+					editor.levelRender.invalidateLayer(li);
+					editor.selectionTool.invalidateRender();
+				}
+			case _:
+		}
 	}
 
 	override function stopUsing(m:Coords) {
+		if(shapeSource!=null) {
+			// Selection changes and history restoration may call clearResizeTool
+			// after changing the active level. Never commit an old candidate there.
+			if(!shapeContextIsCurrent()) {cancelShapeResize();return;}
+			var ei=shapeSource,candidate=shapeCandidate;
+			if(shapeError!=null) N.error("Shape unchanged: "+shapeError);
+			else if(candidate!=null && (ei.x!=candidate.x || ei.y!=candidate.y || ei.width!=candidate.width || ei.height!=candidate.height)) {
+				var s=data.DrawableShape.read(candidate);
+				if(s!=null && s.error==null) {
+					var error=data.DrawableShape.applyCells(ei,s.cells,s.grid,candidate.left,candidate.top,s.mode,s.preset);
+					if(error!=null) N.error("Shape unchanged: "+error);
+					else {
+						var timeline=editor.ensureLevelTimeline(ei._li.level);
+						timeline.markEntityChange(ei);
+						timeline.saveLayerState(ei._li);
+						editor.ge.emit(EntityInstanceChanged(ei));
+						editor.levelRender.invalidateLayer(ei._li);
+						editor.selectionTool.invalidateRender();
+					}
+				}
+			}
+			clearShapePreview();
+			draggedHandle=null;curMode=null;resizedAnything=false;
+			invalidate();return;
+		}
 		super.stopUsing(m);
 		if( resizedAnything ) {
 			switch ge {
@@ -208,31 +318,37 @@ class ResizeTool extends Tool<Int> {
 		else {
 			// Actual resizing
 			ev.cancel = true;
-			var snapSize = settings.v.grid ? editor.curLayerDef.gridSize : 1;
+			if(shapeSource!=null && !shapeContextIsCurrent()) {cancelShapeResize();return;}
+			var shape=shapeSource==null ? null : data.DrawableShape.read(shapeSource);
+			var scale=shapeSource==null ? 1. : shapeSource._li.def.getScale();
+			var mouseX=shapeSource==null ? m.levelX : (m.levelX-shapeSource._li.pxParallaxX)/scale;
+			var mouseY=shapeSource==null ? m.levelY : (m.levelY-shapeSource._li.pxParallaxY)/scale;
+			var handlePad=HANDLE_RADIUS/scale;
+			var snapSize=shape==null ? (settings.v.grid ? editor.curLayerDef.gridSize : 1) : shape.grid;
 
 			// Width
-			var newWid = switch draggedHandle {
+			var newWid = M.round(switch draggedHandle {
 				case Top, Bottom: rect.w;
 
 				case Left, TopLeft, BottomLeft:
-					(rect.x+rect.w) - HANDLE_RADIUS - m.levelX;
+					(rect.x+rect.w) - handlePad - mouseX;
 
 				case Right, TopRight, BottomRight:
-					m.levelX - rect.x - HANDLE_RADIUS;
-				}
+					mouseX - rect.x - handlePad;
+				});
 			if( newWid!=rect.w )
 				newWid = M.round(newWid/snapSize) * snapSize;
 
 			// Height
-			var newHei = switch draggedHandle {
+			var newHei = M.round(switch draggedHandle {
 				case Left, Right: rect.h;
 
 				case Top, TopLeft, TopRight:
-					(rect.y+rect.h) - HANDLE_RADIUS - m.levelY;
+					(rect.y+rect.h) - handlePad - mouseY;
 
 				case Bottom, BottomLeft, BottomRight:
-					m.levelY - rect.y - HANDLE_RADIUS;
-			}
+					mouseY - rect.y - handlePad;
+			});
 			if( newHei!=rect.h )
 				newHei = M.round(newHei/snapSize) * snapSize;
 
@@ -241,6 +357,27 @@ class ResizeTool extends Tool<Int> {
 				case GridCell(li, cx, cy):
 
 				case Entity(li, ei):
+					if(shapeSource!=null) {
+						var source=data.DrawableShape.read(shapeSource);
+						shapeCandidate=data.inst.EntityInstance.fromJson(project,li,shapeSnapshot);
+						var fromLeft=switch draggedHandle {case Left,TopLeft,BottomLeft:true;case _:false;};
+						var fromTop=switch draggedHandle {case Top,TopLeft,TopRight:true;case _:false;};
+						shapeError=ui.DrawableShapeEditor.resize(shapeCandidate,M.round(newWid/source.grid),M.round(newHei/source.grid),fromLeft,fromTop);
+						shapeGhost.clear();shapeGhost.removeChildren();
+						var previewState=data.DrawableShape.read(shapeCandidate);
+						if(shapeError!=null) {
+							shapeCandidate=null;
+							var draft:Dynamic={cells:source.cells,grid:source.grid,mode:source.mode,preset:source.preset,width:source.width,height:source.height,
+								error:shapeError,profile:source.profile,facing:source.facing,thickness:source.thickness,quarterTurns:source.quarterTurns,color:source.color,occupied:source.occupied};
+							previewState=cast draft;
+						}
+						var x=shapeCandidate==null ? ei.left : shapeCandidate.left,y=shapeCandidate==null ? ei.top : shapeCandidate.top;
+						shapeGhost.setPosition(li.pxParallaxX+x*li.def.getScale(),li.pxParallaxY+y*li.def.getScale());
+						shapeGhost.setScale(li.def.getScale());shapeGhost.alpha=0.85;
+						display.DrawableShapeRender.draw(shapeGhost,previewState,shapeCandidate,ei.def);
+						App.ME.requestCpu();
+						return;
+					}
 					var oldW = ei.width;
 					var oldH = ei.height;
 
@@ -299,6 +436,12 @@ class ResizeTool extends Tool<Int> {
 			case GridCell(li, cx, cy): false;
 			case Entity(li, ei): ei==targetEi;
 			case PointField(li, ei, fi, arrayIdx): ei==targetEi;
+		}
+	}
+
+	override function onKeyPress(keyId:Int) {
+		if(keyId==K.ESCAPE && shapeSource!=null) {
+			cancelShapeResize();
 		}
 	}
 

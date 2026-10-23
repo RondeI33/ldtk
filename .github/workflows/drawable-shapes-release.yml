@@ -1,0 +1,24 @@
+name: Publish drawable shapes release
+
+# Advance this branch only after the identical commit passes the nonpublishing
+# preflight. Feature-branch pushes cannot start installers or publication.
+on:
+  push:
+    branches: [release/drawable-shapes-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: drawable-shapes-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/release/drawable-shapes-v1'
+    name: Recheck regressions, package and publish the validated commit
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: false

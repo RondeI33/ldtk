@@ -11,8 +11,12 @@ class SelectionTemplateTool extends Tool<Int> {
 	var previewEntities = 0;
 	var previewTiles = 0;
 	var previewIntGrid = 0;
+	var configuration:Null<data.inst.EntityInstance>;
+	var configurationGhost:h2d.Object;
+	var configurationTarget:Null<String>;
+	var configurationSignature:Null<String>;
 
-	public function new(tpl:Dynamic) {
+	public function new(tpl:Dynamic,allowConfigurationApply=true) {
 		super();
 		var module:Dynamic=js.Node.require(JsTools.getAssetsDir()+"/js/selection-template-editor.js");
 		this.tpl = module.materialize(tpl,ui.TemplateEditorBridge.catalog(tpl));
@@ -20,6 +24,16 @@ class SelectionTemplateTool extends Tool<Int> {
 
 		ghostRoot = new h2d.Object();
 		editor.levelRender.root.add(ghostRoot, Const.DP_UI);
+		configurationGhost=new h2d.Object();
+		editor.levelRender.root.add(configurationGhost,Const.DP_UI);
+		var entities=arr(this.tpl,"entities");
+		if(allowConfigurationApply && entities.length==1 && arr(this.tpl,"cells").length==0) {
+			var raw=entities[0],ed=project.defs.getEntityDef(intVal(field(field(raw,"json"),"defUid"),-1));
+			if(data.DrawableShape.isEnabled(ed)) {
+				try { configuration=ui.TemplateEditorBridge.entity(raw); }
+				catch(error:Dynamic) { N.error("This saved configuration cannot be applied: "+Std.string(error)); }
+			}
+		}
 		rebuildGhost();
 	}
 
@@ -30,6 +44,8 @@ class SelectionTemplateTool extends Tool<Int> {
 		ghostRoot = null;
 		ghostLayers = null;
 		ghostOverlay = null;
+		if(configurationGhost!=null) configurationGhost.remove();
+		configurationGhost=null;
 	}
 
 	// SelectionTemplates.place records all affected layers as one transaction.
@@ -146,6 +162,11 @@ class SelectionTemplateTool extends Tool<Int> {
 				json.iid=editor.project.generateUniqueId_UUID();
 				json.px=[relX(raw),relY(raw)];
 				var ei=data.inst.EntityInstance.fromJson(editor.project,li,cast json);
+				if((flipX || flipY) && data.DrawableShape.read(ei)!=null) {
+					data.DrawableShape.transform(ei,flipX,flipY);
+					if(flipX) ei.x+=M.round(ei.width*(2*ei.pivotX-1));
+					if(flipY) ei.y+=M.round(ei.height*(2*ei.pivotY-1));
+				}
 				var core=display.EntityRender.renderCore(ei,null,li.def);
 				getLayerRoot(li).addChild(core.wrapper);
 				core.wrapper.x=ei.x;
@@ -191,10 +212,14 @@ class SelectionTemplateTool extends Tool<Int> {
 			tiles:previewTiles,
 			intGrid:previewIntGrid,
 			childCount:ghostRoot==null ? 0 : ghostRoot.numChildren,
+			appliesSettings:configurationTarget!=null,
+			targetIid:configurationTarget,
 		};
 	}
 
 	override function customCursor(ev:hxd.Event, m:Coords) {
+		updateConfigurationPreview(m);
+		if(configurationTarget!=null) {ghostRoot.visible=false;ev.cancel=true;return;}
 		ghostRoot.setPosition(m.levelX,m.levelY);
 		ghostRoot.visible=true;
 		ev.cancel = true;
@@ -203,8 +228,62 @@ class SelectionTemplateTool extends Tool<Int> {
 	override function useAt(m:Coords, isOnStop:Bool) : Bool {
 		if( !isOnStop )
 			return false;
+		var target=getConfigurationTarget(m);
+		if(target!=null) {
+			if(target.defUid!=configuration.defUid) {N.error("Choose a saved configuration of the same entity type. The existing shape was kept.");return false;}
+			placedOnRelease=ui.DrawableShapeEditor.commit(target,()->data.DrawableShape.applyConfiguration(target,configuration));
+			if(placedOnRelease) {editor.selectionTool.select([Entity(target._li,target)]);N.quick("Settings applied. Shape and IID preserved.");}
+			return placedOnRelease;
+		}
 		placedOnRelease = data.SelectionTemplates.place(editor,tpl,Std.int(m.levelX),Std.int(m.levelY),flipX,flipY);
 		return placedOnRelease;
+	}
+
+	function getConfigurationTarget(m:Coords):Null<data.inst.EntityInstance> {
+		if(configuration==null || curLayerInstance==null || curLayerInstance.def.type!=Entities) return null;
+		var instances=curLayerInstance.entityInstances;
+		var i=instances.length;
+		while(i-->0) {
+			var ei=instances[i];
+			if(data.DrawableShape.read(ei)!=null && ei.isOver(m.layerX,m.layerY)) return ei;
+		}
+		return null;
+	}
+
+	function updateConfigurationPreview(m:Coords) {
+		var target=getConfigurationTarget(m);
+		configurationTarget=target==null ? null : target.iid;
+		configurationGhost.visible=target!=null;
+		if(target==null) {configurationSignature=null;return;}
+		var signature=target.iid+":"+target.x+":"+target.y+":"+target.drawableShapeSignature;
+		if(signature==configurationSignature) return;
+		configurationSignature=signature;
+		configurationGhost.removeChildren();
+		configurationGhost.setScale(target._li.def.getScale());
+		configurationGhost.setPosition(target._li.pxParallaxX+target.x*target._li.def.getScale(),target._li.pxParallaxY+target.y*target._li.def.getScale());
+		var same=target.defUid==configuration.defUid;
+		if(same) {
+			var candidate=data.inst.EntityInstance.fromJson(project,target._li,target.toJson(target._li));
+			candidate.iid="configuration-preview-"+target.iid;
+			var error=data.DrawableShape.applyConfiguration(candidate,configuration);
+			if(error==null) {
+				var core=display.EntityRender.renderCore(candidate);configurationGhost.addChild(core.wrapper);core.wrapper.alpha=0.9;
+			}
+			else same=false;
+		}
+		var label=new h2d.Text(Assets.getRegularFont(),configurationGhost);
+		label.text=same ? "Apply settings · keep shape and IID" : "Incompatible configuration · shape stays unchanged";
+		label.textColor=same ? 0x88ffbb : 0xff6666;
+		label.x=-target.width*target.pivotX;
+		label.y=-target.height*target.pivotY-label.textHeight-4;
+	}
+
+	/** Native HTML drag and ordinary click placement share the same validated commit path. */
+	public function previewDrop(m:Coords) {var ev=new hxd.Event(EMove);customCursor(ev,m);}
+	public function dropAt(m:Coords):Bool {
+		var result=useAt(m,true);
+		if(result) editor.clearSpecialTool();
+		return result;
 	}
 
 	override function stopUsing(m:Coords) {

@@ -3,6 +3,9 @@ package data.inst;
 import data.DataTypes;
 
 class FieldInstance {
+	static var nextRevision:Int=0;
+	/** Cheap invalidation for derived geometry; every replacement starts at a unique revision. */
+	public var revision(default,null):Int=++nextRevision;
 	public var _project : Project;
 	public var def(get,never) : data.def.FieldDef; inline function get_def() return _project.defs.getFieldDef(defUid);
 
@@ -100,16 +103,19 @@ class FieldInstance {
 	}
 
 	public function addArrayValue() {
+		revision=++nextRevision;
 		if( def.isArray )
 			internalValues.push(null);
 	}
 
 	public function clearValue() {
+		revision=++nextRevision;
 		if( def.isArray )
 			internalValues = [];
 	}
 
 	public function removeArrayValue(idx:Int) {
+		revision=++nextRevision;
 		if( idx>=0 && idx<getArrayLength() )
 			internalValues.splice(idx,1);
 	}
@@ -119,6 +125,7 @@ class FieldInstance {
 	}
 
 	public function sortArrayValues(from:Int, to:Int) {
+		revision=++nextRevision;
 		if( from<0 || from>=getArrayLength() || to<0 || to>=getArrayLength() || from==to )
 			return false;
 
@@ -135,6 +142,7 @@ class FieldInstance {
 	}
 
 	function setInternal(arrayIdx:Int, fv:Null<ValueWrapper>) {
+		revision=++nextRevision;
 		internalValues[arrayIdx] = fv;
 	}
 

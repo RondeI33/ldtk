@@ -15,9 +15,13 @@ class EntityInstance {
 	public var worldY(get,never) : Int;
 	public var customWidth : Null<Int>;
 	public var customHeight: Null<Int>;
+	public var drawableShapeCache:Null<data.DrawableShape.DrawableShapeState>;
+	public var drawableShapeSignature:String;
+	public var drawableShapeSourceError:Null<String>;
 
 	public var width(get,never) : Int;
 		inline function get_width() {
+			if(data.DrawableShape.hasMetadata(this))return customWidth!=null ? customWidth:def.width;
 			var v = _project.forkConfig.getAppearanceWidth(this);
 			if( v!=null )
 				return v;
@@ -28,6 +32,7 @@ class EntityInstance {
 
 	public var height(get,never) : Int;
 		inline function get_height() {
+			if(data.DrawableShape.hasMetadata(this))return customHeight!=null ? customHeight:def.height;
 			var v = _project.forkConfig.getAppearanceHeight(this);
 			if( v!=null )
 				return v;
@@ -38,11 +43,13 @@ class EntityInstance {
 
 	public var pivotX(get,never) : Float;
 		inline function get_pivotX() {
+			if(data.DrawableShape.hasMetadata(this))return def.pivotX;
 			var v = _project.forkConfig.getAppearancePivotX(this);
 			return v!=null ? v : def.pivotX;
 		}
 	public var pivotY(get,never) : Float;
 		inline function get_pivotY() {
+			if(data.DrawableShape.hasMetadata(this))return def.pivotY;
 			var v = _project.forkConfig.getAppearancePivotY(this);
 			return v!=null ? v : def.pivotY;
 		}
@@ -163,6 +170,7 @@ class EntityInstance {
 			var fi = FieldInstance.fromJson(project, fieldJson);
 			ei.fieldInstances.set(fi.defUid, fi);
 		}
+		data.DrawableShape.validateImported(ei,json);
 
 		return ei;
 	}
@@ -200,7 +208,9 @@ class EntityInstance {
 	final overShapePad = 3;
 	final overEdgePad = 4;
 	public inline function isOver(layerX:Int, layerY:Int) {
-		if( M.fabs(layerX-x) > width+overEdgePad*2 || M.fabs(layerY-y) > height+overEdgePad*2 ) // Fast check
+		var shapeHit=data.DrawableShape.hitTest(this,layerX,layerY);
+		if(shapeHit!=null)return shapeHit;
+		else if( M.fabs(layerX-x) > width+overEdgePad*2 || M.fabs(layerY-y) > height+overEdgePad*2 ) // Fast check
 			return false;
 		else if( def.renderMode==Ellipse ) {
 			if( def.hollow ) {
@@ -227,6 +237,8 @@ class EntityInstance {
 	}
 
 	public function getSmartColor(bright:Bool) : dn.Col {
+		var shape=data.DrawableShape.read(this);
+		if(shape!=null)return bright ? dn.legacy.Color.toWhite(shape.color,0.5):shape.color;
 		var appearanceColor = _project.forkConfig.getAppearanceColor(this);
 		if( appearanceColor!=null )
 			return bright ? dn.legacy.Color.toWhite(appearanceColor,0.5) : appearanceColor;

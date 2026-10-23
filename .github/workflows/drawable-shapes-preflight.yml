@@ -1,0 +1,59 @@
+name: Drawable shapes release preflight
+
+on:
+  push:
+    branches: [feature/drawable-shapes-v1]
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'tests/drawable-shapes/**'
+      - 'tests/drawable-shapes.hxml'
+      - '.github/workflows/drawable-shapes-preflight.yml'
+      - '.github/workflows/ldtk-smartive-1.0.0-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drawable-shapes-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Release checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install declared Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Run all release preflight checks (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" node scripts/run-release-preflight.cjs
+      - name: Run all release preflight checks (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: node scripts/run-release-preflight.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drawable-shapes-preflight-${{ matrix.os }}
+          path: app/test-results
+          if-no-files-found: warn
+          retention-days: 7

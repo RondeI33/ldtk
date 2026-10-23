@@ -544,6 +544,20 @@ class Editor extends Page {
 		return App.ME.hasInputFocus();
 	}
 
+	/** Scene clipboard shortcuts belong to an idle level canvas, not form editing. */
+	public function canUseSelectionClipboard():Bool {
+		if( !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
+			|| hasInputFocus() || ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists()
+			|| curLevel==null || curLayerInstance==null )
+			return false;
+		var focused=new J(js.Browser.document.activeElement);
+		if( focused.is("input,textarea,select") || focused.closest('[contenteditable]:not([contenteditable="false"])').length>0 )
+			return false;
+		return !selectionTool.isRunning() && !panTool.isRunning() && !curTool.isRunning()
+			&& (resizeTool==null || !resizeTool.isRunning())
+			&& (specialTool==null || !specialTool.isRunning());
+	}
+
 
 
 	var spaceKeyTime = 0.;
@@ -765,6 +779,12 @@ class Editor extends Page {
 			case C_Redo:
 				if( !worldMode && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
 					curLevelTimeline.redo();
+
+			case C_CopySelection:
+				selectionTool.copySelectionToClipboard();
+
+			case C_PasteSelection:
+				selectionTool.pasteSelectionFromClipboard();
 
 			case C_AppSettings:
 				if( !ui.Modal.isOpen(ui.modal.dialog.EditAppSettings) ) {
@@ -1174,7 +1194,7 @@ class Editor extends Page {
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);
 
-		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() )
+		if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isSpecialToolActive(tool.DrawableShapeTool) && !isSpecialToolActive(tool.SelectionTemplateTool) && !isEntityRectangleEraseShortcut() )
 			resizeTool.onMouseDown( ev, m );
 
 		if( !ev.cancel && !project.isBackup() && !ui.ValuePicker.exists() )
@@ -1187,6 +1207,8 @@ class Editor extends Page {
 				specialTool.startUsing( ev, m );
 			else if( (ev.button==0 || App.isMac() && ev.button==1) && isEntityRectangleEraseShortcut() )
 				curTool.startUsing( ev, m );
+			else if( isSpecialToolActive(tool.DrawableShapeTool) || isSpecialToolActive(tool.SelectionTemplateTool) )
+				specialTool.startUsing(ev,m);
 			else if( App.ME.isAltDown() || ev.button==0 && selectionTool.isOveringSelection(m) || ev.button==0 && hasEntityInThisLayer(m) )
 				selectionTool.startUsing( ev, m );
 			else if( isSpecialToolActive() )
@@ -1245,7 +1267,7 @@ class Editor extends Page {
 				ui.ValuePicker.ME.onMouseMoveCursor(cursorEvent,m);
 			}
 
-			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isEntityRectangleEraseShortcut() && !isEntityRectangleEraseRunning() ) {
+			if( !ev.cancel && resizeTool!=null && !ui.ValuePicker.exists() && !isSpecialToolActive(tool.PickPoint) && !isSpecialToolActive(tool.DrawableShapeTool) && !isSpecialToolActive(tool.SelectionTemplateTool) && !isEntityRectangleEraseShortcut() && !isEntityRectangleEraseRunning() ) {
 				resizeTool.onMouseMove(ev,m);
 				resizeTool.onMouseMoveCursor(cursorEvent,m);
 			}
@@ -1259,6 +1281,10 @@ class Editor extends Page {
 				else if( isEntityRectangleEraseRunning() ) {
 					curTool.onMouseMove(ev,m);
 					curTool.onMouseMoveCursor(cursorEvent,m);
+				}
+				else if( isSpecialToolActive(tool.DrawableShapeTool) || isSpecialToolActive(tool.SelectionTemplateTool) ) {
+					specialTool.onMouseMove(ev,m);
+					specialTool.onMouseMoveCursor(cursorEvent,m);
 				}
 				else if( App.ME.isAltDown() || selectionTool.isRunning() || selectionTool.isOveringSelection(m) && !curTool.isRunning() || hasEntityInThisLayer(m) ) {
 					selectionTool.onMouseMove(ev,m);

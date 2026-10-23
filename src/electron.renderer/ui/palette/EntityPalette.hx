@@ -1,5 +1,7 @@
 package ui.palette;
 
+import tool.DrawableShapeTool;
+
 class EntityPalette extends ui.ToolPalette {
 	var allTagGroups: Array<{ tag:Null<String>, all:Array<data.def.EntityDef> }>;
 	var searchMemory : Null<String>;
@@ -16,6 +18,7 @@ class EntityPalette extends ui.ToolPalette {
 		jContent.empty();
 
 		var tool : tool.lt.EntityTool = cast tool;
+		ui.DrawableShapeEditor.appendPalette(jContent,tool.curEntityDef);
 
 		jList = new J('<ul class="niceList"/>');
 		jList.appendTo(jContent);
@@ -115,6 +118,7 @@ class EntityPalette extends ui.ToolPalette {
 					if( Editor.ME.isPaused() )
 						return;
 					tool.selectValue(ed.uid);
+					if( editor.isSpecialToolActive(DrawableShapeTool) ) editor.clearSpecialTool();
 					render();
 				});
 

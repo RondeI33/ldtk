@@ -131,6 +131,39 @@ class Clipboard {
 
 	}
 
+	/** Scene contents keep native template serialization and are scoped to a project IID. */
+	public function copySelection(project:Project, selection:Dynamic):Bool {
+		if( project==null || selection==null )
+			return false;
+		copyData(CSelection, {
+			format: 1,
+			projectIid: project.iid,
+			selection: selection,
+		});
+		return !isEmpty();
+	}
+
+	/** Other clipboard kinds remain available to native definition and text editors. */
+	public function getSelectionForProject(project:Project):Null<Dynamic> {
+		if( project==null || !is(CSelection) )
+			return null;
+		var payload:Dynamic=getParsedJson();
+		if( payload==null || payload.format!=1 || payload.projectIid==null ) {
+			N.error("The copied scene selection has an unsupported format.");
+			return null;
+		}
+		if( payload.projectIid!=project.iid ) {
+			N.error("This scene selection belongs to another project. Its definition IDs cannot be reused here.");
+			return null;
+		}
+		var selection:Dynamic=payload.selection;
+		if( selection==null || selection.schemaVersion!=1 || !Std.isOfType(selection.entities,Array) || !Std.isOfType(selection.cells,Array) ) {
+			N.error("The copied scene selection is invalid.");
+			return null;
+		}
+		return haxe.Json.parse(haxe.Json.stringify(selection));
+	}
+
 	/**
 		Human readable name from JSON
 	**/
@@ -140,6 +173,9 @@ class Clipboard {
 			return L.t._("Empty");
 		else
 			return switch type {
+				case CSelection:
+					"Scene selection";
+
 				case CRule:
 					var json : data.def.AutoLayerRuleDef = jsonObj;
 					'Rule "${json.uid}"';

@@ -110,7 +110,7 @@ class EnumDef {
 	}
 
 	public function getValue(v:String) : Null<data.DataTypes.EnumDefValue> {
-		if( !isExternal() )
+		if( !isExternal() && !data.DrawableShape.isContractEnumValue(this,v) )
 			v = Project.cleanupIdentifier(v, _project.identifierStyle);
 
 		for(ev in values)
@@ -138,7 +138,7 @@ class EnumDef {
 		if( !isValueIdentifierValidAndUnique(v) )
 			return null;
 
-		if( !isExternal() )
+		if( !isExternal() && !data.DrawableShape.isContractEnumValue(this,v) )
 			v = Project.cleanupIdentifier(v, _project.identifierStyle);
 
 		var ev : data.DataTypes.EnumDefValue = {

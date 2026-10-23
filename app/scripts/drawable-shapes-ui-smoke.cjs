@@ -26,6 +26,7 @@ async function run(win){
  await win.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname,'drawable-shape-fixture.js'),'utf8'),true);
  const call=(name,...args)=>ev(`shapeFixture.${name}(${args.map(x=>JSON.stringify(x)).join(',')})`);
  const pass=async message=>{assert.equal(await ev('__ldtk.App.ME.curPageProcess.__class__.__name__'),'page.Editor','Editor crashed');assert.equal((await call('state')).sentinel,1,'Untouched map layer changed');passed.push(message);console.log('PASS: '+message);};
+ await require('./drawable-shapes-palette-tests.cjs')({win,ev,call,delay,pass,frame,until,tmp,output});
  await call('setup',path.join(tmp,'shapes.ldtk'));await frame();
  for(const name of await call('runCore'))await pass(name);
  for(const name of await call('runStyleCases',tmp))await pass(name);

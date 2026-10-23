@@ -4924,7 +4924,7 @@ canvas#webgl {
 
 		display: grid;
 		overflow: hidden;
-		grid-template-rows: repeat(4, min-content) auto;
+		grid-template-rows: repeat(4, min-content) minmax(0, 1fr);
 		// grid-template-rows: min-content 250px min-content min-content auto;
 		background: $bgDark;
 		box-sizing: border-box;
@@ -5206,6 +5206,7 @@ canvas#webgl {
 		}
 
 		#mainPaletteWrapper {
+			min-height: 0; // This is the shrinking row of #mainPanel; do not clip the entity list.
 			overflow-x: hidden;
 			overflow-y: auto;
 			position: relative;
@@ -6601,6 +6602,17 @@ canvas#webgl {
 			&.col-9 .sublist ul { grid-template-columns: repeat(9,1fr); }
 			&.col-10 .sublist ul { grid-template-columns: repeat(10,1fr); }
 		}
+	}
+
+	// Drawable shape controls are a third grid child (search, shape, entity list).
+	// The list must receive the flexible row and its own scrolling area.
+	&.entities.withDrawableShape {
+		grid-template-rows: min-content min-content minmax(0, 1fr);
+	}
+
+	&.entities>ul.niceList {
+		min-height: 0;
+		overflow-y: auto;
 	}
 
 	&.intGrid>ul.niceList {

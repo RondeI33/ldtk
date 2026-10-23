@@ -18,6 +18,12 @@ class EntityPalette extends ui.ToolPalette {
 		jContent.empty();
 
 		var tool : tool.lt.EntityTool = cast tool;
+		// A drawable entity inserts an extra palette row between search and the entity list.
+		// Keep the entity list in the remaining scrollable row rather than shrinking it to 24px.
+		if( tool.curEntityDef!=null && data.DrawableShape.isEnabled(tool.curEntityDef) )
+			jContent.addClass("withDrawableShape");
+		else
+			jContent.removeClass("withDrawableShape");
 		ui.DrawableShapeEditor.appendPalette(jContent,tool.curEntityDef);
 
 		jList = new J('<ul class="niceList"/>');

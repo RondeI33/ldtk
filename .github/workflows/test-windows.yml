@@ -10,7 +10,7 @@ on:
         description: Send the published release announcement to Slack
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write

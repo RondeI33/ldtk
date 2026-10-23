@@ -63,6 +63,18 @@ async function run(win){
   };
   async function until(code,message){for(let i=0;i<200;i++){if(await ev(`!!(${code})`))return;await delay(40);}throw Error(message);}
   const pass=m=>{passed.push(m);console.log('PASS: '+m);};
+  // Timeline undo/redo emits LayerInstancesRestoredFromHistory at the end of an
+  // editor frame, where SelectionTool clears stale selections. A wall-clock
+  // sleep can finish before that event under CI load and incorrectly clear a
+  // selection created for the NEXT scenario. Await the frame boundary instead.
+  const editorFrame=()=>win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(Error('Editor frame did not complete')),8000);
+    const P=__ldtk.classes['dn.Process'];
+    P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{
+      clearTimeout(timer);resolve(true);
+    }));
+  })`,true);
+  const settleHistory=async()=>{await editorFrame();await editorFrame();};
   await until('(window.SelectionDragTestHooks=window.SelectionDragTestHooks || (typeof exports!=="undefined" && exports.SelectionDragTestHooks)) && document.querySelector("#page")','Selection test hooks unavailable');
   // Let the normal app boot finish before replacing Home with the isolated
   // regression Editor. Otherwise late startup can replace the fixture page.
@@ -79,10 +91,10 @@ async function run(win){
   await ev('SelectionDragTestHooks.drag(true,33,33,127,63,true)');
   let state=await ev('SelectionDragTestHooks.state()');
   expectSource(state,true);expectDestination(state);expectSentinels(state);expectEntities(state,true,5,1);
-  await ev('SelectionDragTestHooks.undo()');await delay(160);
+  await ev('SelectionDragTestHooks.undo()');await settleHistory();
   state=await ev('SelectionDragTestHooks.state()');
   assert.deepStrictEqual(state,beforeHistory,'Undo did not restore exact pre-copy state');
-  await ev('SelectionDragTestHooks.redo()');await delay(160);
+  await ev('SelectionDragTestHooks.redo()');await settleHistory();
   state=await ev('SelectionDragTestHooks.state()');
   expectSource(state,true);expectDestination(state);expectSentinels(state);expectEntities(state,true,5,1);
   pass('Copy uses one history operation and Undo/Redo preserves empty-space sentinels');
@@ -135,10 +147,10 @@ async function run(win){
   expectTile(transfer.b32,88);
   assert.strictEqual(transfer.active,'Tiles_B');
   assert.deepStrictEqual(transfer.selectionLayers,['Tiles_B']);
-  await ev('SelectionDragTestHooks.undo()');await delay(160);
+  await ev('SelectionDragTestHooks.undo()');await settleHistory();
   transfer=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(transferData(transfer),transferData(beforeLayerDown),'Undo did not restore cross-layer tile transfer');
-  await ev('SelectionDragTestHooks.redo()');await delay(160);
+  await ev('SelectionDragTestHooks.redo()');await settleHistory();
   transfer=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(transfer.b22,[{tileId:10,flips:0},{tileId:11,flips:1}]);
   assert.deepStrictEqual(transfer.b42,[{tileId:20,flips:2}]);
@@ -147,6 +159,9 @@ async function run(win){
 
   // Down uses the same path in reverse.
   await ev('SelectionDragTestHooks.prepareLayerTransfer(false,true,false)');
+  await editorFrame();
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.layerTransferState()')).selectionLayers,['Tiles_B'],
+    'A deferred history event cleared the new source selection before the Down transfer');
   assert.strictEqual(await ev('SelectionDragTestHooks.layerTransferShortcut(1)'),true,'Ctrl+Alt+Down was not handled');
   transfer=await ev('SelectionDragTestHooks.layerTransferState()');
   assert.deepStrictEqual(transfer.a22,[{tileId:10,flips:0},{tileId:11,flips:1}]);
@@ -154,6 +169,9 @@ async function run(win){
   expectTile(transfer.a32,88);
   assert.strictEqual(transfer.active,'Tiles_A');
   assert.deepStrictEqual(transfer.selectionLayers,['Tiles_A']);
+  await editorFrame();
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.layerTransferState()')).selectionLayers,['Tiles_A'],
+    'The completed Down transfer lost its selection on the next editor frame');
   pass('Ctrl+Alt+Down transfers the selection to the next compatible same-tileset layer');
 
   // Occupied destinations must reject the entire transfer. No source cell may
@@ -182,6 +200,29 @@ async function run(win){
   assert.strictEqual(await ev('SelectionDragTestHooks.layerTransfer(-1)'),false,'Different-grid same-tileset layer unexpectedly accepted transfer');
   assert.deepStrictEqual(await ev('SelectionDragTestHooks.layerTransferState()'),gridBefore,'Different-grid rejection changed data');
   pass('Same tileset with incompatible grid size is rejected safely');
+
+  // Exercise both directions repeatedly across real editor frames. In addition
+  // to asserting tile ownership, ensure the selection survives the frame AFTER
+  // each transfer, rather than accepting only a synchronous transient state.
+  for(let i=0;i<16;i++){
+    await editorFrame();
+    const fromB=i%2===1, source=fromB?'Tiles_B':'Tiles_A', target=fromB?'Tiles_A':'Tiles_B';
+    await ev(`SelectionDragTestHooks.prepareLayerTransfer(false,${fromB},false)`);
+    await editorFrame();
+    let current=await ev('SelectionDragTestHooks.layerTransferState()');
+    assert.deepStrictEqual(current.selectionLayers,[source],
+      `Iteration ${i}: selection was cleared while preparing source ${source}`);
+    assert.strictEqual(await ev(`SelectionDragTestHooks.layerTransfer(${fromB?1:-1})`),true,
+      `Iteration ${i}: compatible transfer was rejected`);
+    await editorFrame();
+    current=await ev('SelectionDragTestHooks.layerTransferState()');
+    assert.strictEqual(current.active,target,`Iteration ${i}: wrong active layer`);
+    assert.deepStrictEqual(current.selectionLayers,[target],
+      `Iteration ${i}: selection did not survive a complete editor frame`);
+    assert.deepStrictEqual(fromB?current.a22:current.b22,
+      [{tileId:10,flips:0},{tileId:11,flips:1}],`Iteration ${i}: tile stack changed`);
+  }
+  pass('16 alternating layer transfers preserve selection and tile stacks after editor-frame processing');
 
   fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,variantChecks:checks,platform:process.platform,electron:process.versions.electron},null,2));
   console.log(`SUCCESS: ${checks} matrix variants + ${passed.length} grouped selection scenarios passed`);

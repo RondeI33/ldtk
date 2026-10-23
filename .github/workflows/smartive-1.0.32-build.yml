@@ -1,0 +1,30 @@
+name: Build LDtk Smartive 1.0.32 from master
+
+# Single-version master build. Changes to this workflow start the same complete
+# regression, Windows/macOS/Linux packaging and publication pipeline as the
+# manual release build. Other master pushes do not auto-publish.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/smartive-1.0.32-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.32-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Full regression gates, cross-platform installers and stable release
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      # The feature-branch pipeline may have already created v1.0.32.
+      # Rebuild on master regardless, so tag and assets refer to master.
+      force_rebuild: true
+      notify_slack: false
+    secrets: inherit

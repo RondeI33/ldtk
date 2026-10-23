@@ -468,112 +468,19 @@ jobs:
             --notes-file release-notes.md \
             --latest
 
-
-        
-      - name: Notify Slack about new release
-        if: success() && inputs.notify_slack
-        continue-on-error: true
+  notify-slack:
+    # Notification is a separate job: if Slack fails, rerun this failed job
+    # without rebuilding packages or deleting/replacing a published release.
+    name: Announce published Smartive release on Slack
+    needs: [prepare, publish]
+    if: needs.publish.result == 'success' && inputs.notify_slack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify release and send Slack announcement
         shell: bash
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-            echo "::warning::SLACK_WEBHOOK_URL is not configured"
-            exit 0
-          fi
-
-          gh release view "$SMARTIVE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --json name,url,body,isDraft,isPrerelease > release.json
-
-          jq -e '.isDraft == false and .isPrerelease == false' release.json >/dev/null
-
-          RELEASE_URL=$(jq -r '.url' release.json)
-          RELEASE_VERSION="$SMARTIVE_TAG"
-          RELEASE_BODY=$(jq -r '.body' release.json)
-
-          PATCH_NOTES=$(printf '%s\n' "$RELEASE_BODY" | awk '
-            BEGIN { count=0 }
-            /^LDTK-Smartive / { next }
-            /^Compatibility:/ { next }
-            /^#+[[:space:]]/ { next }
-            /^[[:space:]]*$/ { next }
-            {
-              line=$0
-              gsub(/\*\*/, "", line)
-              sub(/^- /, "", line)
-              if (line != "") {
-                print "•  " line
-                count++
-              }
-              if (count == 3) exit
-            }
-          ')
-
-          if [ -z "${PATCH_NOTES:-}" ]; then
-            PATCH_NOTES="•  Pełne patch notes znajdziesz na stronie release."
-          fi
-
-          jq -n \
-            --arg version "$RELEASE_VERSION" \
-            --arg url "$RELEASE_URL" \
-            --arg patch_notes "$PATCH_NOTES" \
-            '{
-              text: ("Nowa wersja LDTK-Smartive " + $version),
-              blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: ("*Nowa wersja LDTK-Smartive " + $version + "*")
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "Dostępna jest nowa wersja edytora!"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: ("*Patch notes*\n\n" + $patch_notes)
-                  }
-                },
-                {
-                  type: "context",
-                  elements: [
-                    {
-                      type: "mrkdwn",
-                      text: "Windows · macOS · Linux"
-                    }
-                  ]
-                },
-                {
-                  type: "actions",
-                  elements: [
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: "Pobierz aktualizację"
-                      },
-                      url: $url,
-                      style: "primary"
-                    }
-                  ]
-                }
-              ]
-            }' > slack-payload.json
-
-          curl --fail-with-body --silent --show-error \
-            --retry 3 \
-            -X POST \
-            -H "Content-Type: application/json" \
-            --data-binary @slack-payload.json \
-            "$SLACK_WEBHOOK_URL"
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SMARTIVE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: bash app/scripts/notify-smartive-release-slack.sh "$SMARTIVE_TAG"

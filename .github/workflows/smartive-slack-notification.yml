@@ -1,0 +1,42 @@
+name: Send LDTK-Smartive release announcement to Slack
+
+# Recovery path for an already published release: no compilation, no
+# installer packaging, and no release/tag replacement. The one-time marker
+# below sends v1.0.32 now; any later resend is explicitly workflow_dispatch.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/release-notifications/v1.0.32.request'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing, published stable release tag to announce
+        required: true
+        default: v1.0.32
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smartive-slack-notify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: github.ref == 'refs/heads/master'
+    name: Verify published release and deliver Slack notification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check notifier syntax
+        shell: bash
+        run: bash -n app/scripts/notify-smartive-release-slack.sh
+      - name: Send release message (and fail visibly if Slack rejects it)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SMARTIVE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'v1.0.32' }}
+        run: bash app/scripts/notify-smartive-release-slack.sh "$SMARTIVE_TAG"

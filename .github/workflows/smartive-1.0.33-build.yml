@@ -1,0 +1,28 @@
+name: Build LDtk Smartive 1.0.33 from master
+
+# Trigger this one stable version only when this workflow reaches master.
+# The reusable release pipeline performs real editor regressions before
+# packaging and publishing installers; normal master pushes do not publish.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/smartive-1.0.33-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.33-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Full editor regressions, installers and stable v1.0.33 release
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: true
+    secrets: inherit

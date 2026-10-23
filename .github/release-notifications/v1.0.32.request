@@ -1,0 +1,7 @@
+Release notification recovery request
+Tag: v1.0.32
+Original full build: https://github.com/RondeI33/ldtk/actions/runs/39927420236
+Published release: https://github.com/RondeI33/ldtk/releases/tag/v1.0.32
+
+This marker triggers ONLY .github/workflows/smartive-slack-notification.yml.
+It does not recompile, repackage, retag, overwrite, or republish the release.

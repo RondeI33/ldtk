@@ -1,3 +1,16 @@
+# 1.0.33
+
+## Drawable shape entity palette
+
+- Fixed the Drawable shape controls expanding into the entire left-hand entity palette and pushing entity choices outside the viewport.
+- The search bar and shape authoring controls now take only the height they need; the entity picker occupies the remaining space and scrolls independently at smaller window heights and after resizing.
+- Switching between drawable and ordinary entity definitions restores the appropriate palette layout without preventing entity selection.
+
+## Regression coverage
+
+- Added real Electron UI regressions for 700px and 900px editor windows, long entity lists, scrolling to the last entry, and switching between regular and drawable entities.
+- The drawable-shape test suite and the nonpublishing full release preflight passed on Linux and macOS Intel before preparing this release.
+
 # 1.0.32
 
 ## Drawable entities and hazard presets

@@ -27,5 +27,5 @@ jobs:
       # The feature-branch pipeline may have already created v1.0.32.
       # Rebuild on master regardless, so tag and assets refer to master.
       force_rebuild: true
-      notify_slack: false
+      notify_slack: true
     secrets: inherit

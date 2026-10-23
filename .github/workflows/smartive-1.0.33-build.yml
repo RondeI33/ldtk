@@ -1,5 +1,8 @@
 name: Build LDtk Smartive 1.0.33 from master
 
+# Retry after all 50 macOS shape UI regressions passed but GitHub's optional
+# ArtifactService/CreateArtifact timed out five times uploading test logs.
+# Installer artifacts and the application regression gates remain mandatory.
 # Trigger this one stable version only when this workflow reaches master.
 # The reusable release pipeline performs real editor regressions before
 # packaging and publishing installers; normal master pushes do not publish.

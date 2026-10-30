@@ -596,7 +596,7 @@ class Editor extends Page {
 
 	override function onKeyPress(keyCode:Int) {
 		super.onKeyPress(keyCode);
-		if( isCameraPreviewActive() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+		if( isCameraPreviewActive() && !cameraPreview.pinned && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
 			return;
 
 		// Consume layer-transfer arrows before any other tool sees them. This keeps
@@ -654,7 +654,7 @@ class Editor extends Page {
 		super.onAppCommand(cmd);
 
 		// A camera inspection must never transform the scene through a shortcut.
-		if( isCameraPreviewActive() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+		if( isCameraPreviewActive() && !cameraPreview.pinned && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
 			switch cmd {
 				case C_Undo, C_Redo, C_SelectAll, C_CopySelection, C_PasteSelection,
 					C_FlipX, C_FlipY, C_MoveLevelToPreviousWorldLayer, C_MoveLevelToNextWorldLayer,

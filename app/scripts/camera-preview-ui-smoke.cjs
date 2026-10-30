@@ -186,12 +186,14 @@ async function run(win) {
   await click(placement); s=await settled();
   assert.equal(s.pinned,true); assert.equal(s.placing,false);
   assert.match(s.lockStatus,/Zablokowany/);
+  await unchanged(initial);
   const fixedPoint=s.point, fixedFrame=s.frame;
   await move(575,360); s=await settled();
   assert.deepEqual(s.point,fixedPoint); assert.deepEqual(s.frame,fixedFrame);
   await click(await call('screen',575,360)); s=await settled();
   assert.equal(s.pinned,true); assert.deepEqual(s.point,fixedPoint);
-  await unchanged(initial); await pass('One click locks Joshua; moving or clicking later never unpins him');
+  assert.notEqual((await call('serial')).json,initial.json,'A click after locking must reach the editor');
+  await pass('Placement never modifies the level; after locking, the very next click reaches the editing tool');
 
   const toolAtLock=await ev('cameraPreviewFixture.editor().get_curTool().__class__.__name__');
   await call('selectTerrain'); await settled();

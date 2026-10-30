@@ -20,9 +20,9 @@ if (process.platform === 'linux') {
 }
 const passed = [];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-// Software-rendered CI can spend several minutes completing the native gestures.
-// Keep the per-frame and polling deadlines strict, with headroom for the full suite.
-const timer = setTimeout(() => {console.error('FAIL: camera preview regression timed out'); app.exit(1);}, 420000);
+// Intel macOS CI took about 3.5 times as long as Linux for the same native gestures.
+// Budget the whole suite accordingly; individual frame/polling deadlines stay strict.
+const timer = setTimeout(() => {console.error('FAIL: camera preview regression timed out'); app.exit(1);}, process.platform === 'darwin' ? 900000 : 420000);
 let running = false;
 
 app.on('browser-window-created', (_, win) => {
@@ -62,11 +62,17 @@ async function run(win) {
   },true);return true})()`);
   const call = (name, ...args) => ev(`cameraPreviewFixture.${name}(${args.map(value => JSON.stringify(value)).join(',')})`);
   const state = () => call('stats');
-  const frame = () => win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>reject(Error('Editor frame did not complete')),8000),P=__ldtk.classes['dn.Process'];
-    P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{clearTimeout(timeout);resolve(true)}));
+  const frame = (count = 1) => win.webContents.executeJavaScript(`new Promise((resolve,reject)=>{
+    const P=__ldtk.classes['dn.Process']; let remaining=${count};
+    const next=()=>{
+      const timeout=setTimeout(()=>reject(Error('Editor frame did not complete')),8000);
+      P.callAtTheBeginningOfNextFrame(()=>P.callAtTheEndOfCurrentFrame(()=>{
+        clearTimeout(timeout); if(--remaining>0)next(); else resolve(true);
+      }));
+    }; next();
   })`, true);
-  const settled = async () => {await frame(); await frame(); return state();};
+  // Keep both real editor frames without another main/renderer IPC round trip.
+  const settled = async () => {await frame(2); return state();};
   const pass = async message => {
     assert.equal(await ev('__ldtk.App.ME.curPageProcess.__class__.__name__'), 'page.Editor', 'Application entered a crash page');
     passed.push(message); console.log('PASS: ' + message);
@@ -81,8 +87,8 @@ async function run(win) {
   const withModifiers = async (modifiers, action) => {
     for (const modifier of modifiers) {
       win.webContents.sendInputEvent({type: 'keyDown', keyCode: modifierKey[modifier], modifiers});
-      await frame();
     }
+    if (modifiers.length) await frame();
     for (const modifier of modifiers) {
       const expression = modifier === 'meta' ? '__ldtk.App.ME.isCtrlCmdDown()'
         : `__ldtk.App.ME.isKeyDown(${({control: 17, alt: 18, shift: 16})[modifier]})`;
@@ -92,25 +98,27 @@ async function run(win) {
     finally {
       for (const modifier of [...modifiers].reverse()) {
         win.webContents.sendInputEvent({type: 'keyUp', keyCode: modifierKey[modifier]});
-        await frame();
       }
+      if (modifiers.length) await frame();
     }
   };
-  const nativeMove = async (p, modifiers = []) => {
+  const nativeMove = async (p, modifiers = [], waitForFrame = true) => {
     const sequence = await ev('cameraMouseDelivery.sequence');
     win.webContents.sendInputEvent({type: 'mouseMove', ...p, modifiers});
     await until(`cameraMouseDelivery.sequence>${sequence} && cameraMouseDelivery.x===${p.x} && cameraMouseDelivery.y===${p.y}`, 'Native mouse movement was not delivered');
-    await frame();
+    if (waitForFrame) await frame();
   };
   const move = async (x, y) => {
     const p = await call('screen', x, y);
     assert.equal(await ev(`document.elementFromPoint(${p.x},${p.y})?.id`), 'webgl', 'Map target is covered by UI');
-    await nativeMove({x: p.x + 1, y: p.y}); await nativeMove(p);
+    // Both native moves must arrive; only the final point needs a rendered frame.
+    await nativeMove({x: p.x + 1, y: p.y}, [], false); await nativeMove(p);
     return p;
   };
   const click = async (p, button = 'left', modifiers = []) => {
     await withModifiers(modifiers, async () => {
-      await nativeMove(p, modifiers);
+      // The next barrier processes this delivered move and the down together.
+      await nativeMove(p, modifiers, false);
       win.webContents.sendInputEvent({type: 'mouseDown', ...p, button, clickCount: 1, modifiers}); await frame();
       win.webContents.sendInputEvent({type: 'mouseUp', ...p, button, clickCount: 1, modifiers}); await settled();
     });
@@ -133,7 +141,7 @@ async function run(win) {
   };
   const drag = async (from, to, button = 'left', modifiers = []) => {
     await withModifiers(modifiers, async () => {
-      await nativeMove(from, modifiers);
+      await nativeMove(from, modifiers, false);
       win.webContents.sendInputEvent({type: 'mouseDown', ...from, button, clickCount: 1, modifiers}); await frame();
       await nativeMove(to, modifiers);
       win.webContents.sendInputEvent({type: 'mouseUp', ...to, button, clickCount: 1, modifiers}); await settled();
@@ -156,7 +164,7 @@ async function run(win) {
   const initialFlags = await call('flags');
   assert.equal((await state()).enabled, false);
   await clickSelector('#editingOptions li.cameraPreview');
-  let s = await settled();
+  let s = await state();
   assert.equal(s.enabled, true); assert.equal(s.profile, null); assert.equal(s.visible, false);
   assert.match(s.status, /Waiting for Unity/); assert.equal(s.toolbarPressed, 'true');
   await unchanged(initial); await pass('Native toolbar toggle opens a clear missing-source state without changing the project');
@@ -176,10 +184,10 @@ async function run(win) {
   assert.equal(s.frame.column, null); assert.equal(s.gridLines, 0);
   await unchanged(initial); await pass('Free-point mode follows native mouse coordinates without tile-grid snapping'); await screenshot('free-point');
 
-  await click(await move(451, 263)); s = await settled();
+  await click(await move(451, 263)); s = await state();
   assert.equal(s.pinned, true); const pinned = s.frame;
   await move(590, 330); assert.deepEqual((await settled()).frame, pinned);
-  await click(await call('screen', 590, 330)); assert.equal((await settled()).pinned, false);
+  await click(await call('screen', 590, 330)); assert.equal((await state()).pinned, false);
   await move(605, 342); s = await settled(); assert.notDeepEqual(s.frame, pinned);
   await unchanged(initial); await pass('Native click pins the frame, motion preserves it, and a second click releases it');
 
@@ -211,9 +219,9 @@ async function run(win) {
 
   await ev('cameraPreviewFixture.preview().setPinned(false)');
   await move(480, 288); await click(await call('screen', 480, 288));
-  s = await settled(); const beforePan = s;
+  s = await state(); const beforePan = s;
   await drag(await call('screen', 480, 288), await call('screen', 540, 320), 'middle');
-  s = await settled();
+  s = await state();
   assert.deepEqual(s.frame, beforePan.frame); assert.notEqual(s.transform.x, beforePan.transform.x);
   assert.equal(s.pinned, true);
   const panLabel = s.label;
@@ -277,9 +285,9 @@ async function run(win) {
 
   await call('setFlags', {single: true, details: false, grid: false, variables: false, auto: false}); await settled();
   const customFlags = await call('flags');
-  await clickSelector('#cameraPreviewControls .cameraClose'); await settled();
+  await clickSelector('#cameraPreviewControls .cameraClose');
   assert.equal((await state()).enabled, false); assert.deepEqual(await call('flags'), customFlags);
-  await clickSelector('#editingOptions li.cameraPreview'); await settled();
+  await clickSelector('#editingOptions li.cameraPreview');
   assert.deepEqual(await call('flags'), customFlags);
   await call('setFlags', {single: false, details: true, grid: true, variables: true, auto: true}); await settled();
   await pass('Preview toggles preserve Single Layer, details, layer grid, variable previews and auto-layer settings');
@@ -307,17 +315,17 @@ async function run(win) {
   const bounds = await ev(`(()=>{const r=document.querySelector('#cameraPreviewControls').getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,w:innerWidth,h:innerHeight}})()`);
   assert.ok(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bounds.w + 1 && bounds.bottom <= bounds.h + 1, 'Preview controls do not fit in a smaller window');
   await screenshot('small-window-zen');
-  await move(480, 288); await key('Escape'); s = await settled();
+  await move(480, 288); await key('Escape'); s = await state();
   assert.equal(s.enabled, false); assert.equal(s.flags.zen, true);
   await call('setFlags', {zen: false}); win.setSize(1600, 1000); await delay(200); await ev('cameraPreviewFixture.editor().camera.fit(true)'); await settled();
   await pass('Setup path is accurate, modal Escape keeps preview open, and preview remains usable in Zen and a smaller window');
 
   await call('selectTerrain'); await settled();
   const editableBefore = await call('serial');
-  await click(await move(400, 192)); await settled();
+  await click(await move(400, 192));
   const painted = await call('serial');
   assert.notEqual(painted.json, editableBefore.json, 'Normal painting did not resume after preview closed');
-  await key('z', [primaryModifier]); await settled();
+  await key('z', [primaryModifier]);
   const undone = await call('serial');
   if (undone.json !== editableBefore.json) {
     fs.writeFileSync(path.join(output, 'undo-before.json'), JSON.stringify(editableBefore, null, 2));
@@ -328,7 +336,7 @@ async function run(win) {
   assert.deepEqual(await call('flags'), initialFlags);
   await pass('Closing preview restores native painting and its ordinary Undo behavior');
 
-  await clickSelector('#editingOptions li.cameraPreview'); await settled();
+  await clickSelector('#editingOptions li.cameraPreview');
   await ev('cameraPreviewFixture.preview().setPinned(true)');
   const empty = await call('emptyProject', path.join(tmp, 'empty-camera-level.ldtk'));
   await delay(250); await ev('__ldtk.classes["ui.Modal"].closeAll()'); await settled();

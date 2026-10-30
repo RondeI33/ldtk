@@ -219,7 +219,8 @@ async function run(win) {
   assert.equal((await call('serial')).json,painted.json,'Undo did not restore erased tiles');
   await pass('Right-drag eraser and its Undo run through the normal tools');
 
-  await drag(await call('screen',300,135),await call('screen',455,185),'left',['alt']);
+  // Include the freshly painted cells. An empty-area Alt drag has no selection when empty-space selection is off.
+  await drag(await call('screen',310,152),await call('screen',465,180),'left',['alt']);
   assert.equal((await state()).selection,true,'Alt-drag selection did not create a selection');
   assert.deepEqual((await state()).point,fixedPoint);
   await call('selectTerrain');

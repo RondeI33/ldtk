@@ -20,7 +20,7 @@
 		"pack-prepare": "npm run doc  &&  npm run compile",
 		"pack-test": "npm run pack-prepare  &&  electron-builder build --win --dir --publish never",
 		"pack-win": "npm run pack-prepare  &&  electron-builder build --win --x64 --ia32",
-		"pack-macos": "npm run pack-prepare  &&  electron-builder build --mac --universal --publish never",
+		"pack-macos": "npm run test:dmg && npm run pack-prepare && electron-builder build --mac --universal --publish never",
 		"pack-linux-x86": "npm run pack-prepare  &&  electron-builder build --linux --publish never",
 		"pack-linux-arm64": "npm run pack-prepare  &&  electron-builder build --linux --arm64 --publish never",
 		"publish-github": "npm run pack-win -- --publish always",
@@ -46,7 +46,8 @@
 		"test:drawable-shapes": "node scripts/run-drawable-shape-tests.cjs",
 		"test:color-picker": "node scripts/run-color-picker-tests.cjs",
 		"test:release-preflight": "node scripts/run-release-preflight.cjs",
-		"test:camera-preview": "node scripts/run-camera-preview-tests.cjs"
+		"test:camera-preview": "node scripts/run-camera-preview-tests.cjs",
+		"test:dmg": "node scripts/test-dmg-background.cjs"
 	},
 	"repository": {
 		"type": "git",

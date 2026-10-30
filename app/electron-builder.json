@@ -1,12 +1,10 @@
 {
 	"appId": "com.rondei33.ldtk-smartive",
 	"artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-
 	"directories": {
 		"buildResources": "buildAssets",
 		"output": "redist"
 	},
-
 	"publish": [
 		{
 			"provider": "github",
@@ -15,7 +13,6 @@
 			"releaseType": "release"
 		}
 	],
-
 	"extraFiles": [
 		"extraFiles/embedAtlas",
 		"extraFiles/changelogImg",
@@ -25,12 +22,10 @@
 			"to": "README.txt"
 		}
 	],
-
 	"files": [
 		"assets",
 		"package.json"
 	],
-
 	"fileAssociations": [
 		{
 			"ext": "ldtk",
@@ -47,24 +42,42 @@
 			"role": "Editor"
 		}
 	],
-
 	"nsis": {
 		"oneClick": true,
 		"shortcutName": "LDTK-Smartive",
 		"installerIcon": "buildAssets/icon.ico",
 		"uninstallerIcon": "buildAssets/icon.ico"
 	},
-
 	"win": {
 		"target": "nsis",
 		"icon": "buildAssets/icon.ico"
 	},
-
 	"mac": {
 		"icon": "buildAssets/icon.icns"
 	},
 	"linux": {
 		"target": "AppImage",
 		"icon": "buildAssets/icon.png"
+	},
+	"dmg": {
+		"background": "buildAssets/dmg-background.png",
+		"window": {
+			"width": 800,
+			"height": 450
+		},
+		"iconSize": 100,
+		"contents": [
+			{
+				"x": 190,
+				"y": 210,
+				"type": "file"
+			},
+			{
+				"x": 610,
+				"y": 210,
+				"type": "link",
+				"path": "/Applications"
+			}
+		]
 	}
 }

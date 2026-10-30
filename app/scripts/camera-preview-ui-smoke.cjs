@@ -220,11 +220,11 @@ async function run(win) {
   await pass('Right-drag eraser and its Undo run through the normal tools');
 
   // Include the freshly painted cells. An empty-area Alt drag has no selection when empty-space selection is off.
-  await drag(await call('screen',310,152),await call('screen',465,180),'left',['alt']);
-  assert.equal((await state()).selection,true,'Alt-drag selection did not create a selection');
+  await drag(await call('screen',310,152),await call('screen',465,180),'left',['alt','shift']);
+  assert.equal((await state()).selection,true,'Alt+Shift-drag selection did not create a selection');
   assert.deepEqual((await state()).point,fixedPoint);
   await call('selectTerrain');
-  await pass('Alt-drag selection still works with the locked overlay');
+  await pass('Alt+Shift-drag selection still works with the locked overlay');
 
   const oldSprite=await state();
   await ev(`(()=>{const e=document.querySelector(".cameraSpritePpu");e.value="32";e.dispatchEvent(new Event("input",{bubbles:true}));return true})()`);

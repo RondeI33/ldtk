@@ -1,0 +1,27 @@
+name: Build LDtk Smartive 1.0.34 from master
+
+# Publish this version only after the reviewed feature reaches master.
+# All executable editor regressions gate every installer platform.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/smartive-1.0.34-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.34-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Camera preview regressions, installers and stable v1.0.34 release
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: false
+    secrets: inherit

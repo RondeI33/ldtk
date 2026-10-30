@@ -328,6 +328,11 @@ class EntityRender extends dn.Process {
 		center.removeChildren();
 		beneath.removeChildren();
 		fieldGraphics.clear();
+		if( Editor.ME.isCameraPreviewActive() ) {
+			if( pathPreview!=null ) pathPreview.visible = false;
+			return;
+		}
+		if( pathPreview!=null ) pathPreview.visible = true;
 
 		// Sidecar-only drawing stays below the stock path points and selection handles.
 		var preview = ei._project.forkConfig.getPathPreview(ei);

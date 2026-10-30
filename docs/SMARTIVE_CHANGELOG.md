@@ -1,3 +1,17 @@
+# 1.0.34
+
+## Unity camera preview
+
+- Added a camera toggle beside Zen and Single Layer in the Visuals toolbar. Preview the orthographic camera frame using camera-sized grid cells or a free point, optionally aligned to the active layer guide grid.
+- The frame dims the area outside the camera, supports click-to-pin and keeps normal view panning and zoom. Canvas editing, selection transforms and scene clipboard shortcuts are paused while previewing; Escape returns to editing.
+- Added opt-in Unity camera sync in the editor-only Smartive integration package. The active scene camera exports its orthographic size, actual aspect ratio and LDtk importer Pixels Per Unit to a separate camera snapshot; LDtk refreshes it without reloading or modifying the map.
+- Missing, invalid, unsupported and stale camera data have explicit status messages. Level and project switches clear pinned coordinates; World view suspends the preview. Existing visual settings and LDtk 1.5.3 JSON remain unchanged.
+
+## Verification
+
+- Added pure Haxe camera projection/placement vectors and real Electron UI regressions for native pointer/keyboard safety, source updates, grid offsets, zoom, mode changes and unchanged project/history state.
+- Added the camera suite to the local release preflight and the Linux/macOS release gates, before installer packaging.
+
 # 1.0.33
 
 ## Drawable shape entity palette

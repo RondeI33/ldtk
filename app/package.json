@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.33",
+	"version": "1.0.34",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -45,7 +45,8 @@
 		"test:path-preview": "node scripts/run-path-preview-tests.cjs",
 		"test:drawable-shapes": "node scripts/run-drawable-shape-tests.cjs",
 		"test:color-picker": "node scripts/run-color-picker-tests.cjs",
-		"test:release-preflight": "node scripts/run-release-preflight.cjs"
+		"test:release-preflight": "node scripts/run-release-preflight.cjs",
+		"test:camera-preview": "node scripts/run-camera-preview-tests.cjs"
 	},
 	"repository": {
 		"type": "git",

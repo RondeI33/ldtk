@@ -1,8 +1,8 @@
-name: Drawable shapes release preflight
+name: Editor release preflight
 
 on:
   push:
-    branches: [feature/drawable-shapes-v1]
+    branches: [feature/drawable-shapes-v1, feature/unity-camera-preview]
   pull_request:
     branches: [master]
     paths:
@@ -10,6 +10,8 @@ on:
       - 'app/**'
       - 'tests/drawable-shapes/**'
       - 'tests/drawable-shapes.hxml'
+      - 'tests/CameraPreviewGeometryTest.hx'
+      - 'tests/camera-preview.hxml'
       - '.github/workflows/drawable-shapes-preflight.yml'
       - '.github/workflows/ldtk-smartive-1.0.0-release.yml'
   workflow_dispatch:
@@ -52,6 +54,8 @@ jobs:
         run: node scripts/run-release-preflight.cjs
       - uses: actions/upload-artifact@v4
         if: always()
+        # Diagnostics do not change the result of the executable preflight gates.
+        continue-on-error: true
         with:
           name: drawable-shapes-preflight-${{ matrix.os }}
           path: app/test-results

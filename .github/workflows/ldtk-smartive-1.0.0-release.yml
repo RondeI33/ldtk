@@ -124,6 +124,14 @@ jobs:
       - name: Install Node dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
+      - name: Unity camera preview real Electron regression
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:camera-preview
+      - name: Unity camera preview real Electron regression (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:camera-preview
       - name: CargoLine path preview real Electron regression
         if: runner.os == 'Linux'
         working-directory: app
@@ -183,6 +191,8 @@ jobs:
         with:
           name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
           path: |
+            app/test-results/camera-preview
+            app/test-results/path-preview
             app/test-results/points
             app/test-results/entity-history
             app/test-results/entity-chain

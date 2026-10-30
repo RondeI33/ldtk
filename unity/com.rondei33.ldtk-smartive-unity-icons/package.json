@@ -1,8 +1,8 @@
 {
   "name": "com.rondei33.ldtk-smartive-unity-icons",
-  "version": "1.0.4",
-  "displayName": "LDTK-Smartive Unity Icons",
-  "description": "Applies the LDTK-Smartive logo to LDtk project and level assets in the Unity Project window, including .ldtk, .ldtkl, and .ldtka files.",
+  "version": "1.1.0",
+  "displayName": "LDTK-Smartive Unity Integration",
+  "description": "Adds Smartive asset icons and an editor-only bridge for previewing the active Unity scene camera framing inside LDtk.",
   "unity": "2021.3",
   "author": {
     "name": "RondeI33",

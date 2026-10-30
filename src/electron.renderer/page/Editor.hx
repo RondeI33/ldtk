@@ -48,6 +48,7 @@ class Editor extends Page {
 	public var curWorldDepth = 0;
 
 	public var camera : display.Camera;
+	public var cameraPreview : display.GameCameraPreview;
 	public var worldRender : display.WorldRender;
 	public var levelRender : display.LevelRender;
 	public var rulers : display.Rulers;
@@ -128,6 +129,7 @@ class Editor extends Page {
 
 		cursor = new ui.Cursor();
 		root.add(cursor.root, Const.DP_UI);
+		cameraPreview = new display.GameCameraPreview(this);
 
 		showCanvas();
 		initUI();
@@ -546,7 +548,7 @@ class Editor extends Page {
 
 	/** Scene clipboard shortcuts belong to an idle level canvas, not form editing. */
 	public function canUseSelectionClipboard():Bool {
-		if( !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
+		if( isCameraPreviewActive() || !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
 			|| hasInputFocus() || ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists()
 			|| curLevel==null || curLayerInstance==null )
 			return false;
@@ -594,6 +596,8 @@ class Editor extends Page {
 
 	override function onKeyPress(keyCode:Int) {
 		super.onKeyPress(keyCode);
+		if( isCameraPreviewActive() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+			return;
 
 		// Consume layer-transfer arrows before any other tool sees them. This keeps
 		// Ctrl+Alt+Up/Down (Control+Option on macOS) isolated from navigation and
@@ -649,6 +653,16 @@ class Editor extends Page {
 	override function onAppCommand(cmd:AppCommand) {
 		super.onAppCommand(cmd);
 
+		// A camera inspection must never transform the scene through a shortcut.
+		if( isCameraPreviewActive() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+			switch cmd {
+				case C_Undo, C_Redo, C_SelectAll, C_CopySelection, C_PasteSelection,
+					C_FlipX, C_FlipY, C_MoveLevelToPreviousWorldLayer, C_MoveLevelToNextWorldLayer,
+					C_SaveTileSelection, C_LoadTileSelection, C_RunCommand:
+					return;
+				case _:
+			}
+
 		switch cmd {
 			case C_ExitApp:
 			case C_HideApp:
@@ -667,6 +681,8 @@ class Editor extends Page {
 					try App.ME.jBody.find("input:focus, textarea:focus").blur()
 					catch(e:Dynamic) {}
 				}
+				else if( cameraPreview!=null && cameraPreview.enabled && !ui.Modal.hasAnyOpen() )
+					setCameraPreview(false);
 				else if( Std.is(curTool, tool.lt.EntityTool) && Std.downcast(curTool,tool.lt.EntityTool).isChainingRef() )
 					tool.lt.EntityTool.cancelRefChaining();
 				else if( ui.ValuePicker.exists() )
@@ -952,7 +968,7 @@ class Editor extends Page {
 				onNavigateShortcut(1, 0, true);
 		}
 
-		if( curTool!=null ) {
+		if( curTool!=null && !isCameraPreviewActive() ) {
 			// Keep flip shortcuts command-driven: user/custom key mappings remain
 			// untouched. When a flippable scene selection exists, the same command
 			// transforms that selection instead of changing the tileset brush state.
@@ -965,6 +981,8 @@ class Editor extends Page {
 
 
 	function onNavigateShortcut(dx:Int, dy:Int, pressed:Bool) {
+		if( isCameraPreviewActive() )
+			return;
 		if( App.ME.isCtrlCmdDown() )
 			return;
 
@@ -1191,6 +1209,11 @@ class Editor extends Page {
 		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
 			panTool.startUsing(ev,m);
 
+		if( isCameraPreviewActive() ) {
+			cameraPreview.onMouseDown(ev,m);
+			return;
+		}
+
 		if( !ev.cancel && ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseDown(ev, m);
 
@@ -1228,6 +1251,8 @@ class Editor extends Page {
 		var m = getMouse();
 
 		panTool.stopUsing(m);
+		if( isCameraPreviewActive() )
+			return;
 
 		if( ui.ValuePicker.exists() )
 			ui.ValuePicker.ME.onMouseUp(m);
@@ -1261,6 +1286,15 @@ class Editor extends Page {
 			// Propagate event to tools & UI components
 			panTool.onMouseMove(ev,m);
 			panTool.onMouseMoveCursor(cursorEvent,m);
+
+			if( isCameraPreviewActive() ) {
+				if( !ev.cancel ) cameraPreview.moveTo(m);
+				if( !cursorEvent.cancel ) cursor.set(None);
+				cursor.onMouseMove(m);
+				invalidatedMouseCoords = true;
+				App.ME.requestCpu(false);
+				return;
+			}
 
 			if( ui.ValuePicker.exists() ) {
 				ui.ValuePicker.ME.onMouseMove(ev,m);
@@ -1639,6 +1673,16 @@ class Editor extends Page {
 		applyEditOption( jEditOptions.find("li.showDetails"), ()->settings.v.showDetails, (v)->setShowDetails(v) );
 
 		applyEditOption( jEditOptions.find("li.singleLayerMode"), ()->settings.v.singleLayerMode, (v)->setSingleLayerMode(v) );
+		applyEditOption( jEditOptions.find("li.cameraPreview"), ()->cameraPreview!=null && cameraPreview.enabled, (v)->setCameraPreview(v) );
+		jEditOptions.find("li.cameraPreview")
+			.attr("aria-pressed",Std.string(cameraPreview!=null && cameraPreview.enabled))
+			.on("keydown.cameraPreview",(ev:js.jquery.Event)->{
+				if( ev.keyCode==K.ENTER || ev.keyCode==K.SPACE ) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					setCameraPreview(!cameraPreview.enabled);
+				}
+			});
 		applyEditOption( jEditOptions.find("li.emptySpaceSelection"), ()->settings.v.emptySpaceSelection, (v)->setEmptySpaceSelection(v) );
 		applyEditOption(
 			jEditOptions.find("li.tileStacking"),
@@ -1855,6 +1899,32 @@ class Editor extends Page {
 		levelRender.invalidateAll();
 		selectionTool.clear();
 		N.quick( "Tile enum overlay: "+L.onOff( settings.v.tileEnumOverlays ));
+		updateEditOptions();
+	}
+
+	public inline function isCameraPreviewActive() : Bool {
+		return cameraPreview!=null && cameraPreview.isActive();
+	}
+
+	public function setCameraPreview(value:Bool) {
+		if( cameraPreview==null || value==cameraPreview.enabled )
+			return;
+		if( value ) {
+			// Never cancel a half-committed authoring gesture from a toolbar event.
+			if( curTool.isRunning() || selectionTool.isRunning() || panTool.isRunning()
+				|| resizeTool!=null && resizeTool.isRunning() || specialTool!=null && specialTool.isRunning() ) {
+				N.quick("Finish the current gesture before opening camera preview");
+				return;
+			}
+			if( ui.ValuePicker.exists() ) ui.ValuePicker.ME.cancel();
+			clearSpecialTool();
+			clearResizeTool();
+			selectionTool.clear();
+			tool.lt.EntityTool.cancelRefChaining();
+		}
+		cameraPreview.setEnabled(value);
+		cursor.set(None);
+		levelRender.invalidateAll();
 		updateEditOptions();
 	}
 

@@ -46,7 +46,7 @@ let version = null;
 let status = 1;
 try {
   version = validateReleaseMetadata();
-  const suites = ['path-preview', 'point', 'entity-history', 'entity-chain', 'entity-multi', 'drawable-shapes'];
+  const suites = ['camera-preview', 'path-preview', 'point', 'entity-history', 'entity-chain', 'entity-multi', 'drawable-shapes'];
   // The release runs selection/template integration on Linux and the entity
   // suites on both Linux and macOS Intel. Match that matrix here.
   if (process.platform === 'linux') suites.push('template', 'selection');

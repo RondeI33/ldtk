@@ -478,7 +478,7 @@ class LevelRender extends dn.Process {
 	}
 
 	inline function applyGridVisibility() {
-		grid.visible = settings.v.grid && settings.v.showDetails && !editor.worldMode && editor.curLayerInstance!=null;
+		grid.visible = settings.v.grid && settings.v.showDetails && !editor.worldMode && !editor.isCameraPreviewActive() && editor.curLayerInstance!=null;
 	}
 
 	inline function updateGridPos() {

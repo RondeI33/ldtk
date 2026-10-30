@@ -26,6 +26,14 @@ https://github.com/RondeI33/ldtk.git?path=/unity/com.rondei33.ldtk-smartive-unit
 
 The package keeps the normal LDtkUnity/Cammin importer intact and replaces its old Project-window artwork with the LDTK-Smartive logo for `.ldtk`, `.ldtkl`, and `.ldtka` assets. Existing assets are refreshed automatically; a manual **Tools > LDTK-Smartive > Refresh LDtk asset icons** command is also available.
 
+## Unity camera preview
+
+The **Camera preview** toggle in the Visuals toolbar, next to **Single layer mode**, shows the Unity camera frame over the level. Choose **Camera grid** for camera-sized cells or **Free point** to inspect any position. The optional layer guide grid aligns frame centers to existing guides. Click to pin or release a frame; pan and zoom normally, and press Escape to return to editing.
+
+Install or update the Unity package above, open **Tools > LDTK-Smartive > Camera preview sync**, select the `.ldtk` project and enable automatic sync. Camera size, aspect ratio and importer Pixels Per Unit come from the actual orthographic camera in the active Unity scene. A separate camera snapshot updates without reloading the edited project. Missing or unsupported camera settings are reported in the preview panel.
+
+See [setup, controls and supported camera framing](docs/UNITY_CAMERA_PREVIEW.md). This previews LDtk artwork within the camera frame; Unity-only rendering and runtime camera behavior remain in Unity.
+
 # Building from source
 
 ## Requirements

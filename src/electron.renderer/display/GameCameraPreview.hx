@@ -29,6 +29,9 @@ class GameCameraPreview extends dn.Process {
 	var nextPoll = 0.;
 	var invalidated = true;
 	var lastUiText = "";
+	var lastLevelRootX = Math.NaN;
+	var lastLevelRootY = Math.NaN;
+	var lastZoom = Math.NaN;
 
 	public function new(owner:page.Editor) {
 		editor = owner;
@@ -41,7 +44,7 @@ class GameCameraPreview extends dn.Process {
 		root.visible = false;
 		jControls = App.ME.jPage.find("#cameraPreviewControls");
 		jJoshua = new J('<img class="cameraJoshuaSprite" alt="" draggable="false"/>');
-		jJoshua.attr("src","assets/joshua-idle-preview.png");
+		jJoshua.attr("src","joshua-idle-preview.png");
 		jJoshua.attr("style","position:fixed;display:none;pointer-events:none;image-rendering:pixelated;z-index:50;user-select:none;");
 		jJoshua.appendTo(App.ME.jPage);
 		jControls.find(".cameraGrid").click(_->setGridMode(true));
@@ -347,7 +350,7 @@ class GameCameraPreview extends dn.Process {
 		dialog.addTitle(L.untranslated("Connect the Unity camera"),true);
 		dialog.addParagraph(L.untranslated("In Unity, install or update the Smartive Unity package, then open <b>Tools &gt; LDTK-Smartive &gt; Camera preview sync</b>."));
 		dialog.addParagraph(L.untranslated("Choose this LDtk project and the camera from the active scene. Check the importer Pixels Per Unit, then enable automatic sync or export a snapshot."));
-		dialog.addParagraph(L.untranslated("The camera frame uses Unity's orthographic size, aspect ratio and importer scale. Grid mode uses camera-sized cells; the optional layer guide grid changes their spacing. Free point mode follows the mouse. Click to pin or release the frame. Escape closes the preview."));
+		dialog.addParagraph(L.untranslated("Click the level to place Joshua and lock the frame. While locked, normal map editing continues. Use Przestaw Joshuę to relocate him. Escape closes the preview. Grid mode remains available as a legacy inspection tool."));
 		dialog.addParagraph(L.untranslated("This previews the camera framing of the LDtk artwork. Camera follow, room constraints, Unity-only objects, lighting and post-processing run in Unity."));
 		new J('<p class="cameraFilePath"/>').text(getSourcePath()).appendTo(dialog.jContent);
 		dialog.addButton("Copy Unity package URL",null,()->{
@@ -365,6 +368,16 @@ class GameCameraPreview extends dn.Process {
 
 	override function postUpdate() {
 		super.postUpdate();
+		if( isActive() ) {
+			var levelRoot = editor.levelRender.root;
+			var z = editor.camera.adjustedZoom;
+			if( levelRoot.x!=lastLevelRootX || levelRoot.y!=lastLevelRootY || z!=lastZoom ) {
+				lastLevelRootX = levelRoot.x;
+				lastLevelRootY = levelRoot.y;
+				lastZoom = z;
+				invalidated = true;
+			}
+		}
 		if( enabled && haxe.Timer.stamp()>=nextPoll )
 			refreshSource();
 		if( invalidated ) {

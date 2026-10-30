@@ -548,7 +548,7 @@ class Editor extends Page {
 
 	/** Scene clipboard shortcuts belong to an idle level canvas, not form editing. */
 	public function canUseSelectionClipboard():Bool {
-		if( isCameraPreviewActive() && !cameraPreview.pinned || !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
+		if( isCameraPreviewPlacing() || !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
 			|| hasInputFocus() || ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists()
 			|| curLevel==null || curLayerInstance==null )
 			return false;
@@ -596,7 +596,7 @@ class Editor extends Page {
 
 	override function onKeyPress(keyCode:Int) {
 		super.onKeyPress(keyCode);
-		if( isCameraPreviewActive() && !cameraPreview.pinned && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+		if( isCameraPreviewPlacing() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
 			return;
 
 		// Consume layer-transfer arrows before any other tool sees them. This keeps
@@ -654,7 +654,7 @@ class Editor extends Page {
 		super.onAppCommand(cmd);
 
 		// A camera inspection must never transform the scene through a shortcut.
-		if( isCameraPreviewActive() && !cameraPreview.pinned && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
+		if( isCameraPreviewPlacing() && !hasInputFocus() && !ui.Modal.hasAnyOpen() )
 			switch cmd {
 				case C_Undo, C_Redo, C_SelectAll, C_CopySelection, C_PasteSelection,
 					C_FlipX, C_FlipY, C_MoveLevelToPreviousWorldLayer, C_MoveLevelToNextWorldLayer,
@@ -968,7 +968,7 @@ class Editor extends Page {
 				onNavigateShortcut(1, 0, true);
 		}
 
-		if( curTool!=null && (!isCameraPreviewActive() || cameraPreview.pinned) ) {
+		if( curTool!=null && !isCameraPreviewPlacing() ) {
 			// Keep flip shortcuts command-driven: user/custom key mappings remain
 			// untouched. When a flippable scene selection exists, the same command
 			// transforms that selection instead of changing the tileset brush state.
@@ -981,7 +981,7 @@ class Editor extends Page {
 
 
 	function onNavigateShortcut(dx:Int, dy:Int, pressed:Bool) {
-		if( isCameraPreviewActive() && !cameraPreview.pinned )
+		if( isCameraPreviewPlacing() )
 			return;
 		if( App.ME.isCtrlCmdDown() )
 			return;
@@ -1209,8 +1209,10 @@ class Editor extends Page {
 		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
 			panTool.startUsing(ev,m);
 
-		if( isCameraPreviewActive() && !cameraPreview.pinned ) {
+		if( isCameraPreviewPlacing() ) {
 			cameraPreview.onMouseDown(ev,m);
+			// This placement click alone is consumed. Once locked, normal
+			// editor tools receive all future pointer events and drags.
 			return;
 		}
 
@@ -1251,7 +1253,8 @@ class Editor extends Page {
 		var m = getMouse();
 
 		panTool.stopUsing(m);
-		if( isCameraPreviewActive() && !cameraPreview.pinned )
+		if( cameraPreview!=null && cameraPreview.endPlacementGesture() ) return;
+		if( isCameraPreviewPlacing() )
 			return;
 
 		if( ui.ValuePicker.exists() )
@@ -1287,7 +1290,7 @@ class Editor extends Page {
 			panTool.onMouseMove(ev,m);
 			panTool.onMouseMoveCursor(cursorEvent,m);
 
-			if( isCameraPreviewActive() && !cameraPreview.pinned ) {
+			if( isCameraPreviewPlacing() || cameraPreview!=null && cameraPreview.isPlacementGesture() ) {
 				if( !ev.cancel ) cameraPreview.moveTo(m);
 				if( !cursorEvent.cancel ) cursor.set(None);
 				cursor.onMouseMove(m);
@@ -1906,21 +1909,27 @@ class Editor extends Page {
 		return cameraPreview!=null && cameraPreview.isActive();
 	}
 
+	public inline function isCameraPreviewPlacing() : Bool {
+		return cameraPreview!=null && cameraPreview.isPlacing();
+	}
+
+	public function canStartCameraPlacement():Bool {
+		return (curTool==null || !curTool.isRunning()) && !selectionTool.isRunning() && !panTool.isRunning()
+			&& (resizeTool==null || !resizeTool.isRunning()) && (specialTool==null || !specialTool.isRunning());
+	}
+
 	public function setCameraPreview(value:Bool) {
 		if( cameraPreview==null || value==cameraPreview.enabled )
 			return;
 		if( value ) {
 			// Never cancel a half-committed authoring gesture from a toolbar event.
-			if( curTool.isRunning() || selectionTool.isRunning() || panTool.isRunning()
-				|| resizeTool!=null && resizeTool.isRunning() || specialTool!=null && specialTool.isRunning() ) {
+			if( !canStartCameraPlacement() ) {
 				N.quick("Finish the current gesture before opening camera preview");
 				return;
 			}
 			if( ui.ValuePicker.exists() ) ui.ValuePicker.ME.cancel();
-			clearSpecialTool();
-			clearResizeTool();
-			selectionTool.clear();
-			tool.lt.EntityTool.cancelRefChaining();
+			// Preserve selected elements and the active drawing tool. Camera
+			// placement is a transient overlay, not a new authoring tool.
 		}
 		cameraPreview.setEnabled(value);
 		cursor.set(None);

@@ -16,6 +16,7 @@ function run(command, args, cwd = repo) {
 let status = 1;
 let original = null;
 try {
+  if (run(process.execPath, ['--test', 'app/scripts/camera-preview-sprite.test.cjs']) !== 0) throw Error('Unity sprite import vectors failed');
   if (run('haxe', ['tests/camera-preview.hxml']) !== 0) throw Error('Camera geometry vectors failed');
   if (run('haxe', ['main.hxml']) !== 0) throw Error('Main-process compilation failed');
   if (run('haxe', ['renderer.hxml']) !== 0) throw Error('Renderer compilation failed');

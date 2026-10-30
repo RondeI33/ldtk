@@ -1,0 +1,24 @@
+name: Build LDtk Smartive 1.0.35 from master
+
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.35-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.35-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Joshua preview regression gates, installers and v1.0.35 release
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: false
+    secrets: inherit

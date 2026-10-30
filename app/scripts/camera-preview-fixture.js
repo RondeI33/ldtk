@@ -139,7 +139,7 @@
   F.stats = () => {
     const e = F.editor(), p = F.preview(), camera = e.camera, layer = e.get_curLayerInstance();
     const result = {
-      enabled: p.enabled, active: p.isActive(), pinned: p.pinned, gridMode: p.gridMode, guide: p.useGuideGrid,
+      state: p.get_state(), enabled: p.enabled, active: p.isActive(), placing: p.isPlacing(), pinned: p.pinned, gridMode: p.gridMode, guide: p.useGuideGrid,
       profile: p.profile, frame: p.frame, error: p.sourceError, renderError: p.renderError, stale: p.sourceStale,
       visible: p.root.visible, gridLines: p.drawnGridLines, point: {x: p.pointX, y: p.pointY},
       dirty: e.needSaving, history: F.history(), selection: e.selectionTool.any(),
@@ -147,6 +147,9 @@
       banner: !!document.querySelector('.smartiveDiskChange'),
       mode: e.worldMode, level: e.curLevelId, layer: layer && layer.layerDefUid,
       status: document.querySelector('.cameraSource').textContent,
+      spriteStatus: document.querySelector('.cameraSpriteStatus').textContent,
+       lockStatus: document.querySelector('.cameraLockStatus').textContent,
+       sprite: (() => { const e=document.querySelector('.cameraJoshuaSprite'); const r=e.getBoundingClientRect(); return {src:e.getAttribute('src'),visible:getComputedStyle(e).display!=='none',pointerEvents:getComputedStyle(e).pointerEvents,x:r.x,y:r.y,width:r.width,height:r.height}; })(),
       sourcePath: p.getSourcePath(), label: {x: p.label.x, y: p.label.y, text: p.label.text},
       transform: {x: e.levelRender.root.x, y: e.levelRender.root.y, zoom: camera.get_adjustedZoom(), width: camera.get_width(), height: camera.get_height(),
         cameraX: camera.get_levelX(), cameraY: camera.get_levelY(), pixelRatio: camera.get_pixelRatio()},
@@ -184,6 +187,42 @@
     fs.writeFileSync(file, JSON.stringify(p.toJson()));
     F.loadEditor(p);
     return {layers: p.defs.layers.length, file: p.filePath.full};
+  };
+  F.setAssetFile = (selector, filePath) => {
+    const input=document.querySelector(selector);
+    const f=new File([],filePath.split(/[\\/]/).pop());
+    Object.defineProperty(f,'path',{value:filePath});
+    const transfer=new DataTransfer();transfer.items.add(f);input.files=transfer.files;
+    input.dispatchEvent(new Event('change',{bubbles:true})); return true;
+  };
+  F.makeSpriteFixture = filePath => {
+    const canvas=document.createElement('canvas');canvas.width=64;canvas.height=88;
+    const c=canvas.getContext('2d');c.fillStyle='#ff0000';c.fillRect(0,0,64,44);
+    c.fillStyle='#00ff00';c.fillRect(0,44,64,44);
+    fs.writeFileSync(filePath,Buffer.from(canvas.toDataURL('image/png').split(',')[1],'base64'));
+    fs.writeFileSync(filePath+'.meta',`guid: 1234567890abcdef1234567890abcdef
+TextureImporter:
+  spritePixelsToUnits: 32
+  spriteMode: 2
+  spriteSheet:
+    sprites:
+    - name: JoshuaIdle_0
+      rect: {x: 0, y: 0, width: 32, height: 44}
+      alignment: 9
+      pivot: {x: 0.25, y: 0.125}
+      internalID: 9223372036854775701
+`);
+    return true;
+  };
+  F.spritePixel = () => {
+    const img=document.querySelector('.cameraJoshuaSprite');
+    const c=document.createElement('canvas');c.width=32;c.height=44;
+    const ctx=c.getContext('2d');ctx.drawImage(img,0,0);
+    return [...ctx.getImageData(0,0,1,1).data];
+  };
+  F.selectObjects = () => {
+    const e=F.editor();e.selectionTool.clear();e.selectLayerInstance(F.level().getLayerInstance(F.objects));
+    e.get_curTool().selectValue(F.entityDef);return true;
   };
   F.command = name => {
     H.App.ME.executeAppCommand(E.AppCommand[name]);

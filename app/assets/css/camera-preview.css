@@ -1,0 +1,8 @@
+/* Additional preview controls; never change the editor canvas hit-testing. */
+#page.editor #cameraPreviewControls .cameraModes{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#page.editor #cameraPreviewControls .cameraModes .cameraPin{grid-column:1/-1;min-width:0}
+#page.editor #cameraPreviewControls .cameraModes button{min-width:0;white-space:normal}
+#page.editor #cameraPreviewControls .cameraSpriteFrame{display:block;width:100%;max-width:100%;margin-top:4px}
+#page.editor #cameraPreviewControls .cameraSpriteStatus{font-size:8pt;color:#edc884;line-height:1.4;margin-top:7px;overflow-wrap:anywhere}
+#page.editor #cameraPreviewControls .cameraSpriteStatus[data-verified="true"]{color:#c4eddf}
+#page.editor #cameraPreviewControls .cameraSpriteSettings input[type="file"]{max-width:100%;width:100%}

@@ -1,3 +1,22 @@
+# 1.0.35
+
+## Joshua placement and locked editing
+
+- Camera Preview now defaults to **Ustaw Joshuę**. Click once to anchor the hypothetical player in level coordinates. **Przestaw Joshuę** explicitly re-enters placement.
+- Locked preview passes native drawing, erasing, selection, entity placement, clipboard and Undo/Redo to existing tools. The placement gesture itself never enters map history; changing levels/projects clears the anchor.
+- Added a nearest-neighbor editor-only Joshua sprite. Choose `JoshuaIdle.png` with its adjacent Unity `.meta` to crop one frame and read its PPU and pivot. An optional text player prefab resolves renderer offsets, parent 2D transforms and flips while preserving 64-bit Unity fileIDs. Missing/ambiguous metadata and nested/variant prefabs are explicitly reported; manual settings remain available.
+- Fixed sprite/frame transforms during pan, zoom and Retina scaling, and prevented overlapping placement controls. Unity snapshot reloads recompute the frame without moving the anchored player.
+- Added native Electron interaction coverage, Unity sprite parser tests and camera geometry error cases. These tests gate packaging; compiler success alone is not a release gate.
+
+## Camera model compatibility
+
+- Existing top-level schemaVersion 1 snapshots remain supported and are labeled **dimensions only**. The optional version-1 camera model adapter handles the recognized level-IID, room-bound, offset and zone layout in settled-state preview; missing IIDs, malformed values and unrecognized coordinate mappings produce explicit diagnostics rather than a guessed frame.
+- **Known limitation:** the game's original `Tools/LDtkCameraSync/preview.cjs` and 53 Unity-generated comparison vectors were not available for validation. Exact parity with that custom exporter is not claimed. The UI labels model parity unverified; runtime damping/transitions are not simulated. No replacement export format or Unity project data is written.
+
+## macOS installer
+
+- Use the supplied full-window Dither Paradox artwork in the drag-to-Applications DMG, including a Retina background, instead of the plain white window.
+
 # 1.0.34
 
 ## Unity camera preview

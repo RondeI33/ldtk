@@ -12,3 +12,16 @@ body.panning #cameraPreviewControls{pointer-events:none}
 #page.editor #cameraPreviewControls .cameraSource{font-size:9pt;line-height:1.4;overflow-wrap:anywhere;color:#b2caff;max-height:5.6em;overflow-y:auto}#page.editor #cameraPreviewControls .cameraTimestamp{font-size:8pt;color:#9ba8c0;margin-top:3px}#page.editor #cameraPreviewControls .cameraHint{font-size:8pt;line-height:1.45;color:#9ba8c0;margin-top:7px}#page.editor #cameraPreviewControls.unavailable .cameraSource{color:#edc884}
 #page.editor #editingOptions li.cameraPreview:focus-visible{outline:2px solid #b7ceff;outline-offset:2px}
 .window.cameraPreviewSetup .wrapper .content{max-width:580px}.window.cameraPreviewSetup .cameraFilePath{overflow-wrap:anywhere;user-select:text;color:#b2caff;font-size:9pt}
+
+/* Joshua placement mode: DOM sprite never captures mouse/keyboard events. */
+#page.editor .cameraJoshuaSprite{position:fixed;display:block;pointer-events:none!important;user-select:none;image-rendering:pixelated;image-rendering:crisp-edges;z-index:4;transform:none;object-fit:fill}
+#page.editor #cameraPreviewControls .cameraLockStatus{padding:7px 9px;margin:7px 0 4px;border:1px solid #547ba8;border-radius:4px;color:#c5def9;background:#233850;font-weight:600;font-size:9pt}
+#page.editor #cameraPreviewControls.cameraLocked .cameraLockStatus{border-color:#508879;background:#1d3936;color:#c4eddf}
+#page.editor #cameraPreviewControls .cameraSpriteSettings{margin-top:8px;padding:5px 7px;border:1px solid #465369;border-radius:4px;font-size:8.5pt}
+#page.editor #cameraPreviewControls .cameraSpriteSettings summary{cursor:pointer;font-weight:600}
+#page.editor #cameraPreviewControls .cameraSpriteSettings label{display:block;margin-top:6px;color:#c5d1e0}
+#page.editor #cameraPreviewControls .cameraSpriteSettings input[type="file"]{display:block;width:100%;max-width:100%;font-size:8pt;margin-top:3px}
+#page.editor #cameraPreviewControls .cameraSpriteParams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px}
+#page.editor #cameraPreviewControls .cameraSpriteParams input{box-sizing:border-box;width:100%;margin-top:2px;padding:3px;font-size:9pt}
+#page.editor #cameraPreviewControls .cameraSpriteSettings small{display:block;margin-top:8px;color:#9ba8c0;line-height:1.4}
+#page.editor #cameraPreviewControls .cameraPin{flex:1.6!important;white-space:normal!important}

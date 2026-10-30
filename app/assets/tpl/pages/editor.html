@@ -63,7 +63,7 @@
 			<div class="icon singleLayer"></div>
 		</li>
 
-		<li class="cameraPreview" role="button" tabindex="0" aria-label="Camera preview" aria-pressed="false" title="**Camera preview** Inspect the Unity camera frame on the camera grid or at any point. Click the level to pin the frame. Canvas editing is paused while previewing. Escape closes the preview." tip="right">
+		<li class="cameraPreview" role="button" tabindex="0" aria-label="Camera preview" aria-pressed="false" title="**Camera preview** Set Joshua in the level, inspect the Unity camera frame, then lock the position and continue drawing with ordinary tools. Escape closes the preview." tip="right">
 			<div class="icon cameraPreview"></div>
 		</li>
 
@@ -98,14 +98,30 @@
 		<button class="cameraClose gray" title="Close camera preview (Escape)" aria-label="Close camera preview"><span class="icon close"></span></button>
 	</div>
 	<div class="cameraModes" role="group" aria-label="Camera placement">
-		<button class="cameraGrid active" aria-pressed="true"><span class="icon cameraGrid"></span>Camera grid</button>
-		<button class="cameraFree" aria-pressed="false"><span class="icon cameraPoint"></span>Free point</button>
-		<button class="cameraPin gray" aria-pressed="false" title="Click the level to pin or release the frame"><span class="icon lock"></span><span class="label">Follow</span></button>
+		<button class="cameraGrid" aria-pressed="false"><span class="icon cameraGrid"></span>Camera grid</button>
+		<button class="cameraFree active" aria-pressed="true"><span class="icon cameraPoint"></span>Ustaw Joshuę</button>
+		<button class="cameraPin gray" aria-pressed="false" title="Lock the preview at Joshua’s position to resume normal editing"><span class="icon lock"></span><span class="label">Zablokuj i rysuj</span></button>
 	</div>
+	<div class="cameraLockStatus" role="status" aria-live="polite">Ustawianie Joshuy — kliknij mapę</div>
 	<label class="guideOption"><input class="cameraGuideGrid" type="checkbox"/>Use active layer guide grid</label>
+	<details class="cameraSpriteSettings">
+		<summary>Grafika Joshuy / PPU / pivot</summary>
+		<label>JoshuaIdle.png / spritesheet (odczyt .meta obok PNG) <input class="cameraSpriteFile" type="file" accept="image/png,.png"/></label>
+		<label>Prefab gracza (opcjonalnie) <input class="cameraPrefabFile" type="file" accept=".prefab"/></label>
+		<label>Klatka idle <select class="cameraSpriteFrame" disabled><option>Grafika zastępcza</option></select></label>
+		<div class="cameraSpriteParams">
+			<label>Sprite PPU <input class="cameraSpritePpu" type="number" min="0.01" step="1" value="16"/></label>
+			<label>Pivot X (0–1) <input class="cameraSpritePivotX" type="number" min="0" max="1" step="0.05" value="0.5"/></label>
+			<label>Pivot Y (0–1) <input class="cameraSpritePivotY" type="number" min="0" max="1" step="0.05" value="0"/></label>
+			<label>Renderer offset X (Unity units) <input class="cameraSpriteOffsetX" type="number" step="0.125" value="0"/></label>
+			<label>Renderer offset Y (Unity units) <input class="cameraSpriteOffsetY" type="number" step="0.125" value="0"/></label>
+		</div>
+		<small>Pivot jest normalizowany i liczony od lewego dolnego rogu. Offset jest względem root gracza, w jednostkach Unity (+Y w górę). Ustawienia dotyczą tylko bieżącej sesji podglądu.</small>
+	</details>
+	<div class="cameraSpriteStatus" role="status"></div>
 	<div class="cameraSource" role="status">Waiting for Unity camera</div>
 	<div class="cameraTimestamp"></div>
-	<div class="cameraHint">Move to preview · Click to pin · Space + drag to pan · Esc to close</div>
+	<div class="cameraHint">Ustaw Joshuę → kliknij, by zablokować → rysuj normalnie · Przestaw Joshuę, by zmienić punkt · Esc zamyka</div>
 </section>
 
 <div id="pendingActions"></div>

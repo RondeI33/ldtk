@@ -7,7 +7,7 @@ import camerapreview.CameraPreviewGeometry.CameraPreviewFrame;
 /** Read-only camera framing. Unity owns the telemetry file; LDtk never writes it. */
 class GameCameraPreview extends dn.Process {
 	public var enabled(default,null) = false;
-	public var gridMode(default,null) = true;
+	public var gridMode(default,null) = false;
 	public var useGuideGrid(default,null) = false;
 	public var pinned(default,null) = false;
 	public var profile(default,null) : Null<CameraPreviewProfile>;
@@ -23,6 +23,7 @@ class GameCameraPreview extends dn.Process {
 	var overlay : h2d.Graphics;
 	var label : h2d.Text;
 	var jControls : J;
+	var jJoshua : J;
 	var currentPath : Null<String>;
 	var lastFileSignature : Null<String>;
 	var nextPoll = 0.;
@@ -39,9 +40,13 @@ class GameCameraPreview extends dn.Process {
 		label.textColor = 0xb8ceff;
 		root.visible = false;
 		jControls = App.ME.jPage.find("#cameraPreviewControls");
+		jJoshua = new J('<img class="cameraJoshuaSprite" alt="" draggable="false"/>');
+		jJoshua.attr("src","assets/joshua-idle-preview.png");
+		jJoshua.attr("style","position:fixed;display:none;pointer-events:none;image-rendering:pixelated;z-index:50;user-select:none;");
+		jJoshua.appendTo(App.ME.jPage);
 		jControls.find(".cameraGrid").click(_->setGridMode(true));
 		jControls.find(".cameraFree").click(_->setGridMode(false));
-		jControls.find(".cameraPin").click(_->setPinned(!pinned));
+		jControls.find(".cameraPin").click(_->setPinned(false));
 		jControls.find(".cameraSetup").click(_->showSetup());
 		jControls.find(".cameraClose").click(_->editor.setCameraPreview(false));
 		jControls.find(".cameraGuideGrid").on("change", _->{
@@ -70,7 +75,8 @@ class GameCameraPreview extends dn.Process {
 		if( enabled )
 			refreshSource(true);
 		else {
-			root.visible = false;
+				root.visible = false;
+			jJoshua.hide();
 			frame = null;
 		}
 		jControls.toggle(enabled);
@@ -110,10 +116,10 @@ class GameCameraPreview extends dn.Process {
 	public function onMouseDown(ev:hxd.Event, m:Coords) {
 		if( !isActive() )
 			return;
-		if( !ev.cancel && ev.button==0 ) {
-			moveTo(m);
-			setPinned(!pinned);
-		}
+		if( pinned || ev.cancel || ev.button!=0 )
+			return;
+		moveTo(m);
+		setPinned(true);
 		ev.cancel = true;
 	}
 
@@ -127,7 +133,7 @@ class GameCameraPreview extends dn.Process {
 				frame = null;
 				sourceError = null;
 				sourceStale = false;
-				gridMode = true;
+				gridMode = false;
 				useGuideGrid = false;
 				resetPoint();
 				if( enabled ) refreshSource(true);
@@ -195,14 +201,15 @@ class GameCameraPreview extends dn.Process {
 		jControls.find(".cameraGrid").toggleClass("active",gridMode).attr("aria-pressed",Std.string(gridMode));
 		jControls.find(".cameraFree").toggleClass("active",!gridMode).attr("aria-pressed",Std.string(!gridMode));
 		jControls.find(".cameraPin").toggleClass("active",pinned).attr("aria-pressed",Std.string(pinned));
-		jControls.find(".cameraPin .label").text(pinned ? "Pinned" : "Follow");
+		jControls.find(".cameraPin .label").text(pinned ? "Przestaw Joshuę" : "Ustaw Joshuę");
+		jControls.find(".cameraHint").text(pinned ? "Zablokowany — możesz rysować. Kliknij Przestaw Joshuę, aby zmienić pozycję." : "Kliknij mapę, aby ustawić Joshuę i zablokować podgląd.");
 		jControls.find(".guideOption").toggle(gridMode);
 		jControls.find(".cameraGuideGrid").prop("checked",useGuideGrid);
 		var text = sourceError;
 		if( editor.worldMode )
 			text = "Camera preview is paused in World view. Open a level to continue.";
 		else if( profile!=null ) {
-			var state = profile.live ? (sourceStale ? "Sync paused · last Unity snapshot" : "Unity camera synced") : "Unity camera snapshot";
+			var state = profile.live ? (sourceStale ? "Sync paused · last Unity snapshot" : "Unity camera synced") : "Unity camera snapshot (dimensions only)";
 			text = state+" · "+profile.sceneName+" / "+profile.cameraName+" · "+number(profile.width)+" × "+number(profile.height)+" px";
 		}
 		if( !editor.worldMode && renderError!=null ) text = renderError;
@@ -249,7 +256,7 @@ class GameCameraPreview extends dn.Process {
 		renderError = null;
 		root.visible = isActive() && profile!=null;
 		frame = null;
-		if( !root.visible ) return;
+		if( !root.visible ) { jJoshua.hide(); return; }
 		var cam = editor.camera;
 		var z = cam.adjustedZoom;
 		var levelRoot = editor.levelRender.root;
@@ -316,6 +323,18 @@ class GameCameraPreview extends dn.Process {
 		overlay.lineTo(x+w/2+cross,y+h/2);
 		overlay.moveTo(x+w/2,y+h/2-cross);
 		overlay.lineTo(x+w/2,y+h/2+cross);
+		// The art overlay is strictly visual; never participates in LDtk entity/history data.
+		var canvas:Dynamic = js.Browser.document.querySelector("canvas");
+		if( canvas!=null ) {
+			var bounds:Dynamic = canvas.getBoundingClientRect();
+			var spriteW = 32*z;
+			var spriteH = 44*z;
+			jJoshua.css("left",Std.string(bounds.left+levelRoot.x+pointX*z-spriteW*0.5)+"px");
+			jJoshua.css("top",Std.string(bounds.top+levelRoot.y+pointY*z-spriteH)+"px");
+			jJoshua.css("width",Std.string(spriteW)+"px");
+			jJoshua.css("height",Std.string(spriteH)+"px");
+			jJoshua.show();
+		}
 		label.text = (pinned ? "PINNED · " : "")+(gridMode ? "Camera cell "+frame.column+", "+frame.row : "Camera center "+number(frame.centerX)+", "+number(frame.centerY));
 		label.textColor = col;
 		label.setScale(cam.pixelRatio);
@@ -356,6 +375,7 @@ class GameCameraPreview extends dn.Process {
 
 	override function onDispose() {
 		if( editor.ge!=null ) editor.ge.removeListener(onGlobalEvent);
+		jJoshua.remove();
 		jControls.find("*").off();
 		jControls.hide();
 		super.onDispose();

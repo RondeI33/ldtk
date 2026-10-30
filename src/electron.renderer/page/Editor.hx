@@ -548,7 +548,7 @@ class Editor extends Page {
 
 	/** Scene clipboard shortcuts belong to an idle level canvas, not form editing. */
 	public function canUseSelectionClipboard():Bool {
-		if( isCameraPreviewActive() || !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
+		if( isCameraPreviewActive() && !cameraPreview.pinned || !App.ME.overCanvas || !App.ME.focused || !App.ME.hasGlContext || worldMode || project.isBackup()
 			|| hasInputFocus() || ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists()
 			|| curLevel==null || curLayerInstance==null )
 			return false;
@@ -968,7 +968,7 @@ class Editor extends Page {
 				onNavigateShortcut(1, 0, true);
 		}
 
-		if( curTool!=null && !isCameraPreviewActive() ) {
+		if( curTool!=null && (!isCameraPreviewActive() || cameraPreview.pinned) ) {
 			// Keep flip shortcuts command-driven: user/custom key mappings remain
 			// untouched. When a flippable scene selection exists, the same command
 			// transforms that selection instead of changing the tileset brush state.
@@ -981,7 +981,7 @@ class Editor extends Page {
 
 
 	function onNavigateShortcut(dx:Int, dy:Int, pressed:Bool) {
-		if( isCameraPreviewActive() )
+		if( isCameraPreviewActive() && !cameraPreview.pinned )
 			return;
 		if( App.ME.isCtrlCmdDown() )
 			return;
@@ -1209,7 +1209,7 @@ class Editor extends Page {
 		if( !(App.isMac() && ev.button==1 && isEntityRectangleEraseShortcut()) )
 			panTool.startUsing(ev,m);
 
-		if( isCameraPreviewActive() ) {
+		if( isCameraPreviewActive() && !cameraPreview.pinned ) {
 			cameraPreview.onMouseDown(ev,m);
 			return;
 		}
@@ -1251,7 +1251,7 @@ class Editor extends Page {
 		var m = getMouse();
 
 		panTool.stopUsing(m);
-		if( isCameraPreviewActive() )
+		if( isCameraPreviewActive() && !cameraPreview.pinned )
 			return;
 
 		if( ui.ValuePicker.exists() )
@@ -1287,7 +1287,7 @@ class Editor extends Page {
 			panTool.onMouseMove(ev,m);
 			panTool.onMouseMoveCursor(cursorEvent,m);
 
-			if( isCameraPreviewActive() ) {
+			if( isCameraPreviewActive() && !cameraPreview.pinned ) {
 				if( !ev.cancel ) cameraPreview.moveTo(m);
 				if( !cursorEvent.cancel ) cursor.set(None);
 				cursor.onMouseMove(m);

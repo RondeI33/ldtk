@@ -173,23 +173,26 @@ async function run(win) {
   await until('cameraPreviewFixture.stats().profile?.sceneName === "04_research"', 'Camera file was not detected automatically');
   await move(450, 260); s = await settled();
   assert.equal(s.profile.width, 320); assert.equal(s.profile.height, 180);
-  assert.deepEqual(s.frame, {x: 320, y: 180, width: 320, height: 180, centerX: 480, centerY: 270, column: 1, row: 1});
-  assert.equal(s.visible, true); assert.ok(s.gridLines > 0 && s.gridLines <= 400);
-  await unchanged(initial); await pass('Atomic Unity snapshot automatically creates the correct 320 × 180 camera cell'); await screenshot('camera-grid');
-
-  await clickSelector('#cameraPreviewControls .cameraFree');
-  await move(451, 263); s = await settled();
-  assert.equal(s.gridMode, false); near(s.frame.centerX, s.point.x, 'Free point center X'); near(s.frame.centerY, s.point.y, 'Free point center Y');
-  near(s.frame.x, s.point.x - 160, 'Free left edge'); near(s.frame.y, s.point.y - 90, 'Free top edge');
-  assert.equal(s.frame.column, null); assert.equal(s.gridLines, 0);
-  await unchanged(initial); await pass('Free-point mode follows native mouse coordinates without tile-grid snapping'); await screenshot('free-point');
+  assert.equal(s.visible, true);
+  assert.equal(s.gridMode, false);
+  near(s.frame.centerX, s.point.x, 'Joshua placement X');
+  near(s.frame.centerY, s.point.y, 'Joshua placement Y');
+  assert.equal(s.gridLines, 0);
+  await unchanged(initial); await pass('Unity snapshot opens Joshua placement with exact player-point framing'); await screenshot('joshua-place');
 
   await click(await move(451, 263)); s = await state();
   assert.equal(s.pinned, true); const pinned = s.frame;
   await move(590, 330); assert.deepEqual((await settled()).frame, pinned);
-  await click(await call('screen', 590, 330)); assert.equal((await state()).pinned, false);
+  await call('selectTerrain');
+  await drag(await call('screen', 448, 192), await call('screen', 528, 224), 'left');
+  assert.deepEqual((await settled()).frame, pinned, 'Painting must never move Joshua');
+  assert.notDeepEqual(await call('serial'), initial, 'A locked preview must allow painting');
+  await key('z', [primaryModifier]);
+  await unchanged(initial);
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  assert.equal((await state()).pinned, false);
   await move(605, 342); s = await settled(); assert.notDeepEqual(s.frame, pinned);
-  await unchanged(initial); await pass('Native click pins the frame, motion preserves it, and a second click releases it');
+  await unchanged(initial); await pass('Pinned Joshua enables tile painting and undo, while Reposition restores placement'); await screenshot('joshua-locked');
 
   for (const action of [
     {button: 'left', modifiers: []}, {button: 'right', modifiers: []},
@@ -203,6 +206,7 @@ async function run(win) {
   }
   await pass('Native paint, erase, selection and rectangle gestures are intercepted while inspecting the camera');
 
+  await ev('cameraPreviewFixture.preview().setPinned(false)');
   await call('selectEntity'); await settled();
   const keyboardBefore = await call('serial');
   clipboard.writeText('Camera preview clipboard sentinel');

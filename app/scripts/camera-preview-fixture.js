@@ -139,7 +139,7 @@
   F.stats = () => {
     const e = F.editor(), p = F.preview(), camera = e.camera, layer = e.get_curLayerInstance();
     const result = {
-      enabled: p.enabled, active: p.isActive(), pinned: p.pinned, gridMode: p.gridMode, guide: p.useGuideGrid,
+      enabled: p.enabled, active: p.isActive(), placing: p.isPlacing(), pinned: p.pinned, gridMode: p.gridMode, guide: p.useGuideGrid,
       profile: p.profile, frame: p.frame, error: p.sourceError, renderError: p.renderError, stale: p.sourceStale,
       visible: p.root.visible, gridLines: p.drawnGridLines, point: {x: p.pointX, y: p.pointY},
       dirty: e.needSaving, history: F.history(), selection: e.selectionTool.any(),
@@ -147,6 +147,8 @@
       banner: !!document.querySelector('.smartiveDiskChange'),
       mode: e.worldMode, level: e.curLevelId, layer: layer && layer.layerDefUid,
       status: document.querySelector('.cameraSource').textContent,
+       lockStatus: document.querySelector('.cameraLockStatus').textContent,
+       sprite: (() => { const e=document.querySelector('.cameraJoshuaSprite'); const r=e.getBoundingClientRect(); return {src:e.getAttribute('src'),visible:getComputedStyle(e).display!=='none',pointerEvents:getComputedStyle(e).pointerEvents,x:r.x,y:r.y,width:r.width,height:r.height}; })(),
       sourcePath: p.getSourcePath(), label: {x: p.label.x, y: p.label.y, text: p.label.text},
       transform: {x: e.levelRender.root.x, y: e.levelRender.root.y, zoom: camera.get_adjustedZoom(), width: camera.get_width(), height: camera.get_height(),
         cameraX: camera.get_levelX(), cameraY: camera.get_levelY(), pixelRatio: camera.get_pixelRatio()},

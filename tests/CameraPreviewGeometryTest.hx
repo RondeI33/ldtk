@@ -185,9 +185,49 @@ class CameraPreviewGeometryTest {
 			}
 	}
 
+
+	static function playerModelVectors() {
+		var legacy = CameraPreviewGeometry.parse(haxe.Json.stringify(snapshot()));
+		check(legacy.profile!=null && legacy.profile.unityCameraModel==null,"Older snapshots stay dimensions-only");
+		assertFrame(CameraPreviewGeometry.playerFrame(legacy.profile,"room-a",20,30,0,0,640,400),
+			[-140,-60,320,180],null,null,"Legacy projection centers on player only");
+		var invalid:Dynamic=snapshot();
+		invalid.unityCameraModel={schemaVersion:2};
+		rejected(haxe.Json.stringify(invalid),"Unknown nested camera model version","unityCameraModel");
+		var newer:Dynamic=snapshot();
+		newer.unityCameraModel={
+			schemaVersion:1,
+			levels:[{
+				iid:"room-a",
+				camera:{offset:{x:1.5,y:-0.5}},
+				rooms:[{x:0,y:0,width:640,height:400}],
+				zones:[{x:100,y:100,width:200,height:150,zoom:2}]
+			}]
+		};
+		var parsed=CameraPreviewGeometry.parse(haxe.Json.stringify(newer));
+		check(parsed.error==null && parsed.profile.unityCameraModel!=null,"Nested Unity model preserved for solver");
+		assertFrame(CameraPreviewGeometry.playerFrame(parsed.profile,"room-a",20,40,1024,80,640,400),
+			[0,0,320,180],null,null,"Room boundary clamps camera, nonzero level world origin");
+		assertFrame(CameraPreviewGeometry.playerFrame(parsed.profile,"room-a",200,150,1024,80,640,400),
+			[144,113,160,90],null,null,"Zone zoom and Unity-to-LDtk Y-offset around player");
+		assertFrame(CameraPreviewGeometry.playerFrame(parsed.profile,"other-room",20,40,1024,80,640,400),
+			[-140,-50,320,180],null,null,"Unknown level IID cannot borrow another room");
+		newer.unityCameraModel.levels[0].zones=[{x:100,y:100,width:200,height:150,orthographicSize:3}];
+		parsed=CameraPreviewGeometry.parse(haxe.Json.stringify(newer));
+		var f=CameraPreviewGeometry.playerFrame(parsed.profile,"room-a",200,150,1024,80,640,400);
+		near(f.width,96*16/9,"Zone orthographic size overrides preview width");
+		near(f.height,96,"Zone orthographic size overrides preview height");
+		near(f.centerX,224,"Zone zoom does not replace player X with camera center");
+		near(f.centerY,158,"LDtk downwards Y uses inverted Unity camera offset");
+		for(value in [Math.NaN,Math.POSITIVE_INFINITY,Math.NEGATIVE_INFINITY])
+			expectThrow(()->CameraPreviewGeometry.playerFrame(parsed.profile,"room-a",value,10,0,0,640,400),
+				"Invalid player position rejected");
+	}
+
 	static function main() {
 		parseVectors();
 		frameVectors();
+		playerModelVectors();
 		Sys.println("PASS: camera preview geometry: "+vectors+" explicit vectors, "+assertions+" assertions including 475 grid-cell sweeps");
 	}
 }

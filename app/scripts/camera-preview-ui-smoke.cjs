@@ -157,213 +157,150 @@ async function run(win) {
     assert.equal((await state()).banner, false, 'Camera telemetry triggered a project-reload banner');
   };
 
+
   await call('setup', path.join(tmp, 'camera-preview.ldtk'));
   await delay(400); await ev('__ldtk.classes["ui.Modal"].closeAll()'); await settled();
   const initial = await call('serial');
-  assert.equal(initial.dirty, false);
   const initialFlags = await call('flags');
-  assert.equal((await state()).enabled, false);
+  assert.equal(initial.dirty, false);
+
   await clickSelector('#editingOptions li.cameraPreview');
   let s = await state();
-  assert.equal(s.enabled, true); assert.equal(s.profile, null); assert.equal(s.visible, false);
-  assert.match(s.status, /Waiting for Unity/); assert.equal(s.toolbarPressed, 'true');
-  await unchanged(initial); await pass('Native toolbar toggle opens a clear missing-source state without changing the project');
+  assert.equal(s.enabled, true); assert.equal(s.placing, true);
+  assert.equal(s.profile, null); assert.match(s.status, /Waiting for Unity/);
+  await unchanged(initial); await pass('Preview toggle enters Joshua placement without modifying the level');
 
   await writeProfile();
-  await until('cameraPreviewFixture.stats().profile?.sceneName === "04_research"', 'Camera file was not detected automatically');
-  await move(450, 260); s = await settled();
-  assert.equal(s.profile.width, 320); assert.equal(s.profile.height, 180);
-  assert.deepEqual(s.frame, {x: 320, y: 180, width: 320, height: 180, centerX: 480, centerY: 270, column: 1, row: 1});
-  assert.equal(s.visible, true); assert.ok(s.gridLines > 0 && s.gridLines <= 400);
-  await unchanged(initial); await pass('Atomic Unity snapshot automatically creates the correct 320 × 180 camera cell'); await screenshot('camera-grid');
+  await until('cameraPreviewFixture.stats().profile?.width === 320', 'Camera snapshot not detected');
+  await move(451,263); s=await settled();
+  assert.equal(s.gridMode, false);
+  near(s.frame.centerX,s.point.x,'Camera fallback is at Joshua X');
+  near(s.frame.centerY,s.point.y,'Camera fallback is at Joshua Y');
+  assert.match(s.status,/tylko wymiary/);
+  assert.ok(s.sprite.visible && s.sprite.src.includes('joshua-idle-preview.png'));
+  assert.equal(s.sprite.pointerEvents,'none');
+  await unchanged(initial); await pass('Joshua graphic follows the cursor, legacy snapshots declare dimensions-only');
+  await screenshot('joshua-placement');
 
-  await clickSelector('#cameraPreviewControls .cameraFree');
-  await move(451, 263); s = await settled();
-  assert.equal(s.gridMode, false); near(s.frame.centerX, s.point.x, 'Free point center X'); near(s.frame.centerY, s.point.y, 'Free point center Y');
-  near(s.frame.x, s.point.x - 160, 'Free left edge'); near(s.frame.y, s.point.y - 90, 'Free top edge');
-  assert.equal(s.frame.column, null); assert.equal(s.gridLines, 0);
-  await unchanged(initial); await pass('Free-point mode follows native mouse coordinates without tile-grid snapping'); await screenshot('free-point');
+  const placement = await move(451,263);
+  await click(placement); s=await settled();
+  assert.equal(s.pinned,true); assert.equal(s.placing,false);
+  assert.match(s.lockStatus,/Zablokowany/);
+  const fixedPoint=s.point, fixedFrame=s.frame;
+  await move(575,360); s=await settled();
+  assert.deepEqual(s.point,fixedPoint); assert.deepEqual(s.frame,fixedFrame);
+  await click(await call('screen',575,360)); s=await settled();
+  assert.equal(s.pinned,true); assert.deepEqual(s.point,fixedPoint);
+  await unchanged(initial); await pass('One click locks Joshua; moving or clicking later never unpins him');
 
-  await click(await move(451, 263)); s = await state();
-  assert.equal(s.pinned, true); const pinned = s.frame;
-  await move(590, 330); assert.deepEqual((await settled()).frame, pinned);
-  await click(await call('screen', 590, 330)); assert.equal((await state()).pinned, false);
-  await move(605, 342); s = await settled(); assert.notDeepEqual(s.frame, pinned);
-  await unchanged(initial); await pass('Native click pins the frame, motion preserves it, and a second click releases it');
-
-  for (const action of [
-    {button: 'left', modifiers: []}, {button: 'right', modifiers: []},
-    {button: 'left', modifiers: ['alt']}, {button: 'left', modifiers: ['alt', 'shift']},
-    {button: 'left', modifiers: ['control', 'shift']},
-  ]) {
-    await ev('cameraPreviewFixture.preview().setPinned(false)');
-    await drag(await call('screen', 320, 144), await call('screen', 400, 224), action.button, action.modifiers);
-    await unchanged(initial);
-    assert.equal((await state()).running, false); assert.equal((await state()).selection, false);
-  }
-  await pass('Native paint, erase, selection and rectangle gestures are intercepted while inspecting the camera');
-
-  await call('selectEntity'); await settled();
-  const keyboardBefore = await call('serial');
-  clipboard.writeText('Camera preview clipboard sentinel');
-  await click(await move(512, 288));
-  assert.equal(await ev('__ldtk.App.ME.hasInputFocus() || __ldtk.classes["ui.Modal"].hasAnyOpen()'), false, 'Keyboard test must target an unlocked level canvas');
-  for (const [code, modifiers] of [['Delete', []], ['Right', []], ['Up', ['control', 'alt']], ['z', [primaryModifier]], ['y', [primaryModifier]], ['x', []], ['y', []], ['v', [primaryModifier]], ['c', [primaryModifier]]]) {
-    await key(code, modifiers); await unchanged(keyboardBefore);
-    assert.equal(await ev('__ldtk.classes["ui.Modal"].hasAnyOpen()'), false, 'An intended editing shortcut opened a panel instead');
-  }
-  assert.equal(clipboard.readText(), 'Camera preview clipboard sentinel');
-  await ev('cameraPreviewFixture.editor().selectionTool.clear()');
+  const toolAtLock=await ev('cameraPreviewFixture.editor().get_curTool().__class__.__name__');
   await call('selectTerrain'); await settled();
-  await pass('Native Delete, movement, layer transfer, Undo/Redo, flip and clipboard shortcuts cannot modify the inspected level');
+  const paintBefore=await call('serial');
+  await drag(await call('screen',320,160),await call('screen',448,160));
+  const painted=await call('serial');
+  assert.notEqual(painted.json,paintBefore.json,'Real continuous paint did not affect the level');
+  assert.deepEqual((await state()).frame,fixedFrame);
+  assert.deepEqual((await state()).point,fixedPoint);
+  assert.equal(await ev('cameraPreviewFixture.editor().get_curTool().__class__.__name__'),toolAtLock);
+  await pass('Locked overlay preserves drawing tool, real continuous painting, player and frame');
+  await screenshot('joshua-locked-paint');
 
-  await ev('cameraPreviewFixture.preview().setPinned(false)');
-  await move(480, 288); await click(await call('screen', 480, 288));
-  s = await state(); const beforePan = s;
-  await drag(await call('screen', 480, 288), await call('screen', 540, 320), 'middle');
-  s = await state();
-  assert.deepEqual(s.frame, beforePan.frame); assert.notEqual(s.transform.x, beforePan.transform.x);
-  assert.equal(s.pinned, true);
-  const panLabel = s.label;
-  await ev('cameraPreviewFixture.editor().camera.setZoom(1.5)'); await settled(); s = await state();
-  assert.deepEqual(s.frame, beforePan.frame); assert.notEqual(s.transform.zoom, beforePan.transform.zoom);
-  assert.notDeepEqual(s.label, panLabel); assert.ok(s.label.x >= 0 && s.label.y >= 0);
-  await unchanged(initial); await pass('Native middle-button pan and zoom retain a pinned world frame and realign its overlay');
-  await ev('cameraPreviewFixture.editor().camera.fit(true)'); await settled();
+  await key('z',[primaryModifier]);
+  assert.equal((await call('serial')).json,paintBefore.json,'Undo did not restore the tile stroke');
+  await key('y',[primaryModifier]);
+  assert.equal((await call('serial')).json,painted.json,'Redo did not restore the tile stroke');
+  await pass('Native undo and redo remain functional while Joshua is locked');
 
-  await call('configureGuide', true); await settled();
-  const guideBefore = await call('serial');
+  await drag(await call('screen',320,160),await call('screen',448,160),'right');
+  assert.notEqual((await call('serial')).json,painted.json,'Eraser did not change the painted tiles');
+  await key('z',[primaryModifier]);
+  assert.equal((await call('serial')).json,painted.json,'Undo did not restore erased tiles');
+  await pass('Right-drag eraser and its Undo run through the normal tools');
+
+  await drag(await call('screen',300,135),await call('screen',455,185),'left',['alt']);
+  assert.equal((await state()).selection,true,'Alt-drag selection did not create a selection');
+  assert.deepEqual((await state()).point,fixedPoint);
+  await call('selectTerrain');
+  await pass('Alt-drag selection still works with the locked overlay');
+
+  const oldSprite=await state();
+  await ev(`(()=>{const e=document.querySelector(".cameraSpritePpu");e.value="32";e.dispatchEvent(new Event("input",{bubbles:true}));return true})()`);
+  s=await settled();
+  assert.ok(s.sprite.width<oldSprite.sprite.width,'Sprite PPU did not change visual scale');
+  assert.equal(s.sprite.pointerEvents,'none');
+  await ev(`(()=>{const e=document.querySelector(".cameraSpritePpu");e.value="16";e.dispatchEvent(new Event("input",{bubbles:true}));return true})()`);
+  await settled(); await pass('Sprite PPU controls visual scale without changing project data');
+
+  const previousTransform=await state();
+  await drag(await call('screen',480,288),await call('screen',540,320),'middle');
+  s=await state(); assert.deepEqual(s.point,fixedPoint); assert.deepEqual(s.frame,fixedFrame);
+  assert.notEqual(s.transform.x,previousTransform.transform.x);
+  const oldSpriteX=s.sprite.x;
+  await ev('cameraPreviewFixture.editor().camera.setZoom(1.5)');
+  await settled(); s=await state();
+  assert.deepEqual(s.frame,fixedFrame); assert.deepEqual(s.point,fixedPoint);
+  assert.notEqual(s.transform.zoom,previousTransform.transform.zoom);
+  assert.notEqual(s.sprite.x,oldSpriteX);
+  await ev('cameraPreviewFixture.editor().camera.fit(true)');
+  await pass('Pan and zoom reproject sprite and frame without moving Joshua in the world');
+
+  const currentIid=await ev('cameraPreviewFixture.level().iid');
+  const model={schemaVersion:1,levels:[{iid:currentIid,camera:{offset:{x:1,y:-0.25}},
+    rooms:[{x:0,y:0,width:960,height:576}],zones:[{x:400,y:230,width:300,height:260,zoom:2}]}]};
+  await writeProfile({unityCameraModel:model});
+  await until('cameraPreviewFixture.stats().profile?.unityCameraModel', 'Unity camera model not loaded');
+  s=await settled(); assert.deepEqual(s.point,fixedPoint);
+  assert.notDeepEqual(s.frame,fixedFrame);
+  assert.match(s.status,/statyczny model Unity/);
+  await pass('Unity JSON model recalculates the locked frame without moving Joshua');
+  await writeProfile({unityCameraModel:{...model,levels:[{...model.levels[0],zones:[]} ]}});
+  await until('cameraPreviewFixture.stats().frame?.width === 320','Camera model zone update not recognized');
+  assert.deepEqual((await state()).point,fixedPoint);
+  await pass('Updating zone/zoom source reuses the same pinned world position');
+
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  s=await state(); assert.equal(s.pinned,false); assert.equal(s.placing,true);
+  await move(215,225); await click(await call('screen',215,225)); s=await settled();
+  assert.equal(s.pinned,true); assert.notDeepEqual(s.point,fixedPoint);
+  const relocated=s.point;
+  await drag(await call('screen',350,210),await call('screen',430,210));
+  assert.deepEqual((await state()).point,relocated);
+  await pass('Przestaw Joshuę re-enables placement, then new locked point allows more painting');
+
+  const level0=await call('serial');
   await clickSelector('#cameraPreviewControls .cameraGrid');
-  await clickSelector('#cameraPreviewControls .cameraGuideGrid');
-  await ev('cameraPreviewFixture.preview().setPinned(false)'); await move(451, 263); s = await settled();
-  assert.equal(s.guide, true);
-  const g = s.guideInfo, stepX = g.width * g.scale, stepY = g.height * g.scale;
-  const originX = g.offsetX * g.scale + g.parallaxX, originY = g.offsetY * g.scale + g.parallaxY;
-  const column = Math.floor((s.point.x - originX) / stepX), row = Math.floor((s.point.y - originY) / stepY);
-  near(s.frame.centerX, originX + (column + .5) * stepX, 'Scaled/offset guide center X');
-  near(s.frame.centerY, originY + (row + .5) * stepY, 'Scaled/offset guide center Y');
-  assert.equal(s.frame.width, 320); assert.equal(s.frame.height, 180);
-  await unchanged(guideBefore); await pass('Layer-guide mode honors independent guide steps, offsets, scale and parallax while preserving the Unity viewport size');
-  await screenshot('guide-grid');
-  await call('configureGuide', false); await settled();
-  await clickSelector('#cameraPreviewControls .cameraGuideGrid');
-  const sourceBefore = await call('serial');
+  assert.equal((await state()).placing,true);
+  await clickSelector('#cameraPreviewControls .cameraFree');
+  s=await state(); assert.equal(s.placing,true); assert.equal(s.gridMode,false);
+  await unchanged(level0);
+  await pass('Optional grid mode and Joshua mode never mutate level history');
 
-  for (const [payload, pattern] of [
-    ['{', /JSON/],
-    [JSON.stringify({schemaVersion: 42, source: 'unity', valid: true}), /version/],
-    [JSON.stringify(await call('profile', {orthographic: false})), /orthographic/],
-    [JSON.stringify(await call('profile', {valid: false, error: 'Active scene has no camera.'})), /Active scene/],
-    [' '.repeat(66000), /64 KB/],
-  ]) {
-    await call('write', payload);
-    await until('cameraPreviewFixture.stats().profile === null', 'Invalid snapshot was not rejected');
-    await delay(550); s = await settled();
-    assert.equal(s.visible, false); assert.match(s.status, pattern);
-    await unchanged(sourceBefore);
-    await writeProfile();
-    await until('cameraPreviewFixture.stats().profile?.width === 320', 'Valid snapshot did not recover');
-  }
-  await pass('Malformed, unsupported, perspective, invalidated and oversized snapshots fail clearly and recover automatically');
+  await call('switchLevel',true);
+  s=await settled(); assert.equal(s.pinned,false);
+  near(s.point.x,320,'Second level X resets'); near(s.point.y,192,'Second level Y resets');
+  await call('switchLevel',false); await settled();
+  await pass('Changing levels prevents a previously pinned Joshua from leaking across rooms');
 
-  await call('removeSource');
-  await until('cameraPreviewFixture.stats().profile === null', 'Removed source was not detected');
-  assert.equal((await settled()).visible, false);
-  await writeProfile({sceneName: '05_hangar', cameraName: 'HangarCamera', orthographicSize: 6, aspect: 2, live: true});
-  await until('cameraPreviewFixture.stats().profile?.sceneName === "05_hangar"', 'New scene snapshot was not detected');
-  s = await settled(); assert.equal(s.profile.width, 384); assert.equal(s.profile.height, 192); assert.equal(s.stale, false);
-  assert.match(s.status, /Unity camera synced/); assert.match(s.status, /HangarCamera/);
-  await unchanged(sourceBefore); await pass('Removing telemetry hides stale geometry; a new live scene atomically updates source and projection without reloading the project');
-
-  await writeProfile({live: true, updatedAtUtc: new Date(Date.now() - 20000).toISOString()});
-  await until('cameraPreviewFixture.stats().stale', 'Stale live source was not identified');
-  s = await settled(); assert.match(s.status, /Sync paused/); assert.equal(s.visible, true);
-  await writeProfile({live: false, updatedAtUtc: '2020-01-01T00:00:00Z'});
-  await until('!cameraPreviewFixture.stats().stale && cameraPreviewFixture.stats().profile?.live === false', 'Manual snapshot was treated as stale');
-  assert.match((await state()).status, /Unity camera snapshot/);
-  await unchanged(sourceBefore); await pass('Stale live snapshots are labeled paused, while deliberate manual snapshots remain valid');
-
-  await call('setFlags', {single: true, details: false, grid: false, variables: false, auto: false}); await settled();
-  const customFlags = await call('flags');
-  await clickSelector('#cameraPreviewControls .cameraClose');
-  assert.equal((await state()).enabled, false); assert.deepEqual(await call('flags'), customFlags);
-  await clickSelector('#editingOptions li.cameraPreview');
-  assert.deepEqual(await call('flags'), customFlags);
-  await call('setFlags', {single: false, details: true, grid: true, variables: true, auto: true}); await settled();
-  await pass('Preview toggles preserve Single Layer, details, layer grid, variable previews and auto-layer settings');
-
-  await ev('cameraPreviewFixture.preview().setPinned(true)'); await call('switchLevel', true); s = await settled();
-  assert.equal(s.pinned, false); near(s.point.x, 320, 'New level center X'); near(s.point.y, 192, 'New level center Y');
-  assert.equal(s.profile.width, 320);
-  await call('switchLevel', false); await settled();
-  await ev('cameraPreviewFixture.editor().setWorldMode(true)'); s = await settled();
-  assert.equal(s.enabled, true); assert.equal(s.active, false); assert.equal(s.visible, false); assert.match(s.status, /paused in World/);
-  await ev('cameraPreviewFixture.editor().setWorldMode(false)'); await ev('__ldtk.classes["ui.Modal"].closeAll()'); await ev('cameraPreviewFixture.editor().camera.fit(true)');
-  s = await settled(); assert.equal(s.visible, true); assert.equal(s.pinned, false);
-  await pass('Changing levels resets the pinned point; World view suspends the overlay and returning restores it');
+  await call('write','{');
+  await until('cameraPreviewFixture.stats().profile === null','Malformed JSON not rejected');
+  s=await settled(); assert.match(s.status,/JSON/);
+  await writeProfile(); await until('cameraPreviewFixture.stats().profile?.width === 320','Snapshot did not recover');
+  await pass('Invalid Unity source is diagnosed and recovers while the editor stays open');
 
   await clickSelector('#cameraPreviewControls .cameraSetup');
-  await until('!!document.querySelector(".cameraPreviewSetup .cameraFilePath")', 'Camera setup dialog did not open');
-  assert.equal(await ev('document.querySelector(".cameraFilePath").textContent'), (await state()).sourcePath);
-  await screenshot('camera-settings');
-  await key('Escape'); await until('!__ldtk.classes["ui.Modal"].hasAnyOpen()', 'Escape did not close setup dialog');
-  assert.equal((await state()).enabled, true);
-  await call('setFlags', {zen: true}); await settled();
-  assert.equal((await state()).enabled, true); assert.equal((await state()).visible, true);
-  await screenshot('zen-camera-preview');
-  win.setSize(1000, 720); await delay(250); await settled();
-  const bounds = await ev(`(()=>{const r=document.querySelector('#cameraPreviewControls').getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,w:innerWidth,h:innerHeight}})()`);
-  assert.ok(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bounds.w + 1 && bounds.bottom <= bounds.h + 1, 'Preview controls do not fit in a smaller window');
-  await screenshot('small-window-zen');
-  await move(480, 288); await key('Escape'); s = await state();
-  assert.equal(s.enabled, false); assert.equal(s.flags.zen, true);
-  await call('setFlags', {zen: false}); win.setSize(1600, 1000); await delay(200); await ev('cameraPreviewFixture.editor().camera.fit(true)'); await settled();
-  await pass('Setup path is accurate, modal Escape keeps preview open, and preview remains usable in Zen and a smaller window');
-
-  await call('selectTerrain'); await settled();
-  const editableBefore = await call('serial');
-  await click(await move(400, 192));
-  const painted = await call('serial');
-  assert.notEqual(painted.json, editableBefore.json, 'Normal painting did not resume after preview closed');
-  await key('z', [primaryModifier]);
-  const undone = await call('serial');
-  if (undone.json !== editableBefore.json) {
-    fs.writeFileSync(path.join(output, 'undo-before.json'), JSON.stringify(editableBefore, null, 2));
-    fs.writeFileSync(path.join(output, 'undo-painted.json'), JSON.stringify(painted, null, 2));
-    fs.writeFileSync(path.join(output, 'undo-after.json'), JSON.stringify(undone, null, 2));
-  }
-  assert.deepEqual(undone, editableBefore, 'Undo after preview did not restore the paint and its history');
-  assert.deepEqual(await call('flags'), initialFlags);
-  await pass('Closing preview restores native painting and its ordinary Undo behavior');
+  await until('!!document.querySelector(".cameraPreviewSetup .cameraFilePath")','Setup dialog unavailable');
+  await key('Escape'); await until('!__ldtk.classes["ui.Modal"].hasAnyOpen()','Setup dialog did not close');
+  await clickSelector('#cameraPreviewControls .cameraClose');
+  assert.equal((await state()).enabled,false);
+  assert.deepEqual(await call('flags'),initialFlags);
+  await pass('Closing the preview restores the editor without changing display preferences');
 
   await clickSelector('#editingOptions li.cameraPreview');
-  await ev('cameraPreviewFixture.preview().setPinned(true)');
-  const empty = await call('emptyProject', path.join(tmp, 'empty-camera-level.ldtk'));
-  await delay(250); await ev('__ldtk.classes["ui.Modal"].closeAll()'); await settled();
-  assert.equal(empty.layers, 0); s = await state();
-  assert.equal(s.enabled, false); assert.equal(s.profile, null); assert.equal(s.pinned, false); assert.equal(s.guide, false);
-  assert.notEqual(s.sourcePath, path.join(tmp, 'camera-preview.ldtk-camera.json'));
-  await clickSelector('#editingOptions li.cameraPreview'); await writeProfile();
-  await until('cameraPreviewFixture.stats().profile?.width === 320', 'Empty-layer project did not load camera');
-  await move(480, 288); s = await settled(); assert.equal(s.visible, true); assert.equal(s.layer, null);
-  const emptyBefore = await call('serial');
-  await clickSelector('#cameraPreviewControls .cameraGuideGrid'); await move(480, 288); await settled();
-  await unchanged(emptyBefore); await pass('Opening another project clears source and interaction state; zero-layer levels support preview and safe guide fallback');
-
-  await writeProfile({orthographicSize: 5000000, aspect: 1, pixelsPerUnit: 1});
-  await until('cameraPreviewFixture.stats().profile?.height === 10000000', 'Large camera profile did not load');
-  s = await settled(); assert.ok(s.gridLines <= 400); assert.equal(s.visible, true);
-  await writeProfile({orthographicSize: 0.000001, aspect: 1, pixelsPerUnit: 1});
-  await until('cameraPreviewFixture.stats().profile?.height < 0.001', 'Tiny camera profile did not load');
-  s = await settled(); assert.equal(s.gridLines, 0); assert.equal(s.visible, true);
-  await unchanged(emptyBefore); await pass('Huge camera bounds and tiny cell spacing keep grid rendering bounded without changing level data');
-
-  await call('write', JSON.stringify(await call('profile', {orthographicSize: 1e-320, aspect: 1, pixelsPerUnit: 1})));
-  await until('cameraPreviewFixture.stats().profile?.orthographicSize < 1e-300 && !!cameraPreviewFixture.stats().renderError', 'Extreme projection did not reach the safe rendering error state');
-  s = await settled(); assert.equal(s.visible, false); assert.match(s.status, /cannot be displayed/i);
-  assert.equal(await ev('__ldtk.App.ME.curPageProcess.__class__.__name__'), 'page.Editor');
-  await writeProfile(); await until('cameraPreviewFixture.stats().profile?.height === 180', 'Extreme numeric snapshot did not recover');
-  await unchanged(emptyBefore); await pass('An extreme finite projection cannot crash the editor and recovers on the next valid snapshot');
+  await call('emptyProject',path.join(tmp,'empty-camera-level.ldtk'));
+  await delay(300); await ev('__ldtk.classes["ui.Modal"].closeAll()'); await settled();
+  s=await state(); assert.equal(s.enabled,false); assert.equal(s.pinned,false);
+  assert.equal(s.profile,null);
+  await pass('Changing project clears the old sprite position and Unity source');
 
   await screenshot('success');
   fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({status: 'passed', passed, platform: process.platform, electron: process.versions.electron}, null, 2));

@@ -1,7 +1,8 @@
 name: Build LDtk Smartive 1.0.34 from master
 
 # Publish this version only after the reviewed feature reaches master.
-# All executable editor regressions gate every installer platform.
+# Full Linux regressions and targeted native macOS smoke tests gate all installers.
+# The comprehensive macOS suite remains in the separate feature preflight workflow.
 on:
   push:
     branches: [master]

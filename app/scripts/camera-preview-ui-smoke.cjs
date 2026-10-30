@@ -20,7 +20,9 @@ if (process.platform === 'linux') {
 }
 const passed = [];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const timer = setTimeout(() => {console.error('FAIL: camera preview regression timed out'); app.exit(1);}, 180000);
+// Software-rendered CI can spend several minutes completing the native gestures.
+// Keep the per-frame and polling deadlines strict, with headroom for the full suite.
+const timer = setTimeout(() => {console.error('FAIL: camera preview regression timed out'); app.exit(1);}, 420000);
 let running = false;
 
 app.on('browser-window-created', (_, win) => {

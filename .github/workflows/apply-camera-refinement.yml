@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Reconstruct and verify tested source tree without publishing or moving branches
+      - name: Verify tested source and stage only non-workflow blobs
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,17 +50,19 @@ jobs:
               path.parent.mkdir(parents=True, exist_ok=True)
               path.write_bytes(after)
               subprocess.run(['git', 'add', '--', str(path)], check=True)
-              elements.append({'path': str(path), 'mode': '100644', 'type': 'blob', 'content': content})
+              elements.append({'path': str(path), 'content': content})
           actual = subprocess.check_output(['git', 'write-tree'], text=True).strip()
           assert actual == plan['tree'] == 'ecba30e89dea9c410c69d870f1257ef682b21d44', actual
-          def api(endpoint, data):
-              result = subprocess.check_output(['gh', 'api', '--method', 'POST', endpoint, '--input', '-'], input=json.dumps(data), text=True)
-              return json.loads(result)
           repo = os.environ['GITHUB_REPOSITORY']
-          tree = api(f'repos/{repo}/git/trees', {'base_tree': plan['baseTree'], 'tree': elements})
-          assert tree['sha'] == actual, tree['sha']
-          commit = api(f'repos/{repo}/git/commits', {'message': 'feat(camera): consolidate Joshua preview, sprite calibration and 1.0.35 verification', 'tree': actual, 'parents': [os.environ['GITHUB_SHA'], '68fd528a6088b2503c13c7b0f9c9e67acb2fdaea']})
+          for entry in elements:
+              if entry['path'].startswith('.github/workflows/'):
+                  print('WORKFLOW_REQUIRES_MAINTAINER=' + entry['path'])
+                  continue
+              data = {'content': entry['content'], 'encoding': 'utf-8'}
+              result = json.loads(subprocess.check_output(['gh', 'api', '--method', 'POST', f'repos/{repo}/git/blobs', '--input', '-'], input=json.dumps(data), text=True))
+              expected = subprocess.check_output(['git', 'hash-object', '--', entry['path']], text=True).strip()
+              assert result['sha'] == expected
+              print('VERIFIED_BLOB=' + json.dumps({'path': entry['path'], 'sha': expected}))
           print('VERIFIED_TREE=' + actual)
-          print('CANDIDATE_SHA=' + commit['sha'])
-          print('No branch was moved; no installer or release was produced.')
+          print('No workflow file, branch, installer or release was updated by this job.')
           PY

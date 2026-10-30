@@ -1,0 +1,43 @@
+name: Joshua Camera Preview native interaction regression
+
+on:
+  push:
+    branches: [feature/joshua-locked-camera-preview]
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/electron.common/camerapreview/**'
+      - 'src/electron.renderer/display/GameCameraPreview.hx'
+      - 'src/electron.renderer/page/Editor.hx'
+      - 'app/scripts/camera-preview-*'
+      - 'tests/CameraPreviewGeometryTest.hx'
+      - '.github/workflows/joshua-camera-preview-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-camera:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Actual Haxe geometry + native Electron mouse/keyboard test
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:camera-preview
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: joshua-camera-preview-native
+          path: app/test-results/camera-preview
+          if-no-files-found: warn

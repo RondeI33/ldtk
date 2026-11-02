@@ -373,7 +373,7 @@ class GameCameraPreview extends dn.Process {
 		var col = sourceStale ? 0xe8b75b : 0x7faaff;
 		if( gridMode ) {
 			// Default guide cells radiate from the actual camera frame, not a snapped origin.
-			if( !useGuideGrid ) { g.x=frame.x; g.y=frame.y; }
+			if( !useGuideGrid ) { g.width=frame.width; g.height=frame.height; g.x=frame.x; g.y=frame.y; }
 			overlay.lineStyle(cam.pixelRatio,col,0.22);
 			var minX = Math.max(0,-origin.x/z);
 			var maxX = Math.min(editor.curLevel.pxWid,(screenW-origin.x)/z);

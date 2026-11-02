@@ -34,6 +34,11 @@ class GameCameraPreview extends dn.Process {
 	var nextPoll = 0.;
 	var invalidated = true;
 	var lastUiText = "";
+	var modelBridge : Dynamic;
+	var modelSource = "";
+	var modelDetail = "";
+	var modelDiagnostics = "";
+	var lastModel:Dynamic;
 	var pointsByLevel : Map<String,{x:Float,y:Float,pinned:Bool}> = new Map();
 	var activeLevelIid : Null<String>;
 	var firstEnable = true;
@@ -72,6 +77,13 @@ class GameCameraPreview extends dn.Process {
 			useGuideGrid = jControls.find(".cameraGuideGrid").prop("checked");
 			invalidated = true;
 		});
+		var module:Dynamic = js.Syntax.code("require(require('url').fileURLToPath(new URL('js/camera-model-revision2.cjs', document.baseURI)))");
+		modelBridge = module.createClient();
+		for(selector in [".cameraFacing",".cameraMotion",".cameraLook",".cameraChoice",".cameraZone"])
+			jControls.find(selector).on("change", _->{
+				invalidated = true;
+				updateModeNote();
+			});
 		editor.ge.addGlobalListener(onGlobalEvent);
 	}
 
@@ -130,6 +142,117 @@ class GameCameraPreview extends dn.Process {
 		jSprite.css("height",Std.string(h)+"px");
 	}
  
+
+	/** Hypothetical settled Joshua/camera state. It never changes any Unity object. */
+	function currentModelState():Dynamic {
+		var direction=Std.parseInt(selected(".cameraFacing"));
+		return {
+			direction:direction==null ? 0 : direction,
+			motion:selected(".cameraMotion"),
+			look:selected(".cameraLook"),
+			cameraId:selected(".cameraChoice"),
+			zoneId:selected(".cameraZone"),
+		};
+	}
+
+	function selected(selector:String):String {
+		var value:Dynamic=jControls.find(selector).val();
+		return value==null ? "" : Std.string(value);
+	}
+
+	function hasRevision2():Bool {
+		var model=profile==null ? null : profile.unityCameraModel;
+		return model!=null && Reflect.field(model,"schemaVersion")==1 && Reflect.field(model,"modelRevision")==2;
+	}
+
+	function addOption(selector:String,value:String,label:String) {
+		new J('<option/>').attr("value",value).text(label).appendTo(jControls.find(selector));
+	}
+
+	function updateModeNote() {
+		var model=profile==null ? null : profile.unityCameraModel;
+		var note="";
+		if( hasRevision2() ) {
+			var choice=selected(".cameraChoice");
+			var cameras:Dynamic=Reflect.field(model,"cameras");
+			if( choice!="" && Std.isOfType(cameras,Array) ) {
+				for(camera in (cast cameras:Array<Dynamic>)) {
+					if( Std.string(Reflect.field(camera,"id"))==choice || Std.string(Reflect.field(camera,"name"))==choice ) {
+						if( Reflect.field(camera,"activation")=="none" )
+							note="Preview-only camera: not activated in gameplay";
+						var detail=Reflect.field(camera,"note");
+						if( detail!=null && Std.string(detail)!="" ) note=Std.string(detail);
+						break;
+					}
+				}
+			}
+			if( note=="" && selected(".cameraFacing")=="0" ) {
+				var rooms:Dynamic=Reflect.field(model,"rooms");
+				if( Std.isOfType(rooms,Array) )
+					for(room in (cast rooms:Array<Dynamic>))
+						if( Reflect.field(room,"neutralFacing")==false ) {
+							note="Some camera rooms treat Neutral facing as Right";
+							break;
+						}
+			}
+		}
+		jControls.find(".cameraModeNote").text(note);
+	}
+
+	/** Rebuild per-snapshot mode options without discarding the editor's chosen state. */
+	function refreshModelControls() {
+		var model=profile==null ? null : profile.unityCameraModel;
+		var advanced=hasRevision2();
+		jControls.find(".cameraModelControls").toggle(advanced);
+		if( model==lastModel ) return;
+		lastModel=model;
+		if( modelBridge!=null ) modelBridge.clear();
+		modelSource=""; modelDetail=""; modelDiagnostics="";
+		var chosenCamera=selected(".cameraChoice");
+		var chosenZone=selected(".cameraZone");
+		jControls.find(".cameraChoice").empty();
+		addOption(".cameraChoice","","Default");
+		jControls.find(".cameraZone").empty();
+		addOption(".cameraZone","","Automatic");
+		if( advanced ) {
+			var cameras:Dynamic=Reflect.field(model,"cameras");
+			if( Std.isOfType(cameras,Array) )
+				for(camera in (cast cameras:Array<Dynamic>)) {
+					var id=Reflect.field(camera,"id");
+					var name=Reflect.field(camera,"name");
+					if( id==null || name==null ) continue;
+					var label=Std.string(name);
+					if( Reflect.field(camera,"activation")=="none" ) label+=" (preview only)";
+					addOption(".cameraChoice",Std.string(id),label);
+				}
+			var zones:Dynamic=Reflect.field(model,"unityZones");
+			var seen:Map<String,Bool>=new Map();
+			if( Std.isOfType(zones,Array) )
+				for(zone in (cast zones:Array<Dynamic>)) {
+					var id=Reflect.field(zone,"id");
+					if( id==null ) id=Reflect.field(zone,"entityIid");
+					if( id==null || seen.exists(Std.string(id)) ) continue;
+					seen.set(Std.string(id),true);
+					addOption(".cameraZone",Std.string(id),Std.string(Reflect.field(zone,"kind"))+" · "+Std.string(id));
+				}
+			var rooms:Dynamic=Reflect.field(model,"rooms");
+			var supportsLedge=false;
+			if( Std.isOfType(rooms,Array) )
+				for(room in (cast rooms:Array<Dynamic>)) {
+					var look=Reflect.field(room,"look");
+					if( look!=null && Reflect.field(look,"ledgePeek")!=null && Reflect.field(look,"ledgePeek")>0 )
+						supportsLedge=true;
+				}
+			jControls.find(".cameraLookWrap").toggle(supportsLedge);
+			if( !supportsLedge ) jControls.find(".cameraLook").val("none");
+			jControls.find(".cameraChoice").val(chosenCamera);
+			if( selected(".cameraChoice")=="" ) jControls.find(".cameraChoice").val("");
+			jControls.find(".cameraZone").val(chosenZone);
+			if( selected(".cameraZone")=="" ) jControls.find(".cameraZone").val("");
+		}
+		updateModeNote();
+	}
+
 	public function getSourcePath() : String {
 		if( editor.project==null )
 			return "";
@@ -278,6 +401,8 @@ class GameCameraPreview extends dn.Process {
 				pointsByLevel = new Map();
 				activeLevelIid = null;
 				firstEnable = true;
+				lastModel=null;
+				if( modelBridge!=null ) modelBridge.clear();
 				resetPoint();
 				if( enabled ) refreshSource(true);
 			case LevelSelected(level):
@@ -335,6 +460,7 @@ class GameCameraPreview extends dn.Process {
 			sourceError = "Cannot read the Unity camera file. It will be retried automatically.";
 		}
 		sourceStale = false;
+		refreshModelControls();
 		if( profile!=null && profile.live ) {
 			var timestamp = js.lib.Date.parse(profile.updatedAtUtc);
 			var age = js.lib.Date.now()-timestamp;
@@ -365,6 +491,8 @@ class GameCameraPreview extends dn.Process {
 		jControls.toggleClass("unavailable",profile==null || sourceStale || renderError!=null);
 		// Placement of an editor-only marker need not wait for Unity sync.
 		jControls.find(".cameraPin").prop("disabled",editor.worldMode);
+		jControls.find(".cameraModelStatus").text(modelSource=="" ? "" : modelSource+" · "+modelDetail);
+		jControls.find(".cameraDiagnostics").text(modelDiagnostics);
 	}
 
 	static function number(value:Float) : String {
@@ -404,13 +532,46 @@ class GameCameraPreview extends dn.Process {
 		var z = cam.adjustedZoom;
 		var origin = levelOrigin();
 		var g = grid();
-		// Switching the grid never changes what the camera sees at Joshua's position.
-		try frame = CameraPreviewGeometry.playerFrame(profile,editor.curLevel.iid,pointX,pointY,
-			editor.curLevel.worldX,editor.curLevel.worldY,editor.curLevel.pxWid,editor.curLevel.pxHei)
-		catch(error:Dynamic) {
-			root.visible = false;
-			renderError = "Nie można obliczyć kadru: "+Std.string(error);
-			return;
+		modelSource=""; modelDetail=""; modelDiagnostics="";
+		if( hasRevision2() ) {
+			try {
+				var result:Dynamic=modelBridge.update({
+					profile:profile,
+					sidecarPath:getSourcePath(),
+					levelIid:editor.curLevel.iid,
+					point:{x:pointX,y:pointY},
+					state:currentModelState(),
+					requestEnabled:enabled,
+				});
+				modelSource=Std.string(Reflect.field(result,"source"));
+				modelDetail=Std.string(Reflect.field(result,"status"));
+				var diagnostics:Dynamic=Reflect.field(result,"diagnostics");
+				if( Std.isOfType(diagnostics,Array) )
+					modelDiagnostics=(cast diagnostics:Array<Dynamic>).map(x->Std.string(x)).join("\n");
+				var error=Reflect.field(result,"error");
+				if( error!=null && Std.string(error)!="" )
+					modelDiagnostics=(modelDiagnostics=="" ? "" : modelDiagnostics+"\n")+Std.string(error);
+				var suggested=Reflect.field(result,"frame");
+				frame=suggested==null
+					? CameraPreviewGeometry.frame(pointX,pointY,profile.width,profile.height,false)
+					: cast suggested;
+			}
+			catch(error:Dynamic) {
+				modelSource="Dimension-only fallback";
+				modelDetail="Camera model could not be evaluated";
+				modelDiagnostics=Std.string(error);
+				frame=CameraPreviewGeometry.frame(pointX,pointY,profile.width,profile.height,false);
+			}
+		}
+		else {
+			// Original Unity v1 snapshots and v1 static models keep their old path.
+			try frame = CameraPreviewGeometry.playerFrame(profile,editor.curLevel.iid,pointX,pointY,
+				editor.curLevel.worldX,editor.curLevel.worldY,editor.curLevel.pxWid,editor.curLevel.pxHei)
+			catch(error:Dynamic) {
+				root.visible = false;
+				renderError = "Nie można obliczyć kadru: "+Std.string(error);
+				return;
+			}
 		}
 		var x = origin.x+frame.x*z;
 		var y = origin.y+frame.y*z;

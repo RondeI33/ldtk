@@ -3,3 +3,12 @@
 #page.editor #cameraPreviewControls .cameraModes .cameraPin{grid-column:1/-1;min-width:0}
 #page.editor #cameraPreviewControls .cameraModes button{min-width:0;white-space:normal}
 #page.editor #cameraPreviewControls .cameraSource{font-size:9pt;line-height:1.25;overflow-wrap:anywhere;margin-top:6px}
+
+/* Compact camera-state authoring controls, independent from canvas hit testing. */
+#page.editor #cameraPreviewControls .cameraModelControls{margin-top:7px;max-width:100%;font-size:9pt}
+#page.editor #cameraPreviewControls .cameraStateRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px;margin-bottom:5px}
+#page.editor #cameraPreviewControls .cameraModelControls label{display:block;min-width:0}
+#page.editor #cameraPreviewControls .cameraModelControls select{display:block;width:100%;max-width:100%;margin-top:3px}
+#page.editor #cameraPreviewControls .cameraModeNote{font-size:8pt;line-height:1.3;opacity:.8;margin-top:5px}
+#page.editor #cameraPreviewControls .cameraModelStatus{font-size:8.5pt;line-height:1.3;margin-top:6px;overflow-wrap:anywhere}
+#page.editor #cameraPreviewControls .cameraDiagnostics{font-size:8pt;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}

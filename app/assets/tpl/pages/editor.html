@@ -103,6 +103,30 @@
 		<button class="cameraPin gray" aria-pressed="false" title="Place or reposition Joshua explicitly"><span class="icon cameraPoint"></span><span class="label">Ustaw Joshuę</span></button>
 	</div>
 	<label class="guideOption"><input class="cameraGuideGrid" type="checkbox"/>Siatka warstwy</label>
+	<div class="cameraModelControls" style="display:none" aria-label="Unity camera preview state">
+		<div class="cameraStateRow">
+			<label>Facing
+				<select class="cameraFacing" aria-label="Joshua facing direction"><option value="-1">Left</option><option value="0" selected>Neutral</option><option value="1">Right</option></select>
+			</label>
+			<label>Motion
+				<select class="cameraMotion" aria-label="Joshua motion state"><option value="grounded">Grounded</option><option value="rising">Rising</option><option value="apex">Apex</option><option value="falling">Falling</option><option value="clinging">Clinging</option></select>
+			</label>
+		</div>
+		<div class="cameraStateRow">
+			<label class="cameraLookWrap">Look
+				<select class="cameraLook" aria-label="Camera look state"><option value="none">None</option><option value="ledge">Ledge peek</option></select>
+			</label>
+			<label>Camera
+				<select class="cameraChoice" aria-label="Unity camera choice"><option value="">Default</option></select>
+			</label>
+		</div>
+		<label class="cameraZoneWrap">Overlapping zone
+			<select class="cameraZone" aria-label="Choose a camera zone"><option value="">Automatic</option></select>
+		</label>
+		<div class="cameraModeNote"></div>
+		<div class="cameraModelStatus" role="status"></div>
+		<div class="cameraDiagnostics" role="status"></div>
+	</div>
 	<div class="cameraSource" role="status">Brak danych kamery z Unity</div>
 </section>
 

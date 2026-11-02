@@ -449,6 +449,83 @@ async function run(win) {
   await call('write',await call('profile'),true);await settled();await unchanged(beforeSourceLimits);
   await pass('Model-sized snapshots load, oversized sources fail safely and recover without changing the player');
 
+  // Unity revision-2 preview: native state selectors, camera framing and sidecars.
+  const beforeAdvanced=await call('serial'), pinnedAdvanced=(await state()).point;
+  const idAdvanced=await ev('cameraPreviewFixture.level().iid');
+  const cameraModel={
+    schemaVersion:1,modelRevision:2,controller:'legacy',outputPixels:{x:846.22,y:476},
+    assignmentProbeOffset:{x:0,y:0},diagnostics:['Tall Camera is preview-only'],
+    levels:[{iid:idAdvanced,unityTopLeft:{x:0,y:0},pixelsPerUnit:16}],
+    rooms:[{id:'primary',levelIid:idAdvanced,priority:0,mode:0,
+      assignment:{x:-100,y:-100,width:200,height:200},
+      bounds:{x:-100,y:-100,width:200,height:200},inclusiveAssignment:true,clamp:false,
+      neutralFacing:true,ortho:5.625,aspect:16/9,lookAhead:2,
+      targetOffset:{x:0,y:0},framingOffset:{x:0,y:0},followOffset:{x:0,y:1.5},
+      composition:{x:0,y:0},zoneProbeOffset:{x:0,y:0},zoomPixelsPerUnit:16,
+      zoomPixelSnap:false,scaleFramingWithZoom:false,
+      vertical:{exported:true,clinging:0,rising:0,apex:0,falling:0},
+      look:{ledgePeek:0,afterConfiner:false,allowYInCorridor:false}}],
+    unityZones:[],
+    cameras:[{id:'tall-cam',name:'CM_TallRoom',activation:'none',ortho:5.625,followOffset:{x:0,y:5},
+      note:'Selectable preview only: not activated in gameplay'}],
+    referenceCases:[{name:'Native Camera Preview default',levelIid:idAdvanced,
+      localPoint:pinnedAdvanced,state:{direction:0,motion:'grounded',look:'none',cameraId:'',zoneId:''},
+      expected:{x:pinnedAdvanced.x-160,y:pinnedAdvanced.y-114,width:320,height:180}}],
+  };
+  await writeProfile({unityCameraModel:cameraModel});
+  await until('cameraPreviewFixture.stats().profile?.unityCameraModel?.modelRevision === 2','Revision-2 snapshot was not parsed');
+  s=await settled();
+  assert.ok(s.visible && s.pinned);
+  assert.equal(await ev('getComputedStyle(document.querySelector(".cameraModelControls")).display !== "none"'),true,
+    'Camera model settings are hidden');
+  console.log('CAMERA-REV2-TRACE:',JSON.stringify({point:s.point,expected:pinnedAdvanced,frame:s.frame,source:await ev('document.querySelector(".cameraModelStatus").textContent'),diagnostics:await ev('document.querySelector(".cameraDiagnostics").textContent'),renderError:s.renderError,revision:s.profile?.unityCameraModel?.modelRevision}));
+  near(s.frame.x,pinnedAdvanced.x-160,'Rev2 native frame X',.02);
+  near(s.frame.y,pinnedAdvanced.y-114,'Rev2 native frame Y',.02);
+  assert.match(await ev('document.querySelector(".cameraModelStatus").textContent'),/Local \(verified\)/,
+    'Reference-verified local camera preview was not reported');
+  await pass('Native Camera Preview parses a verified revision-2 model and exposes state controls');
+
+  await ev("(()=>{const e=document.querySelector('.cameraChoice');e.value='tall-cam';e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
+  s=await settled();
+  near(s.frame.y,pinnedAdvanced.y-170,'Tall Camera shifts framing by its actual Unity follow offset',.02);
+  assert.match(await ev('document.querySelector(".cameraModeNote").textContent'),/not activated in gameplay/i);
+  assert.deepEqual(s.point,pinnedAdvanced,'Selecting Tall Camera moved Joshua');
+  const selectedModelFrame=s.frame;
+  const advancedPaths=await ev("(()=>{const p=cameraPreviewFixture.preview().getSourcePath();return {query:p.replace(/\.json$/,'-query.json'),answer:p.replace(/\.json$/,'-answer.json')}})()");
+  await delay(350);
+  await settled();
+  await until("(()=>{try{const q=require('fs').readFileSync("+JSON.stringify(advancedPaths.query)+",'utf8');return JSON.parse(q).state.cameraId==='tall-cam'}catch(e){return false}})()",
+    'LDtk never sent the Tall Camera query to Unity');
+  const request=JSON.parse(fs.readFileSync(advancedPaths.query,'utf8'));
+  assert.equal(request.levelIid,idAdvanced);
+  assert.deepEqual(request.localPoint,pinnedAdvanced);
+  fs.writeFileSync(advancedPaths.answer,JSON.stringify({
+    schemaVersion:1,source:'unity',ok:true,requestId:'outdated',levelIid:idAdvanced,
+    snapshotUpdatedAtUtc:(await state()).profile.updatedAtUtc,localPoint:pinnedAdvanced,
+    state:request.state,frame:{x:99,y:155,width:200,height:100},center:{x:199,y:205},
+  }));
+  await delay(650);s=await settled();
+  assert.deepEqual(s.frame,selectedModelFrame,'An out-of-date Unity query was accepted');
+  const answer=JSON.parse(fs.readFileSync(advancedPaths.answer,'utf8'));
+  answer.requestId=request.requestId;
+  fs.writeFileSync(advancedPaths.answer,JSON.stringify(answer));
+  await until('cameraPreviewFixture.stats().frame?.x === 99','Matching Unity answer was not displayed');
+  s=await settled();
+  assert.equal(s.frame.x,99);
+  assert.match(await ev('document.querySelector(".cameraModelStatus").textContent'),/Unity \(exact settled\)/);
+  assert.deepEqual(s.point,pinnedAdvanced,'Unity answer moved Joshua');
+  await unchanged(beforeAdvanced);
+  await pass('Live Unity query/answer uses matching requestId and exact camera state without editing the map');
+
+  // Backward compatibility: original v1 sidecars hide the advanced selectors.
+  await writeProfile();
+  await until('cameraPreviewFixture.stats().profile?.unityCameraModel == null','Legacy source did not reload');
+  s=await settled();
+  assert.equal(await ev('getComputedStyle(document.querySelector(".cameraModelControls")).display === "none"'),true);
+  await unchanged(beforeAdvanced);
+  await pass('Legacy v1 camera snapshots continue rendering without revision-2 mode selectors');
+
+
   await clickSelector('#cameraPreviewControls .cameraSetup');
   await until('!!document.querySelector(".cameraPreviewSetup .cameraFilePath")','Setup dialog unavailable');
   await key('Escape'); await until('!__ldtk.classes["ui.Modal"].hasAnyOpen()','Setup dialog did not close');

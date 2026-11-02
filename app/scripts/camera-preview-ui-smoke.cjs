@@ -310,6 +310,18 @@ async function run(win) {
   assert.equal(s.mode,false); assert.equal(s.pinned,true);
   assert.deepEqual(s.point,beforeWorld.point); assert.deepEqual(s.frame,beforeWorld.frame);
   await pass('World View and level zoom retain Joshua, camera frame and original point');
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  s=await state(); assert.equal(s.placing,true,'Explicit reposition did not arm placement');
+  await move(420,260); s=await settled();
+  assert.notDeepEqual(s.point,beforeWorld.point);
+  await ev('cameraPreviewFixture.editor().setWorldMode(true,true)');
+  await ev('cameraPreviewFixture.editor().setWorldMode(false,true)');
+  s=await settled();
+  assert.equal(s.placing,false,'World View unexpectedly rearmed placement after cancelling it');
+  assert.equal(s.pinned,true,'Cancelling an unfinished reposition lost the last placed Joshua');
+  assert.deepEqual(s.point,beforeWorld.point,'World View did not restore the last committed Joshua anchor');
+  assert.deepEqual(s.frame,beforeWorld.frame);
+  await pass('World View cancels unfinished reposition without losing the committed Joshua point');
 
 
   const currentIid=await ev('cameraPreviewFixture.level().iid');

@@ -195,6 +195,10 @@ class GameCameraPreview extends dn.Process {
 			pointX = saved.x;
 			pointY = saved.y;
 		}
+		else if( editor.curLevel!=null ) {
+			pointX = editor.curLevel.pxWid*0.5;
+			pointY = editor.curLevel.pxHei*0.5;
+		}
 		invalidated = true;
 		updateControls();
 	}

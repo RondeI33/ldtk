@@ -1,3 +1,20 @@
+# 1.0.37
+
+## Unity camera preview model revision 2 and Joshua editor workflow
+
+- Camera Preview no longer automatically re-enters Joshua placement when switching to a different, unplaced level. It stays idle and does not follow the mouse until **Ustaw Joshuę** is explicitly selected; **Anuluj** abandons uncommitted placement without replacing the last committed anchor. Level and World navigation, ordinary painting and Undo/Redo remain available.
+- Added a renderer-side reader for the Unity `unityCameraModel` revision-2 settled-camera contract, with explicit facing direction, grounded/rising/apex/falling/clinging motion, ledge peek, selected camera (including preview-only CM_TallRoom) and zone-selection controls.
+- Implemented Unity world/level coordinate conversion, camera-room assignment, zoom steps with midpoint-to-even rounding, focus/pan offsets, optional confiner clamping and camera pixel snapping. The receiver uses camera data exported by the game rather than changing the Unity scene.
+- Added atomically written `.ldtk-camera-query.json` requests and matching Unity `.ldtk-camera-answer.json` replies. Matching authoritative Unity answers take priority. Stale, mismatched or malformed answers cannot override the preview.
+- The offline revision-2 solver checks all `referenceCases` exported by Unity within a 0.02 LDtk-pixel tolerance and shows verified, unverified or dimension-only fallback status rather than silently claiming camera parity.
+- Added regression tests for the documented normal/Tall Camera reference frames, camera states, zoom, overlapping zones, Unity query validation and native Electron mode-selection behavior. Full release regression gates run before installer creation.
+
+## Integration limitations
+
+- The new revision-2 features require a Unity project exporting `unityCameraModel.modelRevision: 2` and supporting the query/answer sidecars. The baseline Unity integration included with this fork still exports the older dimension-only camera snapshot unless updated with the Dither Paradox Unity camera-sync implementation.
+- The Unity camera handoff reports 90 legacy and 37 CameraFromScratch reference cases, but the complete original `Tools/LDtkCameraSync/preview.cjs` and all exported fixture files were not available in this repository for independent verification. Local prediction is marked unverified or falls back on a mismatch; a matching live Unity answer remains authoritative.
+- CM_TallRoom is an explicit preview choice in the current game setup and is not activated by any working gameplay trigger. Camera damping, blends, shake, landing bump and other runtime transitions are not simulated.
+
 # 1.0.36
 
 ## Camera preview without editing interruptions

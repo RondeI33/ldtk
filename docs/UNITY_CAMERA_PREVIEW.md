@@ -113,8 +113,8 @@ The source file is bounded to 4 MiB to accommodate model-sized snapshots. Reload
 
 ## Unity camera model revision 2 (Dither Paradox handoff)
 
-The optional camera model in the existing \`World.ldtk-camera.json\` sidecar now accepts
-\`unityCameraModel: { schemaVersion: 1, modelRevision: 2, ... }\`. The editor does not
+The optional camera model in the existing `World.ldtk-camera.json` sidecar now accepts
+`unityCameraModel: { schemaVersion: 1, modelRevision: 2, ... }`. The editor does not
 write or change the LDtk level. The Unity exporter is responsible for all camera
 configuration; LDtk only reads it, evaluates hypothetical settled camera framing
 and draws the resulting rectangle.
@@ -124,15 +124,15 @@ and draws the resulting rectangle.
 When a revision-2 model is present, Camera Preview shows:
 
 - **Facing**: Left (-1), Neutral (0), Right (+1). In CameraFromScratch
-  rooms with \`neutralFacing: false\`, Neutral behaves as Right.
+  rooms with `neutralFacing: false`, Neutral behaves as Right.
 - **Motion**: Grounded, Rising, Apex, Falling, Clinging. The legacy pipeline
   has different held-state vertical offsets; the CameraFromScratch rig uses
   its own exported framing profile.
 - **Look**: None / Ledge peek. Available only when exported rooms contain
-  a positive \`look.ledgePeek\`.
-- **Camera**: Default or an explicitly exported option. \`CM_TallRoom\` can
+  a positive `look.ledgePeek`.
+- **Camera**: Default or an explicitly exported option. `CM_TallRoom` can
   appear here even though its original trigger is not functional in gameplay
-  (\`activation: "none"\`): this is an explicit *preview-only* selection.
+  (`activation: "none"`): this is an explicit *preview-only* selection.
 - **Overlapping zone**: Automatic or a specific exported zone ID. A tie of
   overlapping non-pan zones raises a diagnostic rather than silently picking
   an incorrect camera.
@@ -140,15 +140,15 @@ When a revision-2 model is present, Camera Preview shows:
 The model uses Unity world units with Y up and its own room assignments,
 framing, zoom steps, focus/pan/ledge behaviors, confiner and pixel snapping.
 The renderer maps the resulting frame back into LDtk level-local pixels with
-Y down, including each level's \`unityTopLeft\` and \`pixelsPerUnit\`. This
+Y down, including each level's `unityTopLeft` and `pixelsPerUnit`. This
 receiver does not modify Unity scene camera settings or persist the hypothetical
 Joshua position as a game spawn.
 
 ### Reference-case verification and offline behavior
 
-The snapshot's \`unityCameraModel.referenceCases[]\` contains authoritative
-\`{ levelIid, localPoint, state, expected, error }\` examples exported from
-Unity's C# \`SmartiveCameraGeometry.Evaluate\`. Each case is evaluated when the
+The snapshot's `unityCameraModel.referenceCases[]` contains authoritative
+`{ levelIid, localPoint, state, expected, error }` examples exported from
+Unity's C# `SmartiveCameraGeometry.Evaluate`. Each case is evaluated when the
 model changes. Position and size must agree within **0.02 LDtk pixels**.
 The status reports **Local (verified)** only after **all** reference cases pass.
 Any mismatch is reported as **Unity camera model drift** and local revision-2
@@ -163,7 +163,7 @@ The included synthetic regression cases cover the documented 000_CoreDesign
 example: grounded/left/right/apex/falling, selected CM_TallRoom and both
 confiner edges, plus zoom and simulated Unity sidecar replies. They do **not**
 establish full parity with the original C# solver: the exporter source file
-\`Tools/LDtkCameraSync/preview.cjs\` and the full 90+37 Unity fixtures must
+`Tools/LDtkCameraSync/preview.cjs` and the full 90+37 Unity fixtures must
 be supplied and compared to confirm that parity.
 
 ### Live, authoritative Unity query protocol
@@ -171,14 +171,14 @@ be supplied and compared to confirm that parity.
 With Unity's **Tools → LDTK-Smartive → Camera preview sync** window open and
 automatic sync enabled, LDtk writes requests using an atomic rename:
 
-- \`World.ldtk-camera-query.json\` — request
-- \`World.ldtk-camera-answer.json\` — response from Unity
+- `World.ldtk-camera-query.json` — request
+- `World.ldtk-camera-answer.json` — response from Unity
 
-The request includes \`schemaVersion:1\`, a unique \`requestId\`, level
-\`levelIid\`, a \`localPoint: {x,y}\` in LDtk local pixels and a
-\`state: {direction,motion,look,cameraId,zoneId}\`. A response is accepted
+The request includes `schemaVersion:1`, a unique `requestId`, level
+`levelIid`, a `localPoint: {x,y}` in LDtk local pixels and a
+`state: {direction,motion,look,cameraId,zoneId}`. A response is accepted
 only when source, request ID, level IID, player point, state and (if present)
-\`snapshotUpdatedAtUtc\` match. Old answers and malformed responses cannot
+`snapshotUpdatedAtUtc` match. Old answers and malformed responses cannot
 move the frame, and missing answers never block painting in LDtk.
 
 The preferred source order is:
@@ -193,14 +193,14 @@ A query/answer frame is a **settled Edit Mode prediction**, not a literal
 pixel-for-pixel Play Mode screenshot. Damping, blend transitions, landing
 bumps, moving focus targets, camera shake and other runtime-only mechanics
 remain out of scope unless Unity exports a separate supported rendered frame.
-The older version-1 \`.ldtk-camera.json\` source remains readable and does
+The older version-1 `.ldtk-camera.json` source remains readable and does
 not depend on any sidecar query support.
 
 ### Verification command
 
-From \`app\`, run \`npm run test:camera-preview\`: this includes
-\`camera-model-revision2.test.cjs\`, Haxe geometry vectors and native
-Electron UI interactions. Run \`npm run test:release-preflight\` and the
+From `app`, run `npm run test:camera-preview`: this includes
+`camera-model-revision2.test.cjs`, Haxe geometry vectors and native
+Electron UI interactions. Run `npm run test:release-preflight` and the
 Linux/macOS CI gates before merging or releasing.
 
 

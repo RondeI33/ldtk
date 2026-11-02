@@ -478,6 +478,7 @@ async function run(win) {
   assert.ok(s.visible && s.pinned);
   assert.equal(await ev('getComputedStyle(document.querySelector(".cameraModelControls")).display !== "none"'),true,
     'Camera model settings are hidden');
+  console.log('CAMERA-REV2-TRACE:',JSON.stringify({point:s.point,expected:pinnedAdvanced,frame:s.frame,source:await ev('document.querySelector(".cameraModelStatus").textContent'),diagnostics:await ev('document.querySelector(".cameraDiagnostics").textContent'),renderError:s.renderError,revision:s.profile?.unityCameraModel?.modelRevision}));
   near(s.frame.x,pinnedAdvanced.x-160,'Rev2 native frame X',.02);
   near(s.frame.y,pinnedAdvanced.y-114,'Rev2 native frame Y',.02);
   assert.match(await ev('document.querySelector(".cameraModelStatus").textContent'),/Local \(verified\)/,

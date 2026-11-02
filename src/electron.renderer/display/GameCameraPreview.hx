@@ -10,6 +10,8 @@ class GameCameraPreview extends dn.Process {
 	public var gridMode(default,null) = false;
 	public var useGuideGrid(default,null) = false;
 	public var pinned(default,null) = false;
+	/** Explicit placement action. Switching levels never arms this automatically. */
+	public var placementArmed(default,null) = false;
 	public var profile(default,null) : Null<CameraPreviewProfile>;
 	public var frame(default,null) : Null<CameraPreviewFrame>;
 	public var sourceError(default,null) : Null<String>;
@@ -34,10 +36,11 @@ class GameCameraPreview extends dn.Process {
 	var lastUiText = "";
 	var pointsByLevel : Map<String,{x:Float,y:Float,pinned:Bool}> = new Map();
 	var activeLevelIid : Null<String>;
+	var firstEnable = true;
 	var lastTransform = "";
 	var placementGesture = false;
 	public var state(get,never):String;
-	function get_state():String return !enabled ? "off" : pinned ? "locked" : "placing";
+	function get_state():String return !enabled ? "off" : placementArmed ? "placing" : pinned ? "locked" : "idle";
 
 	public function new(owner:page.Editor) {
 		editor = owner;
@@ -59,7 +62,10 @@ class GameCameraPreview extends dn.Process {
 		});
 		jControls.find(".cameraGrid").click(_->setGridMode(true));
 		jControls.find(".cameraFree").click(_->setGridMode(false));
-		jControls.find(".cameraPin").click(_->setPinned(!pinned));
+		jControls.find(".cameraPin").click(_->{
+			if( placementArmed ) cancelPlacement();
+			else setPinned(false);
+		});
 		jControls.find(".cameraSetup").click(_->showSetup());
 		jControls.find(".cameraClose").click(_->editor.setCameraPreview(false));
 		jControls.find(".cameraGuideGrid").on("change", _->{
@@ -74,7 +80,7 @@ class GameCameraPreview extends dn.Process {
 	}
 
 	public inline function isPlacing() : Bool {
-		return isActive() && !editor.worldMode && !pinned;
+		return isActive() && !editor.worldMode && placementArmed;
 	}
 
  
@@ -92,8 +98,9 @@ class GameCameraPreview extends dn.Process {
 
 	/** DOM sprite is nearest-neighbour, receives no pointer input, and stays anchored in World view. */
 	function syncSprite() {
-		jSprite.toggle(isActive());
-		if( !isActive() ) return;
+		var visible = isActive() && (pinned || placementArmed);
+		jSprite.toggle(visible);
+		if( !visible ) return;
 		var ppu=profile==null ? 16. : profile.pixelsPerUnit;
 		var z=editor.camera.adjustedZoom;
 		var ratio=editor.camera.pixelRatio;
@@ -136,9 +143,15 @@ class GameCameraPreview extends dn.Process {
 		enabled = value;
 		if( enabled ) {
 			selectLevelAnchor(editor.curLevel);
+			// Initial opening retains the original one-click Joshua placement flow.
+			// Later toggles, level switches and World View navigation never re-arm it.
+			if( firstEnable && !pinned && !editor.worldMode )
+				setPinned(false);
+			firstEnable = false;
 			refreshSource(true);
 		}
 		else {
+			cancelPlacement();
 			root.visible = false;
 			frame = null;
 			jSprite.hide();
@@ -156,9 +169,32 @@ class GameCameraPreview extends dn.Process {
 	}
 
 	public function setPinned(value:Bool) {
+		if( !isActive() || editor.worldMode ) return;
 		if( !value && (!editor.canStartCameraPlacement() || placementGesture) ) return;
-		pinned = value;
-		rememberPoint();
+		if( value ) {
+			pinned = true;
+			placementArmed = false;
+			rememberPoint();
+		}
+		else {
+			// Repositioning is explicit, never triggered by selecting another level.
+			pinned = false;
+			placementArmed = true;
+		}
+		invalidated = true;
+		updateControls();
+	}
+
+	/** Abandon an unfinished placement without losing an earlier committed anchor. */
+	function cancelPlacement() {
+		if( !placementArmed ) return;
+		placementArmed = false;
+		var saved = activeLevelIid==null ? null : pointsByLevel.get(activeLevelIid);
+		pinned = saved!=null && saved.pinned;
+		if( pinned ) {
+			pointX = saved.x;
+			pointY = saved.y;
+		}
 		invalidated = true;
 		updateControls();
 	}
@@ -166,14 +202,16 @@ class GameCameraPreview extends dn.Process {
 	function resetPoint() {
 		placementGesture = false;
 		pinned = false;
+		placementArmed = false;
 		pointX = editor.curLevel==null ? 0. : editor.curLevel.pxWid*0.5;
 		pointY = editor.curLevel==null ? 0. : editor.curLevel.pxHei*0.5;
 		invalidated = true;
 	}
 
 	function rememberPoint() {
-		if( activeLevelIid!=null )
-			pointsByLevel.set(activeLevelIid,{x:pointX,y:pointY,pinned:pinned});
+		// Cursor movement is only a temporary placement preview; never store it.
+		if( pinned && activeLevelIid!=null )
+			pointsByLevel.set(activeLevelIid,{x:pointX,y:pointY,pinned:true});
 	}
 
 	function selectLevelAnchor(level:data.Level) {
@@ -182,6 +220,7 @@ class GameCameraPreview extends dn.Process {
 		rememberPoint();
 		activeLevelIid=iid;
 		placementGesture=false;
+		placementArmed=false;
 		var saved = iid==null ? null : pointsByLevel.get(iid);
 		if( saved!=null ) {
 			pointX=saved.x;
@@ -201,7 +240,6 @@ class GameCameraPreview extends dn.Process {
 			return;
 		pointX = m.worldXf-editor.curLevel.worldX;
 		pointY = m.worldYf-editor.curLevel.worldY;
-		rememberPoint();
 		invalidated = true;
 	}
 
@@ -235,13 +273,17 @@ class GameCameraPreview extends dn.Process {
 				useGuideGrid = false;
 				pointsByLevel = new Map();
 				activeLevelIid = null;
+				firstEnable = true;
 				resetPoint();
 				if( enabled ) refreshSource(true);
 			case LevelSelected(level):
 				// Zoom-triggered re-selection of the same level must not reset Joshua.
 				selectLevelAnchor(level);
-			case WorldSelected(_), WorldMode(_):
+			case WorldSelected(_):
 				// Preview geometry is re-projected below; do not discard placement.
+			case WorldMode(active):
+				// World navigation must never leave Joshua stuck to the cursor.
+				if( active ) cancelPlacement();
 			case _:
 		}
 		invalidated = true;
@@ -301,7 +343,8 @@ class GameCameraPreview extends dn.Process {
 	function updateControls() {
 		jControls.find(".cameraGrid").toggleClass("active",gridMode).attr("aria-pressed",Std.string(gridMode));
 		jControls.find(".cameraFree").toggleClass("active",!gridMode).attr("aria-pressed",Std.string(!gridMode));
-		jControls.find(".cameraPin").toggle(pinned).attr("aria-pressed",Std.string(pinned));
+		jControls.find(".cameraPin").toggle(enabled).attr("aria-pressed",Std.string(placementArmed));
+		jControls.find(".cameraPin .label").text(placementArmed ? "Anuluj" : pinned ? "Przestaw Joshuę" : "Ustaw Joshuę");
 		jControls.find(".guideOption").toggle(gridMode);
 		jControls.find(".cameraGuideGrid").prop("checked",useGuideGrid);
 		var text=sourceError;
@@ -316,7 +359,8 @@ class GameCameraPreview extends dn.Process {
 			lastUiText=text;
 		}
 		jControls.toggleClass("unavailable",profile==null || sourceStale || renderError!=null);
-		jControls.find(".cameraPin").prop("disabled",profile==null || editor.worldMode);
+		// Placement of an editor-only marker need not wait for Unity sync.
+		jControls.find(".cameraPin").prop("disabled",editor.worldMode);
 	}
 
 	static function number(value:Float) : String {
@@ -348,7 +392,7 @@ class GameCameraPreview extends dn.Process {
 		overlay.clear();
 		drawnGridLines = 0;
 		renderError = null;
-		root.visible = isActive() && profile!=null;
+		root.visible = isActive() && profile!=null && (pinned || placementArmed);
 		frame = null;
 		syncSprite();
 		if( !root.visible ) return;

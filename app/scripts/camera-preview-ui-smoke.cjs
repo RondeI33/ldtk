@@ -310,6 +310,18 @@ async function run(win) {
   assert.equal(s.mode,false); assert.equal(s.pinned,true);
   assert.deepEqual(s.point,beforeWorld.point); assert.deepEqual(s.frame,beforeWorld.frame);
   await pass('World View and level zoom retain Joshua, camera frame and original point');
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  s=await state(); assert.equal(s.placing,true,'Explicit reposition did not arm placement');
+  await move(420,260); s=await settled();
+  assert.notDeepEqual(s.point,beforeWorld.point);
+  await ev('cameraPreviewFixture.editor().setWorldMode(true,true)');
+  await ev('cameraPreviewFixture.editor().setWorldMode(false,true)');
+  s=await settled();
+  assert.equal(s.placing,false,'World View unexpectedly rearmed placement after cancelling it');
+  assert.equal(s.pinned,true,'Cancelling an unfinished reposition lost the last placed Joshua');
+  assert.deepEqual(s.point,beforeWorld.point,'World View did not restore the last committed Joshua anchor');
+  assert.deepEqual(s.frame,beforeWorld.frame);
+  await pass('World View cancels unfinished reposition without losing the committed Joshua point');
 
 
   const currentIid=await ev('cameraPreviewFixture.level().iid');
@@ -362,13 +374,66 @@ async function run(win) {
   await pass('Camera Preview toggle preserves last Joshua point, display mode and locked editing');
 
   await call('switchLevel',true);
-  s=await settled(); assert.equal(s.pinned,false);
-  near(s.point.x,320,'Second level X resets'); near(s.point.y,192,'Second level Y resets');
-  assert.equal(s.frame,null); assert.match(s.status,/IID/,'Missing level model must not pretend to have a valid frame');
+  s=await settled();
+  assert.equal(s.state,'idle','Switching to an unplaced level auto-started Joshua placement');
+  assert.equal(s.pinned,false); assert.equal(s.placing,false); assert.equal(s.placementArmed,false);
+  near(s.point.x,320,'Unplaced second level X resets'); near(s.point.y,192,'Unplaced second level Y resets');
+  assert.equal(s.frame,null,'Unplaced level has no camera outline');
+  assert.equal(s.renderError,null,'Unplaced level should not solve an unexported camera model');
+  assert.equal(s.visible,false,'An unplaced level must not display a camera frame');
+  assert.equal(s.sprite.visible,false,'Joshua marker must be hidden for an unplaced level');
+  assert.equal(await ev('document.querySelector(".cameraPin .label").textContent'),'Ustaw Joshuę');
+  const idlePoint=s.point;
+  await move(180,128); s=await settled();
+  assert.deepEqual(s.point,idlePoint,'Unplaced Joshua follows the cursor');
+  await ev('cameraPreviewFixture.editor().setWorldMode(true,true)');
+  await ev('cameraPreviewFixture.editor().setWorldMode(false,true)');
+  s=await settled();
+  assert.equal(s.placing,false,'Returning from World View rearmed Joshua');
+  assert.deepEqual(s.point,idlePoint);
+  await pass('Unplaced level remains idle through level and World View navigation');
+
+  await call('selectTerrain'); await settled();
+  const beforeIdlePaint=await call('serial');
+  await click(await move(240,96));
+  assert.notEqual((await call('serial')).json,beforeIdlePaint.json,'Idle preview intercepts drawing');
+  const afterIdlePaint=await call('serial');
+  await clickSelector('#editingOptions li.cameraPreview');
+  assert.equal((await state()).enabled,false);
+  await clickSelector('#editingOptions li.cameraPreview');
+  s=await settled();
+  assert.equal(s.state,'idle','Reopening preview rearmed placement');
+  assert.deepEqual(s.point,idlePoint);
+  await unchanged(afterIdlePaint);
+  await pass('Idle preview permits normal painting and stays idle when toggled');
+
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  s=await settled();
+  assert.equal(s.state,'placing'); assert.equal(s.placing,true);
+  await move(220,145); s=await settled();
+  assert.notDeepEqual(s.point,idlePoint);
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  s=await settled();
+  assert.equal(s.state,'idle','Cancelling placement rearmed it');
+  assert.deepEqual(s.point,idlePoint,'Cancelled placement persisted cursor coordinates');
+  await clickSelector('#cameraPreviewControls .cameraPin');
+  await click(await move(240,145)); s=await settled();
+  assert.equal(s.pinned,true); assert.equal(s.placing,false);
+  assert.match(s.renderError,/IID/,'Missing camera model should be diagnosed only after placement');
+  const placedSecondPoint=s.point;
+  await unchanged(afterIdlePaint);
+  await pass('Placement/Cancel button explicitly controls the editor-only Joshua marker');
+
   await call('switchLevel',false); s=await settled();
   assert.equal(s.pinned,true); assert.deepEqual(s.point,returnPoint);
   assert.deepEqual(s.frame,returnFrame);
-  await pass('Each level restores its previously placed Joshua instead of losing the point');
+  await call('switchLevel',true); s=await settled();
+  assert.equal(s.pinned,true); assert.equal(s.placing,false);
+  assert.deepEqual(s.point,placedSecondPoint);
+  await move(190,118); s=await settled();
+  assert.deepEqual(s.point,placedSecondPoint,'Returning to a placed level resumed cursor following');
+  await call('switchLevel',false); await settled();
+  await pass('Only explicitly placed per-level Joshua anchors are restored');
 
   await call('write','{');
   await until('cameraPreviewFixture.stats().profile === null','Malformed JSON not rejected');

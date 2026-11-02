@@ -98,6 +98,23 @@ test('overlapping zoom zones require explicit zone identifier for deterministic 
   assert.throws(()=>evaluate(m,iid,{x:848,y:880},{}),/Overlapping zoom/);
   assert.ok(evaluate(m,iid,{x:848,y:880},{zoneId:'z2'}).width>0);
 });
+test('detached dynamic client methods preserve their instance when invoked from Haxe',()=>{
+  const {update,clear}=createClient();
+  const result=update({
+    profile:{unityCameraModel:fixture(),updatedAtUtc:'2026-11-02T12:00:00Z'},
+    sidecarPath:'/tmp/World.ldtk-camera.json',
+    levelIid:iid,point:{x:848,y:880},state:{},requestEnabled:false
+  });
+  assert.equal(result.source,'Local (verified)');
+  near(result.frame.y,664,'Detached Haxe query returns real model frame');
+  clear();
+  const after=update({
+    profile:{unityCameraModel:fixture(),updatedAtUtc:'2026-11-02T12:00:00Z'},
+    sidecarPath:'/tmp/World.ldtk-camera.json',
+    levelIid:iid,point:{x:848,y:880},state:{},requestEnabled:false
+  });
+  assert.equal(after.source,'Local (verified)');
+});
 test('query paths preserve the same Unity .ldtk sidecar family',()=>{
   assert.deepEqual(queryPaths('/tmp/World.ldtk-camera.json'),{
     query:'/tmp/World.ldtk-camera-query.json',

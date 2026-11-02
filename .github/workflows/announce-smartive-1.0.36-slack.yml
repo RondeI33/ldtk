@@ -1,0 +1,78 @@
+name: Announce LDTK-Smartive v1.0.36 on Slack
+
+# One-time catch-up announcement. The release already passed all test and
+# packaging gates, but its versioned release workflow opted out of Slack.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/announce-smartive-1.0.36-slack.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smartive-1.0.36-slack-catchup
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify published release and announce on Slack
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "::error::Repository Actions secret SLACK_WEBHOOK_URL is not configured; cannot send Slack message." >&2
+            exit 2
+          fi
+
+          tag="v1.0.36"
+          version="1.0.36"
+          release_json="$(mktemp)"
+          payload="$(mktemp)"
+          trap 'rm -f "$release_json" "$payload"' EXIT
+
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,isDraft,isPrerelease,assets > "$release_json"
+          jq -e '.isDraft == false and .isPrerelease == false and (.url | length > 0)' "$release_json" >/dev/null
+
+          for filename in \
+            "LDTK-Smartive-${version}-win-x64.exe" \
+            "LDTK-Smartive-${version}-mac-universal.dmg" \
+            "LDTK-Smartive-${version}-linux-x86_64.AppImage" \
+            "latest.yml"; do
+            jq -e --arg filename "$filename" 'any(.assets[]; .name == $filename)' "$release_json" >/dev/null || {
+              echo "::error::Release is missing $filename; Slack announcement blocked." >&2
+              exit 1
+            }
+          done
+
+          release_url="$(jq -r '.url' "$release_json")"
+          jq -n --arg url "$release_url" '{
+            text: "LDTK-Smartive v1.0.36: poprawiony Camera Preview i Joshua. Aktualizacja dostępna na Windows, macOS i Linux.",
+            blocks: [
+              {type:"header",text:{type:"plain_text",text:"LDTK-Smartive v1.0.36 — Camera Preview"}},
+              {type:"section",text:{type:"mrkdwn",text:"*Co się zmieniło?*\n• Joshua zachowuje ustawioną pozycję po wyłączeniu/włączeniu podglądu, zmianie poziomu oraz przejściu do World View i z powrotem.\n• Obramowanie pokazuje dokładny obszar kadru kamery, bez przyciemniania reszty poziomu.\n• Siatka kamery nie blokuje rysowania, gumkowania, zaznaczania ani innych narzędzi LDtk.\n• Usunięto niepotrzebny wybór/podmianę sprite’a Joshuy, kalibrację i nadmiarowe opisy w UI."}},
+              {type:"section",text:{type:"mrkdwn",text:"*Dlaczego wiadomość nie pojawiła się od razu?*\nW workflow wydającym v1.0.36 było ustawione `notify_slack: false`, więc zadanie powiadomienia zostało pominięte, mimo udanej publikacji. Flaga została poprawiona na `true`. To zaległe ogłoszenie jest wysłane osobno, bez przebudowy instalatorów."}},
+              {type:"context",elements:[{type:"mrkdwn",text:"Testy regresyjne Linux/macOS Intel oraz instalatory Windows, macOS Universal i Linux: zakończone pomyślnie."}]},
+              {type:"actions",elements:[{type:"button",text:{type:"plain_text",text:"Pobierz v1.0.36"},url:$url,style:"primary"}]}
+            ]
+          }' > "$payload"
+
+          response="$(curl --fail-with-body --silent --show-error --retry 3 \
+            --connect-timeout 15 --max-time 60 \
+            -X POST -H 'Content-Type: application/json' \
+            --data-binary "@$payload" "$SLACK_WEBHOOK_URL")"
+          if [[ "$response" != "ok" ]]; then
+            echo "::error::Slack did not confirm the announcement (expected 'ok')." >&2
+            exit 1
+          fi
+          echo "::notice::Slack accepted the explanatory v1.0.36 announcement: $release_url"

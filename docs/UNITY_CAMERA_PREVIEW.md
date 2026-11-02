@@ -86,6 +86,12 @@ For end-to-end validation, change the actual camera's orthographic size or Game 
 - [LDtkUnity importer Pixels Per Unit](https://cammin.github.io/LDtkToUnity/documentation/Importer/topic_Section_Main.html)
 - [LDtkUnity importer serialized PPU source](https://github.com/Cammin/LDtkToUnity/blob/master/Assets/LDtkUnity/Editor/ScriptedImporter/LDtkProjectImporter.cs)
 
+## Level switching and explicit placement
+
+Joshua placement is a four-state UI operation: **off**, **idle**, **placing**, or **placed**. The first time Camera Preview opens in a project, you can click the level to place Joshua as before. Clicking into a different level that does not already have an explicitly placed Joshua enters **idle**, not **placing**: the sprite and frame are hidden, the cursor remains the ordinary LDtk editor cursor, and regular painting/selection/erasing continues. To set a new point in that level, use the **Ustaw Joshuę** button. While placing, the same button says **Anuluj** and cancels without storing an incidental mouse position.
+
+Existing placed points remain saved per level for the open editor project. Returning to a level restores its last committed Joshua position and frame without re-arming placement. If placement is underway when entering World View, it is cancelled; an earlier committed point, if any, is restored. Toggling the preview off/on does not silently re-arm placement either. Switching projects resets all editor-only placement state. All these operations leave the LDtk project file, Undo/Redo and editor layer state untouched.
+
 ## Joshua placement (1.0.36)
 
 Use **Camera preview → click the level** to position Joshua. The blue outline shows the camera's visible frame at that player position, computed from the Unity camera snapshot. The click only anchors the editor marker; it does not create a game entity, modify the level JSON or enter undo history. The mouse-up that completes placement is consumed so an accidental stroke is not produced. Every subsequent click, drag, stroke, selection, shortcut, Undo and Redo goes to the regular LDtk tool.

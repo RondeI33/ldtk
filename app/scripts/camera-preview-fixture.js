@@ -139,7 +139,7 @@
   F.stats = () => {
     const e = F.editor(), p = F.preview(), camera = e.camera, layer = e.get_curLayerInstance();
     const result = {
-      state: p.get_state(), enabled: p.enabled, active: p.isActive(), placing: p.isPlacing(), pinned: p.pinned, gridMode: p.gridMode, guide: p.useGuideGrid,
+      state: p.get_state(), enabled: p.enabled, active: p.isActive(), placing: p.isPlacing(), pinned: p.pinned, placementArmed: p.placementArmed, gridMode: p.gridMode, guide: p.useGuideGrid,
       profile: p.profile, frame: p.frame, error: p.sourceError, renderError: p.renderError, stale: p.sourceStale,
       visible: p.root.visible, gridLines: p.drawnGridLines, point: {x: p.pointX, y: p.pointY},
       dirty: e.needSaving, history: F.history(), selection: e.selectionTool.any(),

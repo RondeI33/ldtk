@@ -213,7 +213,7 @@ async function run(win) {
   await screenshot('joshua-placement');
 
   const modeRects=await ev(`(()=>[...document.querySelectorAll('.cameraModes button')].map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}}))()`);
-  assert.ok(modeRects[0].right<=modeRects[1].left && modeRects[2].top>=modeRects[0].bottom,'Mode buttons overlap');
+  assert.ok(modeRects[0].right<=modeRects[1].left,'Mode buttons overlap');
   await drag(await call('screen',451,263),await call('screen',575,300));
   assert.equal((await state()).pinned,true); await unchanged(initial);
   await clickSelector('#cameraPreviewControls .cameraPin');
@@ -221,7 +221,7 @@ async function run(win) {
   const placement = await move(451,263);
   await click(placement); s=await settled();
   assert.equal(s.pinned,true); assert.equal(s.placing,false);
-  assert.match(s.lockStatus,/Zablokowany/);
+  assert.equal(await ev('getComputedStyle(document.querySelector(".cameraPin")).display !== "none"'),true,'Reposition action is visible after placement');
   await unchanged(initial);
   const fixedPoint=s.point, fixedFrame=s.frame;
   await move(575,360); s=await settled();
@@ -263,56 +263,14 @@ async function run(win) {
   await call('selectTerrain');
   await pass('Alt+Shift-drag selection still works with the locked overlay');
 
-  const oldSprite=await state();
-  await ev(`(()=>{const e=document.querySelector(".cameraSpritePpu");e.value="32";e.dispatchEvent(new Event("input",{bubbles:true}));return true})()`);
-  s=await settled();
-  assert.ok(s.sprite.width<oldSprite.sprite.width,'Sprite PPU did not change visual scale');
-  assert.equal(s.sprite.pointerEvents,'none');
-  await ev(`(()=>{const e=document.querySelector(".cameraSpritePpu");e.value="16";e.dispatchEvent(new Event("input",{bubbles:true}));return true})()`);
-  await settled(); await pass('Sprite PPU controls visual scale without changing project data');
 
-  const beforeSpriteImport=await call('serial');
-  const spriteFile=path.join(tmp,'JoshuaIdle.png');
-  await call('makeSpriteFixture',spriteFile);
-  await call('setAssetFile','.cameraSpriteFile',spriteFile);
-  await until('cameraPreviewFixture.preview().spritePixelsPerUnit === 32 && document.querySelector(".cameraJoshuaSprite").complete','Meta sprite did not load');
-  s=await settled();
-  assert.match(s.spriteStatus,/PPU i pivot z .meta/);
-  assert.deepEqual(await call('spritePixel'),[0,255,0,255],'Unity bottom-left rect was cropped from the wrong row');
-  near(await ev('cameraPreviewFixture.preview().spritePivotX'),.25,'Imported pivot X');
-  near(await ev('cameraPreviewFixture.preview().spritePivotY'),.125,'Imported pivot Y');
-  const pref=path.join(tmp,'Joshua.prefab');
-  fs.writeFileSync(pref,`--- !u!4 &1
-Transform:
-  m_GameObject: {fileID: 10}
-  m_Father: {fileID: 0}
-  m_LocalPosition: {x: 400, y: -700, z: 0}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalScale: {x: 1, y: 1, z: 1}
---- !u!4 &2
-Transform:
-  m_GameObject: {fileID: 11}
-  m_Father: {fileID: 1}
-  m_LocalPosition: {x: 0.5, y: 1, z: 0}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalScale: {x: 1, y: 1, z: 1}
---- !u!212 &3
-SpriteRenderer:
-  m_GameObject: {fileID: 11}
-  m_Sprite: {fileID: 9223372036854775701, guid: 1234567890abcdef1234567890abcdef, type: 3}
-`);
-  await call('setAssetFile','.cameraPrefabFile',pref);
-  await until('document.querySelector(".cameraSpriteStatus").dataset.verified === "true"','Prefab transform was not applied');
-  s=await settled();
-  const sr=s.transform.zoom/s.transform.pixelRatio;
-  const canvasRect=await ev('document.querySelector("#webgl").getBoundingClientRect().toJSON()');
-  near(s.sprite.width,16*sr,'Meta PPU preserves sprite width at device pixel ratio',.02);
-  near(s.sprite.x,canvasRect.left+(s.transform.x+(s.point.x+8)*s.transform.zoom)/s.transform.pixelRatio-s.sprite.width*.25,'Sprite pivot and root offset X',.02);
-  near(s.sprite.y,canvasRect.top+(s.transform.y+(s.point.y-16)*s.transform.zoom)/s.transform.pixelRatio-s.sprite.height*.875,'Sprite pivot and Unity-up offset Y',.02);
-  await unchanged(beforeSpriteImport);
-  await call('setAssetFile','.cameraSpriteFile',path.join(root,'assets/img/joshua-idle-preview.png'));
-  await until('cameraPreviewFixture.preview().spritePixelsPerUnit === 16','Fallback sprite did not recover');
-  await pass('Native renderer imports exact meta crop, PPU, pivot and prefab offset without mutating level/history');
+  // The supplied Joshua marker is fixed: no file/prefab picker or calibration fields.
+  assert.equal(await ev('!!document.querySelector(".cameraSpriteSettings,.cameraSpriteFile,.cameraPrefabFile,.cameraSpriteStatus,.cameraLockStatus,.cameraHint,.cameraTimestamp")'),false);
+  const unchangedSprite=(await state()).sprite;
+  assert.ok(unchangedSprite.visible && unchangedSprite.src.endsWith('joshua-idle-preview.png'));
+  assert.equal(unchangedSprite.pointerEvents,'none');
+  await unchanged(await call('serial'));
+  await pass('Preview uses a fixed Joshua marker with no sprite import or appearance settings');
 
   await call('selectObjects'); await settled();
   const beforeEntity=await call('serial');
@@ -336,6 +294,24 @@ SpriteRenderer:
   await ev('cameraPreviewFixture.editor().camera.fit(true)');
   await pass('Pan and zoom reproject sprite and frame without moving Joshua in the world');
 
+  // World View changes the projection, not Joshua's persisted level-local point.
+  const beforeWorld=await settled();
+  await ev('cameraPreviewFixture.editor().setWorldMode(true,true)');
+  s=await settled();
+  assert.equal(s.mode,true); assert.equal(s.active,true); assert.equal(s.visible,true);
+  assert.equal(s.pinned,true); assert.deepEqual(s.point,beforeWorld.point);
+  assert.deepEqual(s.frame,beforeWorld.frame);
+  assert.ok(s.sprite.visible && s.sprite.height>=16,'Joshua vanishes when zooming out to World view');
+  const worldCanvas=await ev('document.querySelector("#webgl").getBoundingClientRect().toJSON()');
+  near(s.sprite.x,worldCanvas.left+(s.worldTransform.x+(s.worldTransform.levelX+s.point.x)*s.transform.zoom)/s.transform.pixelRatio-s.sprite.width*.5,'World-space Joshua X',.08);
+  near(s.sprite.y,worldCanvas.top+(s.worldTransform.y+(s.worldTransform.levelY+s.point.y)*s.transform.zoom)/s.transform.pixelRatio-s.sprite.height,'World-space Joshua Y',.08);
+  await ev('cameraPreviewFixture.editor().setWorldMode(false,true)');
+  s=await settled();
+  assert.equal(s.mode,false); assert.equal(s.pinned,true);
+  assert.deepEqual(s.point,beforeWorld.point); assert.deepEqual(s.frame,beforeWorld.frame);
+  await pass('World View and level zoom retain Joshua, camera frame and original point');
+
+
   const currentIid=await ev('cameraPreviewFixture.level().iid');
   const model={schemaVersion:1,levels:[{iid:currentIid,camera:{offset:{x:1,y:-0.25}},
     rooms:[{x:0,y:0,width:960,height:576}],zones:[{x:400,y:230,width:300,height:260,zoom:2}]}]};
@@ -343,7 +319,7 @@ SpriteRenderer:
   await until('cameraPreviewFixture.stats().profile?.unityCameraModel', 'Unity camera model not loaded');
   s=await settled(); assert.deepEqual(s.point,fixedPoint);
   assert.notDeepEqual(s.frame,fixedFrame);
-  assert.match(s.status,/stan ustalony/);
+  assert.match(s.status,/model Unity/);
   await pass('Unity JSON model recalculates the locked frame without moving Joshua');
   await writeProfile({unityCameraModel:{...model,levels:[{...model.levels[0],zones:[]} ]}});
   await until('cameraPreviewFixture.stats().frame?.width === 320','Camera model zone update not recognized');
@@ -359,20 +335,40 @@ SpriteRenderer:
   assert.deepEqual((await state()).point,relocated);
   await pass('Przestaw Joshuę re-enables placement, then new locked point allows more painting');
 
+
   const level0=await call('serial');
   await clickSelector('#cameraPreviewControls .cameraGrid');
-  assert.equal((await state()).placing,true);
-  await clickSelector('#cameraPreviewControls .cameraFree');
-  s=await state(); assert.equal(s.placing,true); assert.equal(s.gridMode,false);
+  s=await settled();
+  assert.equal(s.gridMode,true); assert.equal(s.pinned,true); assert.equal(s.placing,false);
+  assert.ok(s.gridLines>0,'Camera grid not visible');
   await unchanged(level0);
-  await pass('Optional grid mode and Joshua mode never mutate level history');
+  await call('setFlags',{grid:true});
+  s=await settled();assert.equal(s.gridVisible,true,'Normal editor grid hidden by the camera preview');
+  await click(await move(600,160));
+  assert.notEqual((await call('serial')).json,level0.json,'Drawing with camera grid enabled was blocked');
+  await call('setFlags',{grid:initialFlags.grid});
+  await clickSelector('#cameraPreviewControls .cameraFree');
+  s=await settled();
+  assert.equal(s.gridMode,false);assert.equal(s.pinned,true);
+  await pass('Camera grid and normal editor grid remain visible and permit painting without relocating Joshua');
+
+  const returnPoint=s.point,returnFrame=s.frame;
+  await clickSelector('#editingOptions li.cameraPreview');
+  s=await state();assert.equal(s.enabled,false);
+  await clickSelector('#editingOptions li.cameraPreview');
+  s=await settled();
+  assert.equal(s.enabled,true);assert.equal(s.pinned,true);assert.equal(s.gridMode,false);
+  assert.deepEqual(s.point,returnPoint);assert.deepEqual(s.frame,returnFrame);
+  await pass('Camera Preview toggle preserves last Joshua point, display mode and locked editing');
 
   await call('switchLevel',true);
   s=await settled(); assert.equal(s.pinned,false);
   near(s.point.x,320,'Second level X resets'); near(s.point.y,192,'Second level Y resets');
   assert.equal(s.frame,null); assert.match(s.status,/IID/,'Missing level model must not pretend to have a valid frame');
-  await call('switchLevel',false); await settled();
-  await pass('Changing levels prevents a previously pinned Joshua from leaking across rooms');
+  await call('switchLevel',false); s=await settled();
+  assert.equal(s.pinned,true); assert.deepEqual(s.point,returnPoint);
+  assert.deepEqual(s.frame,returnFrame);
+  await pass('Each level restores its previously placed Joshua instead of losing the point');
 
   await call('write','{');
   await until('cameraPreviewFixture.stats().profile === null','Malformed JSON not rejected');

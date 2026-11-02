@@ -1,0 +1,26 @@
+name: Camera preview local source snapshot
+on:
+  push:
+    branches: [fix/camera-preview-persistent-joshua]
+    paths: ['.github/workflows/camera-preview-source-export.yml']
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create exact branch snapshot for offline regression work
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          git archive HEAD | gzip -1 > out/source.tar.gz
+          git rev-parse HEAD > out/commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camera-preview-source-snapshot
+          path: out/*
+          retention-days: 1
+          if-no-files-found: error

@@ -81,7 +81,7 @@ test('rig neutral direction resolves right and corridor/ledge handling remains d
   const ledge=evaluate(m,iid,{x:848,y:880},{look:'ledge'});
   near(ledge.y-before.y,4*16,'ledge is applied after confiner (Unity down)',1e-8);
 });
-test('camera zoom uses exported output pixel height and banker's rounded discrete steps',()=>{
+test("camera zoom uses exported output pixel height and banker's rounded discrete steps",()=>{
   const m=fixture(),room=m.rooms[0];
   room.clamp=false;
   m.unityZones=[{id:'zoom+',kind:'zoom',area:{x:50,y:-170,width:10,height:30},priority:5,allowedModes:7,zoom:8}];

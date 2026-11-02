@@ -356,10 +356,9 @@ class GameCameraPreview extends dn.Process {
 		var z = cam.adjustedZoom;
 		var origin = levelOrigin();
 		var g = grid();
-		try frame = gridMode
-			? CameraPreviewGeometry.frame(pointX,pointY,profile.width,profile.height,true,g.width,g.height,g.x,g.y)
-			: CameraPreviewGeometry.playerFrame(profile,editor.curLevel.iid,pointX,pointY,
-				editor.curLevel.worldX,editor.curLevel.worldY,editor.curLevel.pxWid,editor.curLevel.pxHei)
+		// Switching the grid never changes what the camera sees at Joshua's position.
+		try frame = CameraPreviewGeometry.playerFrame(profile,editor.curLevel.iid,pointX,pointY,
+			editor.curLevel.worldX,editor.curLevel.worldY,editor.curLevel.pxWid,editor.curLevel.pxHei)
 		catch(error:Dynamic) {
 			root.visible = false;
 			renderError = "Nie można obliczyć kadru: "+Std.string(error);
@@ -373,6 +372,8 @@ class GameCameraPreview extends dn.Process {
 		var screenH = cam.height;
 		var col = sourceStale ? 0xe8b75b : 0x7faaff;
 		if( gridMode ) {
+			// Default guide cells radiate from the actual camera frame, not a snapped origin.
+			if( !useGuideGrid ) { g.x=frame.x; g.y=frame.y; }
 			overlay.lineStyle(cam.pixelRatio,col,0.22);
 			var minX = Math.max(0,-origin.x/z);
 			var maxX = Math.min(editor.curLevel.pxWid,(screenW-origin.x)/z);

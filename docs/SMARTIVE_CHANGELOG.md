@@ -1,3 +1,13 @@
+# 1.0.36
+
+## Camera preview without editing interruptions
+
+- Place Joshua once and keep drawing. Camera Preview now draws a camera-size outline only, without darkening any part of the level or blocking the normal editor grid, strokes, selection and entity placement.
+- Persist Joshua's pinned point per level when changing modes, reopening Camera Preview, switching levels, or zooming out into World View and back. World View projects both the camera frame and a readable Joshua marker using the world's camera transform.
+- Camera grid can be switched on and off without unlocking Joshua or interrupting normal editing. A small reposition button explicitly enables another placement.
+- Removed sprite/prefab file selection, manual PPU/pivot/offset calibration, extra placement labels and verbose hints from the preview interface. The bundled Joshua marker remains editor-only and is never written to LDtk project data.
+- Expanded real Electron regression coverage for World View projection, editing with both grids, state persistence, simple controls and clean project switching. Installer publication stays behind full regression gates.
+
 # 1.0.35
 
 ## Joshua placement and locked editing

@@ -28,7 +28,7 @@ The package keeps the normal LDtkUnity/Cammin importer intact and replaces its o
 
 ## Unity camera preview
 
-The **Camera preview** toggle in the Visuals toolbar, next to **Single layer mode**, shows the Unity camera frame over the level. Choose **Camera grid** for camera-sized cells or **Free point** to inspect any position. The optional layer guide grid aligns frame centers to existing guides. Click to pin or release a frame; pan and zoom normally, and press Escape to return to editing.
+The **Camera preview** toggle in the Visuals toolbar, next to **Single layer mode**, outlines what the Unity camera sees when Joshua stands at a chosen point. Click the level once to place Joshua; the frame stays in place while you paint, erase, select and edit as usual. **Camera grid** adds camera-sized guide cells without dimming any part of the level or disabling the normal editor grid. Camera Preview remembers Joshua and the chosen mode when toggled off/on, when switching levels and when zooming to World View; use **Przestaw Joshuę** to reposition him.
 
 Install or update the Unity package above, open **Tools > LDTK-Smartive > Camera preview sync**, select the `.ldtk` project and enable automatic sync. Camera size, aspect ratio and importer Pixels Per Unit come from the actual orthographic camera in the active Unity scene. A separate camera snapshot updates without reloading the edited project. Missing or unsupported camera settings are reported in the preview panel.
 

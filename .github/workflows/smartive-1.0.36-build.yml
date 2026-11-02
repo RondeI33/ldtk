@@ -1,0 +1,26 @@
+name: Build LDtk Smartive 1.0.36 from master
+
+# Publishing is triggered only after the reviewed change reaches master.
+# The reusable release workflow runs its native regression gates before any installers.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.36-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.36-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Camera preview regressions, installers and v1.0.36 release
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: false
+    secrets: inherit

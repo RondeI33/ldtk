@@ -86,13 +86,15 @@ For end-to-end validation, change the actual camera's orthographic size or Game 
 - [LDtkUnity importer Pixels Per Unit](https://cammin.github.io/LDtkToUnity/documentation/Importer/topic_Section_Main.html)
 - [LDtkUnity importer serialized PPU source](https://github.com/Cammin/LDtkToUnity/blob/master/Assets/LDtkUnity/Editor/ScriptedImporter/LDtkProjectImporter.cs)
 
-## Joshua placement (1.0.35)
+## Joshua placement (1.0.36)
 
-The primary workflow is **Ustaw Joshuę → click the canvas → Zablokowany — możesz rysować**. The click anchors the hypothetical player root, not the camera center. Subsequent mouse moves, clicks, drags and editor shortcuts belong to normal LDtk tools. **Przestaw Joshuę** re-enters placement without changing the current drawing tool. Neither placement nor changing sprite settings writes to level JSON, spawn points or history. An unfinished placement drag is consumed through its mouse-up; beginning placement during an active editing gesture is refused.
+Use **Camera preview → click the level** to position Joshua. The blue outline shows the camera's visible frame at that player position, computed from the Unity camera snapshot. The click only anchors the editor marker; it does not create a game entity, modify the level JSON or enter undo history. The mouse-up that completes placement is consumed so an accidental stroke is not produced. Every subsequent click, drag, stroke, selection, shortcut, Undo and Redo goes to the regular LDtk tool.
 
-The fallback sprite comes from the supplied Joshua sheet, but its Unity prefab calibration is **not verified**. To calibrate from real local assets, choose `JoshuaIdle.png` in **Grafika Joshuy / PPU / pivot**. Its adjacent `.meta` supplies sprite rectangles, native PPU and the normalized bottom-left pivot. The crop converts Unity's bottom-left rectangle into image top-left coordinates without resampling. A frame selector permits an explicit idle frame. A PNG without `.meta` is a single-frame manual fallback, clearly labeled.
+**Siatka kamery** draws camera-sized guide cells while keeping the current Joshua position pinned. **Kadr Joshuy** shows only the camera outline. Neither mode dims the area outside the camera; the normal editor grid remains visible according to the regular Visuals setting. Use **Przestaw Joshuę** to explicitly choose a different point.
 
-Selecting the text player `.prefab` matches SpriteRenderer GUID and exact 64-bit sprite fileID, then composes its Transform chain relative to the root. Root translation is excluded because the clicked point supplies it; root scale, planar rotations, parent offsets and renderer flips are retained. Nested/variant prefabs, missing parents, ambiguous renderers and non-planar transforms require Unity resolution and are not guessed. The importer reads only the chosen local assets; it never writes them or stores their paths in the LDtk project. Calibration is session-local. If the LDtk project is inside a Unity project, the known JoshuaIdle path is tried automatically.
+The last point and pinned state are retained for each level in the open project when you toggle the preview, switch levels or pass into World View through zooming. World View renders the frame and the included Joshua marker using the level's world offset; the marker stays visible at small zoom. Leaving World View restores editing without requiring new placement. Opening another LDtk project clears the previous project's stored points.
+
+The preview uses a single fixed, nearest-neighbor Joshua marker bundled with LDtk. Sprite/prefab selection and manual PPU/pivot/offset calibration have been removed from this mode. The preview never replaces a sprite in the Unity project.
 
 ## Optional camera model: verification boundary
 
@@ -104,4 +106,4 @@ The source file is bounded to 4 MiB to accommodate model-sized snapshots. Reload
 
 ## Regression commands
 
-`cd app && npm run test:camera-sprite` checks metadata/prefab parsing with synthetic vectors. `npm run test:camera-preview` compiles the production editor and drives native Electron mouse and keyboard input, including continuous strokes, erase, selection, entity placement, Undo/Redo, placement-drag safety, real PNG/meta/prefab import, pan/zoom and source reload. On Linux run it through `xvfb-run -a`; `SMARTIVE_CAMERA_DPR=2` exercises Retina-scale transforms. Run `npm run test:release-preflight` for the complete editor suite before packaging.
+`cd app && npm run test:camera-preview` compiles the production editor and drives native Electron mouse and keyboard input, including continuous strokes, erase, selection, entity placement, Undo/Redo, placement-drag safety, grid editing, World View, preview toggle state, pan/zoom and source reload. The old standalone sprite-parser unit tests remain in the repository but are not used by the Camera Preview UI. On Linux run it through `xvfb-run -a`; `SMARTIVE_CAMERA_DPR=2` exercises Retina-scale transforms. Run `npm run test:release-preflight` for the complete editor suite before packaging.

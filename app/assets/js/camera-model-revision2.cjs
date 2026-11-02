@@ -341,4 +341,10 @@ class CameraModelClient {
       diagnostics:diagnostic,error:localError||answerError,referenceCount:this.validation.count};
   }
 }
-module.exports={evaluate,verify,normalizedState,roundHalfEven,queryPaths,validReply,createClient:()=>new CameraModelClient()};
+// Haxe Dynamic invokes methods as detached function references. Return closures
+// bound to the client so both update() and clear() retain the correct instance.
+function createClient(){
+  const client=new CameraModelClient();
+  return {update:(input)=>client.update(input),clear:()=>client.clear()};
+}
+module.exports={evaluate,verify,normalizedState,roundHalfEven,queryPaths,validReply,createClient};

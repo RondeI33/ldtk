@@ -1,3 +1,13 @@
+# 1.0.38
+
+## Per-level contentShift sidecar for Unity-only decor anchors
+
+- Track each level's exact accumulated pixel content shift when its bounds change at the left or top edge, including offsets smaller than a tile. Moving and snapping levels does not change the shift.
+- Save only nonzero per-level contentShift.x/y values under a deterministic, IID-sorted levels object in the existing .ldtk-fork.json sidecar. No entity definitions, editor UI, or stock LDtk .ldtk/.ldtkl JSON keys change. Unchanged sidecars are not rewritten.
+- Persist content shifts through full-level and partial history snapshots, Undo/Redo, level duplication, deletion and the Last Chance undo, project opening, external level loading, and the authenticated POST /reload editor endpoint.
+- Add a native Electron regression suite for all twelve world-pixel test vectors, saved sidecar contents, undo byte-for-byte restoration, external levels and control reload. Run it as a Linux/macOS Intel release gate before Windows/macOS/Linux installer packaging.
+- Optional duplicatedFrom metadata is not included; duplication only copies contentShift.
+
 # 1.0.37
 
 ## Unity camera preview model revision 2 and Joshua editor workflow

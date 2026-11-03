@@ -1,0 +1,26 @@
+name: Build LDTK-Smartive 1.0.38 from master
+
+# This one-shot master release runs the full Linux/macOS editor gates before
+# packaging all platforms; Slack is announced only after GitHub publishing.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.38-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.38-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: ContentShift gates, installers and v1.0.38
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: true
+    secrets: inherit

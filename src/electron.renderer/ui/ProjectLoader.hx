@@ -216,6 +216,7 @@ class ProjectLoader {
 		// External levels replace the lightweight level objects after the outer progress ran,
 		// so refresh IID/UID lookup maps again before exposing the completed project.
 		p.resetQuickLevelAccesses();
+		p.forkConfig.applyLevelContentShifts();
 
 		if( needReSaving ) {
 			log.add(tag, "Project file was created using an older version of LDtk, re-saving is recommended to upgrade it.");

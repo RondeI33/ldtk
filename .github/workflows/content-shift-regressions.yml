@@ -1,0 +1,54 @@
+name: Per-level contentShift regressions
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/electron.renderer/data/Level.hx'
+      - 'src/electron.renderer/data/World.hx'
+      - 'src/electron.renderer/data/ForkConfig.hx'
+      - 'src/electron.renderer/LevelTimeline.hx'
+      - 'src/electron.renderer/ui/ProjectLoader.hx'
+      - 'src/electron.renderer/ui/LastChance.hx'
+      - 'app/scripts/*content-shift*'
+      - 'app/package.json'
+      - '.github/workflows/content-shift-regressions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    name: Content shift (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: '4.3.3'
+      - run: haxe setup.hxml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Exercise content shift in native Electron (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:content-shift
+      - name: Exercise content shift in native Electron (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:content-shift
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: content-shift-${{ matrix.os }}
+          path: app/test-results/content-shift
+          if-no-files-found: warn

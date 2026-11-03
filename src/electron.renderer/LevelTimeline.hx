@@ -1,6 +1,8 @@
 typedef TimelineState = {
 	var layerJsons : Map<Int, ldtk.Json.LayerInstanceJson>;
 	var fullLevelJson : Null<ldtk.Json.LevelJson>;
+	var contentShiftX : Int;
+	var contentShiftY : Int;
 	var bounds : Null<h2d.col.Bounds>;
 }
 
@@ -234,6 +236,8 @@ class LevelTimeline {
 
 		// Store level JSON
 		s.fullLevelJson = level.toJson(true);
+		s.contentShiftX = level.contentShiftX;
+		s.contentShiftY = level.contentShiftY;
 
 		// Also store layer instances JSONs (from level JSON)
 		for(layerInstJson in s.fullLevelJson.layerInstances)
@@ -266,6 +270,8 @@ class LevelTimeline {
 			// its first full snapshot. Store a complete checkpoint, not a partial
 			// state with undefined layerJsons, and do not invent a pre-edit state.
 			s.fullLevelJson = level.toJson(true);
+			s.contentShiftX = level.contentShiftX;
+			s.contentShiftY = level.contentShiftY;
 			for(layerJson in s.fullLevelJson.layerInstances)
 				if( !s.layerJsons.exists(layerJson.layerDefUid) )
 					s.layerJsons.set(layerJson.layerDefUid, layerJson);
@@ -282,6 +288,8 @@ class LevelTimeline {
 		// Level JSON
 		if( s.fullLevelJson==null )
 			s.fullLevelJson = previous.fullLevelJson;
+		s.contentShiftX = previous.contentShiftX;
+		s.contentShiftY = previous.contentShiftY;
 	}
 
 
@@ -294,6 +302,8 @@ class LevelTimeline {
 			states.set(idx, {
 				layerJsons: new Map(),
 				fullLevelJson: null,
+				contentShiftX: 0,
+				contentShiftY: 0,
 				bounds: null,
 			});
 	}
@@ -399,7 +409,10 @@ class LevelTimeline {
 
 		// Restore full level
 		var lidx = dn.Lib.getArrayIndex(level, world.levels);
-		world.levels[lidx] = data.Level.fromJson(project, world, state.fullLevelJson, true);
+		var restored = data.Level.fromJson(project, world, state.fullLevelJson, true);
+		restored.contentShiftX = state.contentShiftX;
+		restored.contentShiftY = state.contentShiftY;
+		world.levels[lidx] = restored;
 		project.resetQuickLevelAccesses();
 		level.tidy(project, world);
 		editor.invalidateLevelCache(level);
@@ -416,6 +429,10 @@ class LevelTimeline {
 		var state = getState(idx);
 		if( state==null )
 			throw "Null timeline state "+idx;
+
+		// Every history state includes the sidecar-only displacement.
+		level.contentShiftX = state.contentShiftX;
+		level.contentShiftY = state.contentShiftY;
 
 		// Restore some layer instances
 		var restoreds = [];

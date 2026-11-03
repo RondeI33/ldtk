@@ -99,6 +99,43 @@ class ForkConfig {
 		return cloneJson(current);
 	}
 
+	/** Load the current sidecar values onto every live level (external files replace level objects). */
+	public function applyLevelContentShifts() {
+		var entries = getDyn(sidecarRoot,"levels");
+		for(w in project.worlds)
+		for(l in w.levels) {
+			var shift = getDyn(getDyn(entries,l.iid),"contentShift");
+			l.contentShiftX = getInt(shift,"x",0);
+			l.contentShiftY = getInt(shift,"y",0);
+		}
+	}
+
+	/** Compare JSON by value so a differently formatted but unchanged sidecar is not rewritten. */
+	static function sameJson(a:Dynamic, b:Dynamic) : Bool {
+		if( a==b )
+			return true;
+		if( isJsonObject(a) && isJsonObject(b) ) {
+			var fields = Reflect.fields(a);
+			if( fields.length!=Reflect.fields(b).length )
+				return false;
+			for(key in fields)
+				if( !Reflect.hasField(b,key) || !sameJson(Reflect.field(a,key),Reflect.field(b,key)) )
+					return false;
+			return true;
+		}
+		if( Std.isOfType(a,Array) && Std.isOfType(b,Array) ) {
+			var left:Array<Dynamic> = cast a;
+			var right:Array<Dynamic> = cast b;
+			if( left.length!=right.length )
+				return false;
+			for(i in 0...left.length)
+				if( !sameJson(left[i],right[i]) )
+					return false;
+			return true;
+		}
+		return false;
+	}
+
 	static function hasSidecarIdentity(v:Dynamic) : Bool {
 		if( !isJsonObject(v) )
 			return false;
@@ -266,6 +303,7 @@ class ForkConfig {
 		trackedEntities = new Map();
 		sidecarRoot = {};
 		loadedEntityKeys = new Map();
+		applyLevelContentShifts(); // Missing sidecar means zero, including on a subsequent reload.
 
 		// Clear all sidecar-only runtime state. Legacy embedded autoChildren are intentionally kept
 		// until/unless the sidecar contains an explicit autoChildren entry, allowing one-time migration.
@@ -298,6 +336,7 @@ class ForkConfig {
 			if( !isJsonObject(root) )
 				throw "Expected a sidecar object";
 			sidecarRoot = cloneJson(root);
+			applyLevelContentShifts();
 			var entities = getDyn(root,"entities");
 			if( !isJsonObject(entities) )
 				return;
@@ -509,8 +548,40 @@ class ForkConfig {
 		Reflect.setField(root,"format",FORMAT);
 		Reflect.setField(root,"projectIid",project.iid);
 		Reflect.setField(root,"entities",entities);
+
+		// Only edited levels are represented, sorted by IID for stable diffs.
+		var shifted : Array<data.Level> = [];
+		for(w in project.worlds)
+		for(l in w.levels)
+			if( l.contentShiftX!=0 || l.contentShiftY!=0 )
+				shifted.push(l);
+		if( shifted.length==0 )
+			Reflect.deleteField(root,"levels");
+		else {
+			shifted.sort((a,b)->Reflect.compare(a.iid,b.iid));
+			var levelEntries : Dynamic = {};
+			for(l in shifted)
+				Reflect.setField(levelEntries,l.iid,{contentShift:{x:l.contentShiftX,y:l.contentShiftY}});
+			Reflect.setField(root,"levels",levelEntries);
+		}
+
 		try {
-			NT.writeFileString(getPath(), haxe.Json.stringify(root,null,"\t"));
+			var path = getPath();
+			var serialized = haxe.Json.stringify(root,null,"\t");
+			if( NT.fileExists(path) ) {
+				var previous = NT.readFileString(path);
+				if( previous==serialized ) {
+					sidecarRoot = cloneJson(root);
+					return;
+				}
+				// Do not touch an existing sidecar unless its JSON values changed.
+				var oldJson = try haxe.Json.parse(previous) catch(_:Dynamic) null;
+				if( oldJson!=null && sameJson(oldJson,root) ) {
+					sidecarRoot = cloneJson(root);
+					return;
+				}
+			}
+			NT.writeFileString(path, serialized);
 			sidecarRoot = cloneJson(root);
 		}
 		catch(err:Dynamic) {

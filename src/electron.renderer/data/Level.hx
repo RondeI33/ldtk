@@ -12,6 +12,9 @@ class Level {
 	public var identifier(default,set): String;
 	public var worldX : Int;
 	public var worldY : Int;
+	// Editor-only world-pixel translation of level content; never included in LDtk JSON.
+	public var contentShiftX : Int = 0;
+	public var contentShiftY : Int = 0;
 	public var worldDepth : Int;
 	public var pxWid : Int;
 	public var pxHei : Int;
@@ -671,6 +674,10 @@ class Level {
 	public function applyNewBounds(newPxLeft:Int, newPxTop:Int, newPxWid:Int, newPxHei:Int) {
 		for(li in layerInstances)
 			li.applyNewBounds(newPxLeft, newPxTop, newPxWid, newPxHei);
+		// The content moved inside the level. Preserve its external world anchor,
+		// even for non-grid-aligned offsets and callers that do not move worldX/Y.
+		contentShiftX += newPxLeft;
+		contentShiftY += newPxTop;
 		pxWid = newPxWid;
 		pxHei = newPxHei;
 		for(li in layerInstances)

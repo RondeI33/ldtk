@@ -137,6 +137,9 @@ class World {
 
 	public function duplicateLevel(l:data.Level) {
 		var copy : data.Level = Level.fromJson( _project, this, l.toJson(true), false );
+		// toJson() is stock LDtk data only; carry the sidecar-only offset separately.
+		copy.contentShiftX = l.contentShiftX;
+		copy.contentShiftY = l.contentShiftY;
 
 		// Remap IDs
 		copy.iid = _project.generateUniqueId_UUID();

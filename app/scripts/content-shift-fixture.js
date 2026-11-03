@@ -114,6 +114,24 @@
    anchor:[l.worldX-l.contentShiftX,l.worldY-l.contentShiftY],
    entityWorld:[l.worldX+li.get_pxTotalOffsetX()+ei.x,l.worldY+li.get_pxTotalOffsetY()+ei.y]};
  };
+ F.deleteUndo=()=>{
+  const e=F.editor(),l=F.level(),w=l._world;
+  const replacement=w.createLevel();
+  e.ge.emit(E['GlobalEvent'].LevelAdded(replacement));
+  // Unlike LDtk project JSON, LastChance has to snapshot contentShift
+  // alongside its JSON snapshot.
+  new C['ui.LastChance']('Level removed',e.project);
+  e.selectLevel(replacement);
+  w.removeLevel(l);
+  e.ge.emit(E['GlobalEvent'].LevelRemoved(l));
+  // Simulate saving after deletion and before invoking Last Chance Undo:
+  // the old IID is no longer present in the sidecar on disk.
+  F.save();
+  const action=document.querySelector('.lastChance button');
+  if(!action)throw Error('Last Chance Undo button missing');
+  action.click();
+  return F.state();
+ };
  F.delete=()=>{
   const e=F.editor(),l=F.level(),w=l._world;
   const other=w.createLevel(),oldIID=l.iid;

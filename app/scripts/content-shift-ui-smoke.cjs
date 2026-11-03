@@ -155,6 +155,13 @@ async function test(win){
  await ev('contentShiftFixture.delete()');
  saved=await save();assert(!Object.hasOwn(JSON.parse(saved.sidecar),'levels'));
  pass('Deleting the shifted level removes its sidecar entry on the next save');
+ await setup('delete-last-chance');
+ await resize(-64,0,576,256);await save();
+ expected(await ev('contentShiftFixture.deleteUndo()'),936,500,576,256,-64,0,1000,500,1100,600);
+ saved=await save();
+ const restoredSidecar=JSON.parse(saved.sidecar);
+ assert.deepEqual(restoredSidecar.levels[(await state()).iid].contentShift,{x:-64,y:0});
+ pass('Last Chance delete undo restores the per-level shift even after a sidecar save');
  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({status:'passed',passed,platform:process.platform,electron:process.versions.electron},null,2));
  console.log('SUCCESS: '+passed.length+' contentShift regressions passed');
  clearTimeout(timer);app.exit(0);

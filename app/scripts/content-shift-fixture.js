@@ -120,18 +120,25 @@
   e.ge.emit(E['GlobalEvent'].LevelAdded(replacement));
   // Unlike LDtk project JSON, LastChance has to snapshot contentShift
   // alongside its JSON snapshot.
-  new C['ui.LastChance']('Level removed',e.project);
+  const lastChance=new C['ui.LastChance']('Level removed',e.project);
   e.selectLevel(replacement);
   w.removeLevel(l);
   e.ge.emit(E['GlobalEvent'].LevelRemoved(l));
+  e.setWorldMode(true);
   // Simulate saving after deletion and before invoking Last Chance Undo:
   // the old IID is no longer present in the sidecar on disk.
   F.save();
-  const action=document.querySelector('.lastChance button');
+  // Use this specific LastChance instance rather than selecting an unrelated
+  // older notification that might still be waiting for its slide-up animation.
+  const action=lastChance.elem.find('button')[0];
   if(!action)throw Error('Last Chance Undo button missing');
+  const before={active:lastChance.isActive(),destroyed:lastChance.destroyed,
+   hiding:lastChance.cd.has('hiding'),ignoreFrame:lastChance.cd.has('ignoreFrame'),
+   count:document.querySelectorAll('.lastChance button').length,
+   iids:e.project.worlds.flatMap(w2=>w2.levels.map(lv=>lv.iid))};
   action.click();
   const restored=F.state();
-  return {restored, currentLevelIids:e.project.worlds.flatMap(w2=>w2.levels.map(lv=>lv.iid)),
+  return {before,restored,afterActive:lastChance.isActive(), currentLevelIids:e.project.worlds.flatMap(w2=>w2.levels.map(lv=>lv.iid)),
    activeLevel:e.curLevelId,undoButtonStillInDom:action.isConnected};
  };
  F.delete=()=>{

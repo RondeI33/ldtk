@@ -131,7 +131,7 @@
   if(!action)throw Error('Last Chance Undo button missing');
   action.click();
   const restored=F.state();
-  return {restored, currentLevelIids:[for(const w2 of e.project.worlds)for(const lv of w2.levels)lv.iid],
+  return {restored, currentLevelIids:e.project.worlds.flatMap(w2=>w2.levels.map(lv=>lv.iid)),
    activeLevel:e.curLevelId,undoButtonStillInDom:action.isConnected};
  };
  F.delete=()=>{

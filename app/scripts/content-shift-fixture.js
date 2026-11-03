@@ -115,11 +115,16 @@
    entityWorld:[l.worldX+li.get_pxTotalOffsetX()+ei.x,l.worldY+li.get_pxTotalOffsetY()+ei.y]};
  };
  F.delete=()=>{
-  const l=F.level();const w=l._world;
-  const other=w.createLevel();
-  const oldIID=l.iid;
-  w.removeLevel(l);F.editor().selectLevel(other);
-  return {removed:!F.editor().project.getLevelAnywhere(null,oldIID),iid:oldIID};
+  const e=F.editor(),l=F.level(),w=l._world;
+  const other=w.createLevel(),oldIID=l.iid;
+  // Mirror the real world-panel deletion: register the replacement, select it,
+  // remove the old level and emit removal to clean the rendered world cache.
+  e.ge.emit(E['GlobalEvent'].LevelAdded(other));
+  e.selectLevel(other);
+  w.removeLevel(l);
+  e.ge.emit(E['GlobalEvent'].LevelRemoved(l));
+  e.setWorldMode(true);
+  return {removed:!e.project.getLevelAnywhere(null,oldIID),iid:oldIID};
  };
  return true;
 })()

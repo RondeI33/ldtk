@@ -57,6 +57,33 @@ async function test(win){
   assert(!saved.project.includes('contentShift'),'LDtk project JSON leaked contentShift');
   for(const level of saved.externalFiles)assert(!level.includes('contentShift'),'External level leaked contentShift');
  }
+ await setup('control-reload');
+ await resize(-64,0,576,256);await save();
+ // Start control test with a freshly opened editor; earlier fixture pages
+ // may leave deferred UI tasks that obscure reload completion.
+ await ev('contentShiftFixture.reopen()');await delay(180);
+ // Do not bypass the actual control server: call POST /reload with its token.
+ const ctrl=await poll(()=>{
+  const dir=path.join(tmp,'control');
+  if(!fs.existsSync(dir))return null;
+  const f=fs.readdirSync(dir).find(name=>name.endsWith('.json'));
+  return f?JSON.parse(fs.readFileSync(path.join(dir,f),'utf8')):null;
+ },'Control endpoint did not start');
+ async function request(route,method='GET'){
+  return new Promise((resolve,reject)=>{
+   const req=http.request({hostname:'127.0.0.1',port:ctrl.port,method,path:route,headers:{'X-LDtk-Token':ctrl.token,'Content-Type':'application/json'}},res=>{
+    let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)});}catch(err){reject(err);}});
+   });
+   req.on('error',reject);if(method==='POST')req.write('{}');req.end();
+  });
+ }
+ const status=await request('/status');assert.equal(status.status,200);
+ const response=await request('/reload','POST');
+ assert.equal(response.status,200,JSON.stringify(response.body));
+ assert.equal(response.body.reloaded,true,JSON.stringify(response.body));
+ await delay(180);
+ expected(await state(),936,500,576,256,-64,0,1000,500,1100,600);
+ pass('12. Real authenticated POST /reload restores the sidecar shift');
  await setup('move');
  expected(await ev('contentShiftFixture.move(200,0)'),1200,500,512,256,0,0,1200,500,1300,600);
  pass('1. World drag moves anchor without creating a content shift');
@@ -113,30 +140,6 @@ async function test(win){
  await resize(-64,0,576,256);await save();
  expected(await ev('contentShiftFixture.reopen()'),936,500,576,256,-64,0,1000,500,1100,600);
  pass('11. Save-close-reopen loads the shift from sidecar');
- await setup('control-reload');
- await resize(-64,0,576,256);await save();
- // Do not bypass the actual control server: call POST /reload with its token.
- const ctrl=await poll(()=>{
-  const dir=path.join(tmp,'control');
-  if(!fs.existsSync(dir))return null;
-  const f=fs.readdirSync(dir).find(name=>name.endsWith('.json'));
-  return f?JSON.parse(fs.readFileSync(path.join(dir,f),'utf8')):null;
- },'Control endpoint did not start');
- async function request(route,method='GET'){
-  return new Promise((resolve,reject)=>{
-   const req=http.request({hostname:'127.0.0.1',port:ctrl.port,method,path:route,headers:{'X-LDtk-Token':ctrl.token,'Content-Type':'application/json'}},res=>{
-    let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)});}catch(err){reject(err);}});
-   });
-   req.on('error',reject);if(method==='POST')req.write('{}');req.end();
-  });
- }
- const status=await request('/status');assert.equal(status.status,200);
- const response=await request('/reload','POST');
- assert.equal(response.status,200,JSON.stringify(response.body));
- assert.equal(response.body.reloaded,true,JSON.stringify(response.body));
- await delay(180);
- expected(await state(),936,500,576,256,-64,0,1000,500,1100,600);
- pass('12. Real authenticated POST /reload restores the sidecar shift');
  await setup('external-level',true);
  await resize(-64,0,576,256);saved=await save();noShiftInLdtk(saved);
  assert(saved.externalFiles.length>0);

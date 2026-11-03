@@ -157,7 +157,9 @@ async function test(win){
  pass('Deleting the shifted level removes its sidecar entry on the next save');
  await setup('delete-last-chance');
  await resize(-64,0,576,256);await save();
- expected(await ev('contentShiftFixture.deleteUndo()'),936,500,576,256,-64,0,1000,500,1100,600);
+ const undoDelete=await ev('contentShiftFixture.deleteUndo()');
+ assert(undoDelete.restored,'Last Chance failed to restore deleted IID: '+JSON.stringify(undoDelete));
+ expected(undoDelete.restored,936,500,576,256,-64,0,1000,500,1100,600);
  saved=await save();
  const restoredSidecar=JSON.parse(saved.sidecar);
  assert.deepEqual(restoredSidecar.levels[(await state()).iid].contentShift,{x:-64,y:0});

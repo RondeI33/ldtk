@@ -130,7 +130,9 @@
   const action=document.querySelector('.lastChance button');
   if(!action)throw Error('Last Chance Undo button missing');
   action.click();
-  return F.state();
+  const restored=F.state();
+  return {restored, currentLevelIids:[for(const w2 of e.project.worlds)for(const lv of w2.levels)lv.iid],
+   activeLevel:e.curLevelId,undoButtonStillInDom:action.isConnected};
  };
  F.delete=()=>{
   const e=F.editor(),l=F.level(),w=l._world;

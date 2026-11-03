@@ -54,6 +54,8 @@ class LastChance extends dn.Process {
 		switch(e) {
 			case ViewportChanged(_):
 			case LevelSelected(l):
+			// Deleting a level is the action LastChance must be able to undo.
+			case LevelRemoved(_):
 			case LayerInstanceSelected(li):
 			case LayerInstanceVisiblityChanged(li):
 			case ToolValueSelected:

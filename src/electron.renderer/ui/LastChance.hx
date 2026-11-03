@@ -53,6 +53,7 @@ class LastChance extends dn.Process {
 	function onGlobalEvent(e:GlobalEvent) {
 		switch(e) {
 			case ViewportChanged(_):
+			case WorldMode(_): // Level deletion enters World View; keep Last Chance undo usable.
 			case LevelSelected(l):
 			// Deleting a level is the action LastChance must be able to undo.
 			case LevelRemoved(_):

@@ -133,7 +133,6 @@
   const action=lastChance.elem.find('button')[0];
   if(!action)throw Error('Last Chance Undo button missing');
   const before={active:lastChance.isActive(),destroyed:lastChance.destroyed,
-   hiding:lastChance.cd.has('hiding'),ignoreFrame:lastChance.cd.has('ignoreFrame'),
    count:document.querySelectorAll('.lastChance button').length,
    iids:e.project.worlds.flatMap(w2=>w2.levels.map(lv=>lv.iid))};
   action.click();

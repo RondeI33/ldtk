@@ -135,6 +135,14 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: app
         run: npm run test:camera-preview
+      - name: Per-level contentShift and control reload real Electron regression (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:content-shift
+      - name: Per-level contentShift and control reload real Electron regression (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:content-shift
       - name: CargoLine path preview real Electron regression
         if: runner.os == 'Linux'
         working-directory: app
@@ -178,6 +186,7 @@ jobs:
             app/test-results/path-preview
             app/test-results/points
             app/test-results/entity-history
+            app/test-results/content-shift
             app/test-results/entity-chain
             app/test-results/entity-multi
             app/test-results/drawable-shapes

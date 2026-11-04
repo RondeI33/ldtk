@@ -6,6 +6,7 @@
 - Show the camera grid without placing Joshua. Choose the level origin (0, 0), or align grid cells to the actual camera frame at Joshua, including camera offsets and zone zoom. Switching to grid inspection cancels unfinished placement; committed per-level anchors and camera settings remain intact.
 - Preserve unknown per-level sidecar metadata while updating contentShift. Keep camera grid settings out of .ldtk/.ldtkl files and retain the LDtk 1.5.3 JSON format.
 - Add real previous-editor open/save/reopen compatibility coverage and native grid interaction, offset and pixel-contrast regressions to the release gates before Windows, universal macOS and Linux packaging.
+- Retry transient busy-image errors while detaching the macOS DMG, with a bounded wait and unchanged failure handling for other packaging errors.
 
 # 1.0.38
 

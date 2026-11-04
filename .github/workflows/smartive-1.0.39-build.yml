@@ -2,6 +2,7 @@ name: Build LDTK-Smartive 1.0.39 from master
 
 # Merge only after the nonpublishing PR preflight passes. Installer creation
 # is gated again here, and the existing Slack notifier runs after publication.
+# macOS packaging retries only transient busy-image detach failures.
 on:
   push:
     branches: [master]

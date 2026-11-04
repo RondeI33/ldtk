@@ -3,6 +3,7 @@
 const {app} = require('electron');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const assert = require('node:assert/strict');
+const {isDeepStrictEqual} = require('node:util');
 const root = process.env.LDTK_COMPAT_APP_DIR;
 const dataDir = process.env.LDTK_COMPAT_DATA_DIR;
 const phase = process.env.LDTK_COMPAT_PHASE;
@@ -45,6 +46,23 @@ function canonical(json) {
   dropHeaders(out); delete out.appBuildId;
   if (Array.isArray(out.flags)) out.flags.sort();
   return out;
+}
+function compareJson(actual, expected, label) {
+  if (isDeepStrictEqual(actual, expected)) return;
+  const name = `${reader}-${phase}-${label}`;
+  fs.writeFileSync(path.join(output, name + '-actual.json'), JSON.stringify(actual, null, 2));
+  fs.writeFileSync(path.join(output, name + '-expected.json'), JSON.stringify(expected, null, 2));
+  const differences = [];
+  const short = value => JSON.stringify(value)?.slice(0, 160);
+  const visit = (a, b, key) => {
+    if (differences.length >= 12 || isDeepStrictEqual(a, b)) return;
+    if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      if (Array.isArray(a) && a.length !== b.length) differences.push(`${key}.length: ${a.length} != ${b.length}`);
+      for (const child of new Set([...Object.keys(a), ...Object.keys(b)])) visit(a[child], b[child], `${key}.${child}`);
+    } else differences.push(`${key}: actual ${short(a)}; expected ${short(b)}`);
+  };
+  visit(actual, expected, '$');
+  throw Error(`${reader}/${phase}/${label} changed project data:\n${differences.join('\n')}\nFull expected/actual JSON saved in the compatibility artifact.`);
 }
 function checkFiles(file) {
   const json = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -126,11 +144,11 @@ async function test(win) {
     } else {
       const expected = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
       checkFiles(file); await open(file);
-      assert.deepEqual(canonical(await call('snapshot')), expected.snapshot, `${reader} changed level, layer, field, entity, UID, or reference data while opening ${variant.id}`);
+      compareJson(canonical(await call('snapshot')), expected.snapshot, variant.id + '-open');
       if (phase === 'verify') assert.deepEqual(await call('shifts'), expected.shifts, 'Fork offsets did not survive the older editor');
       await save(); checkFiles(file);
-      assert.deepEqual(JSON.parse(fs.readFileSync(file + '-fork.json', 'utf8')), expected.sidecar, `${reader} changed sidecar metadata`);
-      assert.deepEqual(canonical(await call('snapshot')), expected.snapshot, `${reader} changed project data on save`);
+      compareJson(JSON.parse(fs.readFileSync(file + '-fork.json', 'utf8')), expected.sidecar, variant.id + '-sidecar');
+      compareJson(canonical(await call('snapshot')), expected.snapshot, variant.id + '-save');
       pass(`${variant.id}: actual ProjectLoader + ProjectSaver preserve definitions, fields, UIDs, references, terrain and sidecar`);
     }
   }

@@ -24,7 +24,7 @@
     const p = H.Project.createEmpty(file), FT = E['ldtk.FieldType'];
     p.externalLevels = external;
     p.minifyJson = multiWorld;
-    p.setFlag(E['ldtk.ProjectFlag'].ExportPreCsvIntGridFormat, true);
+    p.setFlag(E['ldtk.ProjectFlag'].IgnoreBackupSuggest, true);
     p.setFlag(E['ldtk.ProjectFlag'].UseMultilinesType, true);
     const objects = p.defs.createLayerDef(E['ldtk.LayerType'].Entities, 'Objects');
     const terrain = p.defs.createLayerDef(E['ldtk.LayerType'].IntGrid, 'Terrain');
@@ -39,7 +39,7 @@
       ['Health', FT.F_Int, false, '5'],
       ['Speed', FT.F_Float, false, '3.125'],
       ['Enabled', FT.F_Bool, false, 'true'],
-      ['Label', FT.F_String, false, 'żółć \\ camera'],
+      ['Label', FT.F_String, false, 'żółć / camera'],
       ['Description', FT.F_Text, false, 'First line\nDrugi wiersz'],
       ['Tint', FT.F_Color, false, '#45BBDD'],
       ['Anchor', FT.F_Point, false, '7,9'],

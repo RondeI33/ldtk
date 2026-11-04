@@ -10,7 +10,9 @@
   };
   F.install = p => {
     H.App.ME.clearCurPage();
-    C['dn.Process'].forceProcessGarbageCollection();
+    const processClass = C['dn.Process'];
+    if (typeof processClass.forceProcessGarbageCollection === 'function') processClass.forceProcessGarbageCollection();
+    else processClass._garbageCollector(processClass.ROOTS); // Same cleanup API before the public wrapper existed.
     H.App.ME.loadPage(() => new H.Editor(p), false);
     const e = F.editor();
     e.setWorldMode(false);

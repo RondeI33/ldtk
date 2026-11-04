@@ -114,7 +114,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-15-intel]
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 25 || 35 }}
+    # Include the historical-editor compatibility gate before packaging.
+    # Individual native suite deadlines remain unchanged.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: krdlab/setup-haxe@v2

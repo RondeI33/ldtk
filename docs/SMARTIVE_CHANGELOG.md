@@ -1,3 +1,12 @@
+# 1.0.39
+
+## Readable camera grid and older-editor compatibility
+
+- Make the normal camera grid readable over both light and dark level art with bright lines and a dark outline, keeping their on-screen thickness stable while zooming and on Retina displays. The grid does not dim the map or block ordinary drawing, selection or Undo/Redo.
+- Show the camera grid without placing Joshua. Choose the level origin (0, 0), or align grid cells to the actual camera frame at Joshua, including camera offsets and zone zoom. Switching to grid inspection cancels unfinished placement; committed per-level anchors and camera settings remain intact.
+- Preserve unknown per-level sidecar metadata while updating contentShift. Keep camera grid settings out of .ldtk/.ldtkl files and retain the LDtk 1.5.3 JSON format.
+- Add real previous-editor open/save/reopen compatibility coverage and native grid interaction, offset and pixel-contrast regressions to the release gates before Windows, universal macOS and Linux packaging.
+
 # 1.0.38
 
 ## Per-level contentShift sidecar for Unity-only decor anchors

@@ -31,7 +31,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    # Historical editor builds and 28 native compatibility round trips add a
+    # separate gate; retain every suite's individual timeout on slower macOS.
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 45 || 35 }}
     steps:
       - uses: actions/checkout@v4
       - uses: krdlab/setup-haxe@v2

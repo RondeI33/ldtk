@@ -9,6 +9,11 @@ class GameCameraPreview extends dn.Process {
 	public var enabled(default,null) = false;
 	public var gridMode(default,null) = false;
 	public var useGuideGrid(default,null) = false;
+	public var gridOriginAtCamera(default,null) = true;
+	public var gridOriginX(default,null) = 0.;
+	public var gridOriginY(default,null) = 0.;
+	public var gridCellWidth(default,null) = 0.;
+	public var gridCellHeight(default,null) = 0.;
 	public var pinned(default,null) = false;
 	/** Explicit placement action. Switching levels never arms this automatically. */
 	public var placementArmed(default,null) = false;
@@ -77,6 +82,7 @@ class GameCameraPreview extends dn.Process {
 			useGuideGrid = jControls.find(".cameraGuideGrid").prop("checked");
 			invalidated = true;
 		});
+		jControls.find(".cameraGridOrigin").on("change", _->setGridOriginAtCamera(selected(".cameraGridOrigin")=="camera"));
 		var module:Dynamic = js.Syntax.code("require(require('url').fileURLToPath(new URL('js/camera-model-revision2.cjs', document.baseURI)))");
 		modelBridge = module.createClient();
 		for(selector in [".cameraFacing",".cameraMotion",".cameraLook",".cameraChoice",".cameraZone"])
@@ -286,7 +292,16 @@ class GameCameraPreview extends dn.Process {
 
 	public function setGridMode(value:Bool) {
 		if( !editor.canStartCameraPlacement() || placementGesture ) return;
+		// Inspecting a grid must never require placing a player or consume a stroke.
+		if( value ) cancelPlacement();
 		gridMode = value;
+		invalidated = true;
+		updateControls();
+	}
+
+	public function setGridOriginAtCamera(value:Bool) {
+		if( !editor.canStartCameraPlacement() || placementGesture ) return;
+		gridOriginAtCamera = value;
 		invalidated = true;
 		updateControls();
 	}
@@ -398,6 +413,7 @@ class GameCameraPreview extends dn.Process {
 				sourceStale = false;
 				gridMode = false;
 				useGuideGrid = false;
+				gridOriginAtCamera = true;
 				pointsByLevel = new Map();
 				activeLevelIid = null;
 				firstEnable = true;
@@ -477,6 +493,12 @@ class GameCameraPreview extends dn.Process {
 		jControls.find(".cameraPin .label").text(placementArmed ? "Anuluj" : pinned ? "Przestaw Joshuę" : "Ustaw Joshuę");
 		jControls.find(".guideOption").toggle(gridMode);
 		jControls.find(".cameraGuideGrid").prop("checked",useGuideGrid);
+		jControls.find(".cameraGridOptions").toggle(gridMode);
+		jControls.find(".cameraGridOrigin").val(gridOriginAtCamera ? "camera" : "level").prop("disabled",useGuideGrid);
+		var gridText = number(gridCellWidth)+" × "+number(gridCellHeight)+" px · początek ("+number(gridOriginX)+", "+number(gridOriginY)+")";
+		if( gridOriginAtCamera && !useGuideGrid && !pinned && !placementArmed )
+			gridText += " · ustaw Joshuę, aby przesunąć siatkę";
+		jControls.find(".cameraGridMetrics").text(profile==null || gridCellWidth<=0 ? "" : gridText);
 		var text=sourceError;
 		if( profile!=null ) {
 			text=number(profile.width)+" × "+number(profile.height)+" px"
@@ -500,10 +522,10 @@ class GameCameraPreview extends dn.Process {
 	}
 
 	function grid() : { width:Float, height:Float, x:Float, y:Float } {
-		var width = profile.width;
-		var height = profile.height;
-		var x = 0.;
-		var y = 0.;
+		var width = !useGuideGrid && frame!=null ? frame.width : profile.width;
+		var height = !useGuideGrid && frame!=null ? frame.height : profile.height;
+		var x = !useGuideGrid && gridOriginAtCamera && frame!=null ? frame.x : 0.;
+		var y = !useGuideGrid && gridOriginAtCamera && frame!=null ? frame.y : 0.;
 		var li = editor.curLayerInstance;
 		if( useGuideGrid && li!=null ) {
 			var scale = li.def.getScale();
@@ -519,21 +541,47 @@ class GameCameraPreview extends dn.Process {
 		return { width:width, height:height, x:x, y:y };
 	}
 
+	function drawGrid(g:{width:Float,height:Float,x:Float,y:Float},origin:{x:Float,y:Float},col:Int) {
+		var cam = editor.camera;
+		var z = cam.adjustedZoom;
+		var minX = Math.max(0,-origin.x/z);
+		var maxX = Math.min(editor.curLevel.pxWid,(cam.width-origin.x)/z);
+		var minY = Math.max(0,-origin.y/z);
+		var maxY = Math.min(editor.curLevel.pxHei,(cam.height-origin.y)/z);
+		if( maxX<=minX || maxY<=minY ) return;
+		var xs = CameraPreviewGeometry.gridAxisLines(g.x,g.width,minX,maxX,z,12*cam.pixelRatio);
+		var ys = CameraPreviewGeometry.gridAxisLines(g.y,g.height,minY,maxY,z,12*cam.pixelRatio);
+		drawnGridLines = xs.length+ys.length;
+		// A dark keyline and bright core remain legible on both light and dark art.
+		// Widths are screen pixels, independent of map zoom and Retina scaling.
+		for( pass in 0...2 ) {
+			overlay.lineStyle((pass==0 ? 4 : 1.5)*cam.pixelRatio,pass==0 ? 0x101724 : col,pass==0 ? 0.85 : 0.95);
+			for( xx in xs ) {
+				overlay.moveTo(origin.x+xx*z,origin.y+minY*z);
+				overlay.lineTo(origin.x+xx*z,origin.y+maxY*z);
+			}
+			for( yy in ys ) {
+				overlay.moveTo(origin.x+minX*z,origin.y+yy*z);
+				overlay.lineTo(origin.x+maxX*z,origin.y+yy*z);
+			}
+		}
+	}
+
 	function render() {
 		invalidated = false;
 		overlay.clear();
 		drawnGridLines = 0;
+		gridOriginX = gridOriginY = gridCellWidth = gridCellHeight = 0;
 		renderError = null;
-		root.visible = isActive() && profile!=null && (pinned || placementArmed);
+		root.visible = isActive() && profile!=null && (gridMode || pinned || placementArmed);
 		frame = null;
 		syncSprite();
 		if( !root.visible ) return;
 		var cam = editor.camera;
 		var z = cam.adjustedZoom;
 		var origin = levelOrigin();
-		var g = grid();
 		modelSource=""; modelDetail=""; modelDiagnostics="";
-		if( hasRevision2() ) {
+		if( (pinned || placementArmed) && hasRevision2() ) {
 			try {
 				var result:Dynamic=modelBridge.update({
 					profile:profile,
@@ -563,56 +611,40 @@ class GameCameraPreview extends dn.Process {
 				frame=CameraPreviewGeometry.frame(pointX,pointY,profile.width,profile.height,false);
 			}
 		}
-		else {
+		else if( pinned || placementArmed ) {
 			// Original Unity v1 snapshots and v1 static models keep their old path.
 			try frame = CameraPreviewGeometry.playerFrame(profile,editor.curLevel.iid,pointX,pointY,
 				editor.curLevel.worldX,editor.curLevel.worldY,editor.curLevel.pxWid,editor.curLevel.pxHei)
 			catch(error:Dynamic) {
-				root.visible = false;
 				renderError = "Nie można obliczyć kadru: "+Std.string(error);
-				return;
+				// The level-origin grid needs dimensions only; a missing model mapping
+				// must not prevent inspecting or editing an otherwise valid level.
+				if( !gridMode || gridOriginAtCamera && !useGuideGrid ) {
+					root.visible = false;
+					return;
+				}
 			}
 		}
+		var g = grid();
+		gridOriginX = g.x;
+		gridOriginY = g.y;
+		gridCellWidth = g.width;
+		gridCellHeight = g.height;
+		if( gridMode ) {
+			try drawGrid(g,origin,sourceStale ? 0xffd080 : 0xa0d8ff)
+			catch(error:Dynamic) {
+				// Guide metadata and live Unity answers must never crash editing.
+				overlay.clear();
+				drawnGridLines = 0;
+				renderError = "Nie można wyświetlić siatki: "+Std.string(error);
+			}
+		}
+		if( frame==null ) return;
 		var x = origin.x+frame.x*z;
 		var y = origin.y+frame.y*z;
 		var w = frame.width*z;
 		var h = frame.height*z;
-		var screenW = cam.width;
-		var screenH = cam.height;
-		var col = sourceStale ? 0xe8b75b : 0x7faaff;
-		if( gridMode ) {
-			// Default guide cells radiate from the actual camera frame, not a snapped origin.
-			if( !useGuideGrid ) { g.width=frame.width; g.height=frame.height; g.x=frame.x; g.y=frame.y; }
-			overlay.lineStyle(cam.pixelRatio,col,0.22);
-			var minX = Math.max(0,-origin.x/z);
-			var maxX = Math.min(editor.curLevel.pxWid,(screenW-origin.x)/z);
-			var minY = Math.max(0,-origin.y/z);
-			var maxY = Math.min(editor.curLevel.pxHei,(screenH-origin.y)/z);
-			// Pixel-density and iteration caps keep pathological/huge maps cheap.
-			if( maxX>minX && maxY>minY ) {
-				if( g.width*z>=12*cam.pixelRatio ) {
-					var xx = g.x+Math.ceil((minX-g.x)/g.width)*g.width;
-					var count = 0;
-					while( xx<=maxX && count++<200 ) {
-						overlay.moveTo(origin.x+xx*z,origin.y+minY*z);
-						overlay.lineTo(origin.x+xx*z,origin.y+maxY*z);
-						xx += g.width;
-						drawnGridLines++;
-					}
-				}
-				if( g.height*z>=12*cam.pixelRatio ) {
-					var yy = g.y+Math.ceil((minY-g.y)/g.height)*g.height;
-					var count = 0;
-					while( yy<=maxY && count++<200 ) {
-						overlay.moveTo(origin.x+minX*z,origin.y+yy*z);
-						overlay.lineTo(origin.x+maxX*z,origin.y+yy*z);
-						yy += g.height;
-						drawnGridLines++;
-					}
-				}
-			}
-		}
-		overlay.lineStyle(2*cam.pixelRatio,col,1);
+		overlay.lineStyle(2*cam.pixelRatio,sourceStale ? 0xe8b75b : 0x7faaff,1);
 		overlay.drawRect(x,y,w,h);
 
 	}
@@ -622,7 +654,7 @@ class GameCameraPreview extends dn.Process {
 		dialog.addTitle(L.untranslated("Connect the Unity camera"),true);
 		dialog.addParagraph(L.untranslated("In Unity, install or update the Smartive Unity package, then open <b>Tools &gt; LDTK-Smartive &gt; Camera preview sync</b>."));
 		dialog.addParagraph(L.untranslated("Choose this LDtk project and the camera from the active scene. Check the importer Pixels Per Unit, then enable automatic sync or export a snapshot."));
-		dialog.addParagraph(L.untranslated("Click the level to place Joshua. The border shows the camera view at his position; camera grid only changes the grid display. The normal editor tools remain usable after placement."));
+		dialog.addParagraph(L.untranslated("Camera grid works without placing Joshua. Choose the level origin (0, 0), or align it to the camera frame at Joshua's position. Use Place Joshua to set or move the marker; ordinary drawing remains available while inspecting the grid."));
 		dialog.addParagraph(L.untranslated("Camera framing comes from the Unity snapshot. Runtime damping and transitions are not simulated. The Joshua marker is editor-only and does not change the level file."));
 		new J('<p class="cameraFilePath"/>').text(getSourcePath()).appendTo(dialog.jContent);
 		dialog.addButton("Copy Unity package URL",null,()->{

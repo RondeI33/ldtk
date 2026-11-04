@@ -158,6 +158,68 @@ async function run(win) {
     assert.deepEqual(await call('serial'), before, 'Camera inspection changed project JSON, undo history, or dirty state');
     assert.equal((await state()).banner, false, 'Camera telemetry triggered a project-reload banner');
   };
+  const setGridOrigin = async mode => {
+    await ev(`(()=>{const e=document.querySelector('.cameraGridOrigin');e.value=${JSON.stringify(mode)};e.dispatchEvent(new Event('change',{bubbles:true}));return e.value})()`);
+    const s = await settled();
+    assert.equal(s.gridOriginAtCamera, mode === 'camera', 'Grid origin selector did not update the preview');
+    return s;
+  };
+  const verifyGridPixels = async label => {
+    const previous = await state();
+    const capture = async () => {
+      await settled();
+      const image = await win.webContents.capturePage();
+      const scale = image.getScaleFactors()[0];
+      const size = image.getSize(scale), bitmap = image.toBitmap({scaleFactor: scale});
+      const viewport = await ev('({width:innerWidth,height:innerHeight})');
+      assert.equal(bitmap.length, size.width * size.height * 4, 'Screenshot bitmap dimensions are inconsistent');
+      return {bitmap, width: size.width, height: size.height, sx: size.width / viewport.width, sy: size.height / viewport.height};
+    };
+    const samples = [];
+    try {
+      await call('setFlags', {grid: false});
+      await setGridOrigin('level');
+      await ev('cameraPreviewFixture.preview().setGridMode(false)');
+      const without = await capture();
+      await ev('cameraPreviewFixture.preview().setGridMode(true)');
+      const withGrid = await capture();
+      assert.equal(withGrid.width, without.width); assert.equal(withGrid.height, without.height);
+      const difference = (x, y) => {
+        assert.ok(x >= 0 && y >= 0 && x < withGrid.width && y < withGrid.height, 'Grid sample is outside the screenshot');
+        const i = (y * withGrid.width + x) * 4;
+        return Math.max(...[0, 1, 2].map(channel => Math.abs(withGrid.bitmap[i + channel] - without.bitmap[i + channel])));
+      };
+      // One vertical boundary crosses the dark room and a bright platform.
+      // Compare pixels at the same screen position; no guessed theme colors.
+      for (const [name, y] of [['dark background', 248], ['bright platform', 264]]) {
+        const p = await call('screen', 320, y);
+        assert.equal(await ev(`document.elementFromPoint(${p.x},${p.y})?.id`), 'webgl', 'Grid sample is covered by a panel');
+        let contrast = 0, changedColumns = 0;
+        for (let x = Math.floor((p.x - 4) * withGrid.sx); x <= Math.ceil((p.x + 4) * withGrid.sx); x++) {
+          let columnContrast = 0;
+          for (let row = Math.floor((p.y - 1) * withGrid.sy); row <= Math.ceil((p.y + 1) * withGrid.sy); row++)
+            columnContrast = Math.max(columnContrast, difference(x, row));
+          contrast = Math.max(contrast, columnContrast);
+          if (columnContrast > 24) changedColumns++;
+        }
+        const width = changedColumns / withGrid.sx;
+        assert.ok(contrast >= 70, `${label}: camera grid is too faint on ${name} (${contrast}/255)`);
+        assert.ok(width >= 0.75 && width <= 7, `${label}: grid stroke has an unreadable screen width on ${name}: ${width}px`);
+        samples.push({name, contrast, width});
+        const clear = await call('screen', 344, y);
+        for (let x = Math.floor((clear.x - 1) * withGrid.sx); x <= Math.ceil((clear.x + 1) * withGrid.sx); x++)
+          for (let row = Math.floor((clear.y - 1) * withGrid.sy); row <= Math.ceil((clear.y + 1) * withGrid.sy); row++)
+            assert.ok(difference(x, row) <= 2, `${label}: camera grid dims or changes art between cell boundaries`);
+      }
+      console.log('CAMERA-GRID-PIXELS:', JSON.stringify({label, samples}));
+      return samples;
+    } finally {
+      await setGridOrigin(previous.gridOriginAtCamera ? 'camera' : 'level');
+      await ev(`cameraPreviewFixture.preview().setGridMode(${previous.gridMode})`);
+      await call('setFlags', {grid: previous.flags.grid});
+      await settled();
+    }
+  };
 
 
   await call('setup', path.join(tmp, 'camera-preview.ldtk'));
@@ -185,10 +247,16 @@ async function run(win) {
       assert.deepEqual(p.point,point);assert.deepEqual(p.frame,rect);
     };
     await verify();await unchanged(initial);await pass('Retina DPR=2 sprite size/pivot and player root match real canvas coordinates');
+    const retinaGrid = await verifyGridPixels('Retina fitted view');
+    await verify();await unchanged(initial);await pass('Retina camera grid has visible strokes on bright/dark art and does not dim cells');
     await drag(await call('screen',480,430),await call('screen',530,440),'middle');await settled();
     await verify();await pass('Native Retina panning keeps the camera and player world anchor');
     await ev('cameraPreviewFixture.editor().camera.setZoom(1.25)');await settled();
     await verify();await unchanged(initial);await pass('Retina zoom reprojects the overlay without map/history mutation');
+    const zoomedGrid = await verifyGridPixels('Retina zoomed view');
+    for(let i=0;i<retinaGrid.length;i++)
+      assert.ok(Math.abs(retinaGrid[i].width-zoomedGrid[i].width)<=2,'Camera-grid stroke thickness scales with map zoom');
+    await unchanged(initial);await pass('Retina grid keeps screen-space stroke widths when map zoom changes');
     await screenshot('retina-success');
     fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({status:'passed',passed,devicePixelRatio:2,platform:process.platform,electron:process.versions.electron},null,2));
     console.log('SUCCESS: '+passed.length+' Retina camera-preview scenarios passed');clearTimeout(timer);app.exit(0);return;
@@ -202,6 +270,29 @@ async function run(win) {
 
   await writeProfile();
   await until('cameraPreviewFixture.stats().profile?.width === 320', 'Camera snapshot not detected');
+  await clickSelector('#cameraPreviewControls .cameraGrid');
+  s=await settled();
+  assert.equal(s.gridMode,true); assert.equal(s.placing,false); assert.equal(s.pinned,false);
+  assert.equal(s.visible,true); assert.equal(s.frame,null); assert.equal(s.sprite.visible,false);
+  assert.deepEqual(s.grid,{x:0,y:0,width:320,height:180});
+  assert.ok(s.gridLines>0,'Grid cannot be inspected before placing Joshua');
+  const unplacedGrid=s.grid,unplacedPoint=s.point;
+  await move(575,360);s=await settled();
+  assert.deepEqual(s.grid,unplacedGrid);assert.deepEqual(s.point,unplacedPoint);
+  await unchanged(initial);await pass('Camera grid works at level origin without Joshua and never follows an idle cursor');
+  await verifyGridPixels('Standard display');
+  await unchanged(initial);await pass('Camera grid is readable on dark/bright artwork without dimming the level');
+  await screenshot('camera-grid-level-origin');
+  await setGridOrigin('level');
+  await clickSelector('#editingOptions li.cameraPreview');
+  await clickSelector('#editingOptions li.cameraPreview');
+  s=await settled();
+  assert.equal(s.gridMode,true);assert.equal(s.gridOriginAtCamera,false);assert.equal(s.placing,false);
+  assert.deepEqual(s.grid,unplacedGrid);await unchanged(initial);
+  await pass('Grid mode and origin choice survive closing/reopening without arming Joshua placement');
+  await setGridOrigin('camera');
+  await clickSelector('#cameraPreviewControls .cameraFree');
+  await clickSelector('#cameraPreviewControls .cameraPin');
   await move(451,263); s=await settled();
   assert.equal(s.gridMode, false);
   near(s.frame.centerX,s.point.x,'Camera fallback is at Joshua X');
@@ -333,10 +424,39 @@ async function run(win) {
   assert.notDeepEqual(s.frame,fixedFrame);
   assert.match(s.status,/model Unity/);
   await pass('Unity JSON model recalculates the locked frame without moving Joshua');
+  const beforeOffsetGrid=await call('serial');
+  await clickSelector('#cameraPreviewControls .cameraGrid');
+  s=await settled();
+  near(s.frame.width,160,'Zone halves camera width');near(s.frame.height,90,'Zone halves camera height');
+  near(s.grid.x,fixedPoint.x+16-80,'Grid starts at the offset camera left edge, not Joshua X');
+  near(s.grid.y,fixedPoint.y+4-45,'Grid uses inverted Unity Y offset and actual camera half-height');
+  near(s.grid.width,160,'Grid cell width follows camera-zone zoom');near(s.grid.height,90,'Grid cell height follows camera-zone zoom');
+  const cameraGrid=s.grid,offsetFrame=s.frame;
+  await setGridOrigin('level');s=await settled();
+  assert.deepEqual(s.grid,{x:0,y:0,width:160,height:90});
+  assert.deepEqual(s.frame,offsetFrame);assert.deepEqual(s.point,fixedPoint);
+  await setGridOrigin('camera');await move(700,120);s=await settled();
+  assert.deepEqual(s.grid,cameraGrid,'Moving the editing cursor shifted the committed camera grid');
+  await unchanged(beforeOffsetGrid);
+  await pass('Grid origin switches between level zero and actual offset/zoomed camera without moving Joshua');
+  await screenshot('camera-grid-joshua-origin');
   await writeProfile({unityCameraModel:{...model,levels:[{...model.levels[0],zones:[]} ]}});
   await until('cameraPreviewFixture.stats().frame?.width === 320','Camera model zone update not recognized');
-  assert.deepEqual((await state()).point,fixedPoint);
-  await pass('Updating zone/zoom source reuses the same pinned world position');
+  s=await settled();assert.deepEqual(s.point,fixedPoint);
+  near(s.grid.width,320,'Grid width updates after leaving the zoom zone');
+  near(s.grid.height,180,'Grid height updates after leaving the zoom zone');
+  near(s.grid.x,fixedPoint.x+16-160,'Updated grid retains the Unity camera X offset');
+  near(s.grid.y,fixedPoint.y+4-90,'Updated grid retains the Unity camera Y offset');
+  await pass('Updating zone/zoom source refreshes cell size and origin at the same pinned world position');
+
+  const beforeCancelledGrid=s.grid;
+  await clickSelector('#cameraPreviewControls .cameraPin');await move(215,225);
+  assert.equal((await state()).placing,true);
+  await clickSelector('#cameraPreviewControls .cameraGrid');s=await settled();
+  assert.equal(s.placing,false);assert.equal(s.pinned,true);
+  assert.deepEqual(s.point,fixedPoint);assert.deepEqual(s.grid,beforeCancelledGrid);
+  await unchanged(beforeOffsetGrid);
+  await pass('Returning to camera grid cancels an unfinished reposition and restores the committed offset');
 
   await clickSelector('#cameraPreviewControls .cameraPin');
   s=await state(); assert.equal(s.pinned,false); assert.equal(s.placing,true);
@@ -359,6 +479,30 @@ async function run(win) {
   await click(await move(600,160));
   assert.notEqual((await call('serial')).json,level0.json,'Drawing with camera grid enabled was blocked');
   await call('setFlags',{grid:initialFlags.grid});
+  await call('configureGuide',true);await settled();
+  const beforeGuideToggle=await call('serial'),guidePoint=(await state()).point;
+  await clickSelector('#cameraPreviewControls .cameraGuideGrid');s=await settled();
+  assert.equal(s.guide,true);
+  near(s.grid.width,128*s.guideInfo.scale,'Existing guide-grid width is preserved');
+  near(s.grid.height,80*s.guideInfo.scale,'Existing guide-grid height is preserved');
+  near(s.grid.x,12*s.guideInfo.scale+s.guideInfo.parallaxX,'Guide-grid X uses layer plus instance offset and parallax');
+  near(s.grid.y,4*s.guideInfo.scale+s.guideInfo.parallaxY,'Guide-grid Y uses layer plus instance offset and parallax');
+  assert.equal(await ev('document.querySelector(".cameraGridOrigin").disabled'),true);
+  assert.deepEqual(s.point,guidePoint);await unchanged(beforeGuideToggle);
+  await ev('(()=>{const e=cameraPreviewFixture.editor(),ld=e.get_curLayerInstance().get_def();ld.guideGridWid=1000000000;e.ge.emit(__ldtk.enums.GlobalEvent.LayerDefChanged(ld.uid,true));return true})()');
+  s=await settled();const oversizedGuide=await call('serial');
+  assert.ok(s.renderError,'Oversized guide metadata should report a preview error');
+  assert.equal(s.gridLines,0,'Invalid guide metadata must not leave partial grid lines');
+  assert.deepEqual(s.point,guidePoint);await unchanged(oversizedGuide);
+  await call('configureGuide',true);s=await settled();
+  assert.equal(s.renderError,null);assert.ok(s.gridLines>0,'Correcting guide dimensions did not recover the grid');
+  await pass('Oversized guide metadata is diagnosed without crashing the editor and valid dimensions recover');
+  await clickSelector('#cameraPreviewControls .cameraGuideGrid');s=await settled();
+  assert.equal(s.guide,false);
+  near(s.grid.x,s.frame.x,'Leaving guide mode restores camera-origin X');
+  near(s.grid.y,s.frame.y,'Leaving guide mode restores camera-origin Y');
+  await unchanged(beforeGuideToggle);await call('configureGuide',false);await settled();
+  await pass('Layer guide-grid offsets/parallax stay compatible and can be toggled without moving Joshua');
   await clickSelector('#cameraPreviewControls .cameraFree');
   s=await settled();
   assert.equal(s.gridMode,false);assert.equal(s.pinned,true);
@@ -393,20 +537,37 @@ async function run(win) {
   assert.deepEqual(s.point,idlePoint);
   await pass('Unplaced level remains idle through level and World View navigation');
 
+  await clickSelector('#cameraPreviewControls .cameraGrid');await setGridOrigin('level');s=await settled();
+  assert.equal(s.visible,true);assert.equal(s.frame,null);assert.equal(s.renderError,null);
+  assert.deepEqual(s.grid,{x:0,y:0,width:320,height:180});assert.ok(s.gridLines>0);
+  assert.equal(s.sprite.visible,false);assert.equal(s.placing,false);
+  await ev('cameraPreviewFixture.editor().setWorldMode(true,true)');s=await settled();
+  assert.equal(s.visible,true);assert.deepEqual(s.grid,{x:0,y:0,width:320,height:180});
+  assert.equal(s.worldTransform.levelX,1024);assert.equal(s.worldTransform.levelY,80);
+  await ev('cameraPreviewFixture.editor().setWorldMode(false,true)');await settled();
+  await pass('Grid works on an unplaced/unexported level and keeps its local origin at nonzero world coordinates');
   await call('selectTerrain'); await settled();
   const beforeIdlePaint=await call('serial');
   await click(await move(240,96));
   assert.notEqual((await call('serial')).json,beforeIdlePaint.json,'Idle preview intercepts drawing');
   const afterIdlePaint=await call('serial');
+  await key('z',[primaryModifier]);
+  assert.equal((await call('serial')).json,beforeIdlePaint.json,'Grid-only drawing cannot be undone');
+  await key('y',[primaryModifier]);
+  assert.equal((await call('serial')).json,afterIdlePaint.json,'Grid-only drawing cannot be redone');
+  s=await settled();assert.equal(s.pinned,false);assert.equal(s.placing,false);assert.ok(s.gridLines>0);
+  await pass('Grid-only mode permits native painting, Undo and Redo without placing Joshua');
   await clickSelector('#editingOptions li.cameraPreview');
   assert.equal((await state()).enabled,false);
   await clickSelector('#editingOptions li.cameraPreview');
   s=await settled();
   assert.equal(s.state,'idle','Reopening preview rearmed placement');
+  assert.equal(s.gridMode,true);assert.equal(s.gridOriginAtCamera,false);assert.ok(s.gridLines>0);
   assert.deepEqual(s.point,idlePoint);
   await unchanged(afterIdlePaint);
   await pass('Idle preview permits normal painting and stays idle when toggled');
 
+  await clickSelector('#cameraPreviewControls .cameraFree');
   await clickSelector('#cameraPreviewControls .cameraPin');
   s=await settled();
   assert.equal(s.state,'placing'); assert.equal(s.placing,true);
@@ -423,6 +584,17 @@ async function run(win) {
   const placedSecondPoint=s.point;
   await unchanged(afterIdlePaint);
   await pass('Placement/Cancel button explicitly controls the editor-only Joshua marker');
+  await clickSelector('#cameraPreviewControls .cameraGrid');s=await settled();
+  assert.equal(s.visible,true);assert.ok(s.gridLines>0);assert.equal(s.frame,null);
+  assert.deepEqual(s.grid,{x:0,y:0,width:320,height:180});assert.match(s.renderError,/IID/);
+  await setGridOrigin('camera');s=await settled();
+  assert.equal(s.visible,false);assert.equal(s.gridLines,0);assert.equal(s.frame,null);
+  assert.match(s.renderError,/IID/,'Missing model must not silently guess a Joshua-relative origin');
+  await setGridOrigin('level');s=await settled();
+  assert.equal(s.visible,true);assert.ok(s.gridLines>0);
+  assert.deepEqual(s.point,placedSecondPoint);await unchanged(afterIdlePaint);
+  await pass('Missing camera mapping still permits the level-origin grid and never invents a camera offset');
+  await setGridOrigin('camera');await clickSelector('#cameraPreviewControls .cameraFree');
 
   await call('switchLevel',false); s=await settled();
   assert.equal(s.pinned,true); assert.deepEqual(s.point,returnPoint);

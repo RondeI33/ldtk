@@ -122,6 +122,25 @@ class CameraPreviewGeometry {
 		return Math.isFinite(value) && value>0 && value<=MAX_DIMENSION;
 	}
 
+	/** Visible grid boundaries, without integer overflow or cumulative step drift. */
+	public static function gridAxisLines(origin:Float,step:Float,min:Float,max:Float,screenScale:Float,
+		minScreenSpacing:Float=12.,maxLines:Int=200):Array<Float> {
+		if( !Math.isFinite(origin) || !validDimension(step) || !Math.isFinite(min) || !Math.isFinite(max)
+			|| !Math.isFinite(screenScale) || screenScale<=0 || !Math.isFinite(minScreenSpacing)
+			|| minScreenSpacing<0 || maxLines<=0 )
+			throw "Camera grid bounds or spacing are invalid.";
+		var lines:Array<Float> = [];
+		if( max<min || step*screenScale<minScreenSpacing ) return lines;
+		var first = Math.fceil((min-origin)/step);
+		for( index in 0...maxLines ) {
+			var value = origin+(first+index)*step;
+			if( !Math.isFinite(value) ) throw "Camera grid coordinates exceed the supported numeric range.";
+			if( value>max || lines.length>0 && value<=lines[lines.length-1] ) break;
+			if( value>=min ) lines.push(value);
+		}
+		return lines;
+	}
+
 	/**
 	 * Free mode centers the frame at the exact level point. Grid mode uses the
 	 * containing cell's center, with a top-left grid origin and independent steps.

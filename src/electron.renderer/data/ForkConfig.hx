@@ -471,6 +471,57 @@ class ForkConfig {
 		return out;
 	}
 
+	/** Only contentShift.x/y belong to this editor; retain other per-level metadata. */
+	function updateLevelContentShifts(root:Dynamic) {
+		var previous = getDyn(root,"levels");
+		var entries : Dynamic = isJsonObject(previous) ? cloneJson(previous) : {};
+		var liveLevels : Map<String, data.Level> = new Map();
+		for(w in project.worlds)
+		for(l in w.levels)
+			liveLevels.set(l.iid,l);
+
+		// Deleted levels lose the editor-owned offset, without claiming ownership of
+		// data supplied by Unity or another tool under the same level entry.
+		var keys = Reflect.fields(entries);
+		for(iid in liveLevels.keys())
+			if( keys.indexOf(iid)<0 )
+				keys.push(iid);
+		keys.sort(Reflect.compare);
+		var sorted : Dynamic = {};
+		for(iid in keys) {
+			var level = liveLevels.get(iid);
+			var shifted = level!=null && (level.contentShiftX!=0 || level.contentShiftY!=0);
+			var entry = getDyn(entries,iid);
+			if( !isJsonObject(entry) ) {
+				if( !shifted ) {
+					if( Reflect.hasField(entries,iid) )
+						Reflect.setField(sorted,iid,entry);
+					continue;
+				}
+				entry = {};
+			}
+			var shift = getDyn(entry,"contentShift");
+			if( shifted ) {
+				shift = isJsonObject(shift) ? shift : {};
+				Reflect.setField(shift,"x",level.contentShiftX);
+				Reflect.setField(shift,"y",level.contentShiftY);
+				Reflect.setField(entry,"contentShift",shift);
+			}
+			else if( isJsonObject(shift) ) {
+				Reflect.deleteField(shift,"x");
+				Reflect.deleteField(shift,"y");
+				if( Reflect.fields(shift).length==0 )
+					Reflect.deleteField(entry,"contentShift");
+			}
+			if( Reflect.fields(entry).length>0 )
+				Reflect.setField(sorted,iid,entry);
+		}
+		if( Reflect.fields(sorted).length==0 )
+			Reflect.deleteField(root,"levels");
+		else
+			Reflect.setField(root,"levels",sorted);
+	}
+
 	public function save() {
 		if( project.filePath==null || project.filePath.full==null || project.filePath.full.length==0 )
 			return;
@@ -549,21 +600,7 @@ class ForkConfig {
 		Reflect.setField(root,"projectIid",project.iid);
 		Reflect.setField(root,"entities",entities);
 
-		// Only edited levels are represented, sorted by IID for stable diffs.
-		var shifted : Array<data.Level> = [];
-		for(w in project.worlds)
-		for(l in w.levels)
-			if( l.contentShiftX!=0 || l.contentShiftY!=0 )
-				shifted.push(l);
-		if( shifted.length==0 )
-			Reflect.deleteField(root,"levels");
-		else {
-			shifted.sort((a,b)->Reflect.compare(a.iid,b.iid));
-			var levelEntries : Dynamic = {};
-			for(l in shifted)
-				Reflect.setField(levelEntries,l.iid,{contentShift:{x:l.contentShiftX,y:l.contentShiftY}});
-			Reflect.setField(root,"levels",levelEntries);
-		}
+		updateLevelContentShifts(root);
 
 		try {
 			var path = getPath();

@@ -134,6 +134,53 @@ class CameraPreviewGeometryTest {
 		check(thrown,name+" must reject invalid frame input");
 	}
 
+	static function assertLines(actual:Array<Float>,expected:Array<Float>,name:String) {
+		vectors++;
+		check(actual.length==expected.length,name+" boundary count: expected "+expected.length+", got "+actual.length);
+		for(i in 0...expected.length) near(actual[i],expected[i],name+" boundary "+i);
+	}
+
+	static function gridLineVectors() {
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,320,0,960,1),[0,320,640,960],"Level-origin grid includes both level edges");
+		assertLines(CameraPreviewGeometry.gridAxisLines(144,160,0,640,1),[144,304,464,624],"Offset camera grid repeats the actual zoomed frame");
+		assertLines(CameraPreviewGeometry.gridAxisLines(-7.25,23.5,-55,41,1),[-54.25,-30.75,-7.25,16.25,39.75],"Negative fractional grid origin and viewport");
+		assertLines(CameraPreviewGeometry.gridAxisLines(-7.25,23.5,-20,20,1),[-7.25,16.25],"Panning clips lines without moving their phase");
+		assertLines(CameraPreviewGeometry.gridAxisLines(5,16,5,37,1),[5,21,37],"Exact offset boundaries are inclusive");
+		assertLines(CameraPreviewGeometry.gridAxisLines(5,16,5.001,36.999,1),[21],"Partial cells do not add lines outside the visible range");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,320,640,640,1),[640],"Zero-width range retains a coincident boundary");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,320,641,641,1),[],"Zero-width range between boundaries is empty");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,320,640,0,1),[],"Nonintersecting visible range is empty");
+		assertLines(CameraPreviewGeometry.gridAxisLines(7,16,1e12-5,1e12+35,1),[1e12+7,1e12+23],"Positive cell indices beyond signed 32-bit range");
+		assertLines(CameraPreviewGeometry.gridAxisLines(7,16,-1e12-40,-1e12+8,1),[-1e12-25,-1e12-9,-1e12+7],"Negative cell indices beyond signed 32-bit range");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,0.25,0,1,48),[0,0.25,0.5,0.75,1],"Subpixel world cells remain visible at sufficient zoom");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,0.25,0,1,47.99),[],"Subpixel cells are hidden below screen spacing threshold");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,16,0,64,1,24),[],"Retina spacing threshold is measured in physical screen pixels");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,16,0,64,2,24),[0,16,32,48,64],"Retina-scaled cells keep the same logical density");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,2,0,1000000,10,12,5),[0,2,4,6,8],"Pathological extent honors the hard line cap");
+		assertLines(CameraPreviewGeometry.gridAxisLines(0,16,0,1000000,1),[for(i in 0...200) i*16.],"Default line cap bounds work on huge levels");
+		var huge=CameraPreviewGeometry.gridAxisLines(0,1,1e16,1e16+1024,12);
+		check(huge.length>0 && huge.length<=200,"Unrepresentable consecutive indices terminate within the cap");
+		for(i in 0...huge.length) {
+			check(Math.isFinite(huge[i]) && huge[i]>=1e16 && huge[i]<=1e16+1024,"Huge-coordinate boundaries remain finite and clipped");
+			if(i>0) check(huge[i]>huge[i-1],"Huge-coordinate boundaries never repeat");
+		}
+		for(value in [Math.NaN,Math.POSITIVE_INFINITY,Math.NEGATIVE_INFINITY]) {
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(value,16,0,100,1),"Nonfinite grid origin");
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,value,100,1),"Nonfinite visible minimum");
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,value,1),"Nonfinite visible maximum");
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,100,value),"Nonfinite grid projection scale");
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,100,1,value),"Nonfinite screen spacing");
+		}
+		for(value in [0.,-1.,Math.NaN,Math.POSITIVE_INFINITY,10000001.])
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,value,0,100,1),"Invalid camera-grid cell size");
+		for(value in [0.,-1.])
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,100,value),"Nonpositive grid projection scale");
+		expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,100,1,-1),"Negative screen spacing");
+		for(limit in [0,-1])
+			expectThrow(()->CameraPreviewGeometry.gridAxisLines(0,16,0,100,1,12,limit),"Nonpositive line limit");
+		expectThrow(()->CameraPreviewGeometry.gridAxisLines(-1e308,16,1e308,1e308,1),"Relative grid-coordinate overflow");
+	}
+
 	static function frameVectors() {
 		assertFrame(CameraPreviewGeometry.frame(123.25,79.5,320,180,false),[-36.75,-10.5,320,180],null,null,"Free point keeps fractional coordinates");
 		assertFrame(CameraPreviewGeometry.frame(0,0,320,180,false),[-160,-90,320,180],null,null,"Free frame extends beyond room origin");
@@ -252,6 +299,7 @@ class CameraPreviewGeometryTest {
 	static function main() {
 		parseVectors();
 		frameVectors();
+		gridLineVectors();
 		playerModelVectors();
 		Sys.println("PASS: camera preview geometry: "+vectors+" explicit vectors, "+assertions+" assertions including 475 grid-cell sweeps");
 	}

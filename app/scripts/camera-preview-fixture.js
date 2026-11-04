@@ -142,6 +142,8 @@
       state: p.get_state(), enabled: p.enabled, active: p.isActive(), placing: p.isPlacing(), pinned: p.pinned, placementArmed: p.placementArmed, gridMode: p.gridMode, guide: p.useGuideGrid,
       profile: p.profile, frame: p.frame, error: p.sourceError, renderError: p.renderError, stale: p.sourceStale,
       visible: p.root.visible, gridLines: p.drawnGridLines, point: {x: p.pointX, y: p.pointY},
+      gridOriginAtCamera: p.gridOriginAtCamera,
+      grid: {x: p.gridOriginX, y: p.gridOriginY, width: p.gridCellWidth, height: p.gridCellHeight},
       dirty: e.needSaving, history: F.history(), selection: e.selectionTool.any(),
       running: e.selectionTool.isRunning() || e.get_curTool().isRunning(),
       banner: !!document.querySelector('.smartiveDiskChange'),

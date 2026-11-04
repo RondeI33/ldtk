@@ -1,6 +1,6 @@
 {
 	"name": "ldtk-smartive",
-	"version": "1.0.38",
+	"version": "1.0.39",
 	"private": true,
 	"main": "assets/main.js",
 	"productName": "LDTK-Smartive",
@@ -40,6 +40,7 @@
 		"test:selection": "node scripts/run-selection-tests.cjs",
 		"test:entity-history": "node scripts/run-entity-history-tests.cjs",
 		"test:content-shift": "node scripts/run-content-shift-tests.cjs",
+		"test:project-compatibility": "node scripts/run-project-compatibility-tests.cjs",
 		"test:entity-chain": "node scripts/run-entity-chain-tests.cjs",
 		"test:entity-multi": "node scripts/run-entity-multi-tests.cjs",
 		"test:points": "node scripts/run-point-tests.cjs",

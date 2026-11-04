@@ -1,0 +1,26 @@
+name: Build LDTK-Smartive 1.0.39 from master
+
+# Merge only after the nonpublishing PR preflight passes. Installer creation
+# is gated again here, and the existing Slack notifier runs after publication.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.39-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.39-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Camera grid and compatibility gates, installers and v1.0.39
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: true
+    secrets: inherit

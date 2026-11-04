@@ -102,6 +102,15 @@
 		<button class="cameraFree active" aria-pressed="true" title="Show the frame around Joshua"><span class="icon cameraPoint"></span>Kadr Joshuy</button>
 		<button class="cameraPin gray" aria-pressed="false" title="Place or reposition Joshua explicitly"><span class="icon cameraPoint"></span><span class="label">Ustaw Joshuę</span></button>
 	</div>
+	<div class="cameraGridOptions" style="display:none">
+		<label>Początek siatki
+			<select class="cameraGridOrigin" aria-label="Początek siatki kamery">
+				<option value="camera">Kamera przy Joshui</option>
+				<option value="level">Początek poziomu (0, 0)</option>
+			</select>
+		</label>
+		<div class="cameraGridMetrics" role="status"></div>
+	</div>
 	<label class="guideOption"><input class="cameraGuideGrid" type="checkbox"/>Siatka warstwy</label>
 	<div class="cameraModelControls" style="display:none" aria-label="Unity camera preview state">
 		<div class="cameraStateRow">

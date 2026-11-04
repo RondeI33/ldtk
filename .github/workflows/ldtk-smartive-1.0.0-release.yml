@@ -135,6 +135,14 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: app
         run: npm run test:camera-preview
+      - name: Open and resave projects with previous editors (Linux)
+        if: runner.os == 'Linux'
+        working-directory: app
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" npm run test:project-compatibility
+      - name: Open and resave projects with previous editors (macOS Intel)
+        if: runner.os == 'macOS'
+        working-directory: app
+        run: npm run test:project-compatibility
       - name: Per-level contentShift and control reload real Electron regression (Linux)
         if: runner.os == 'Linux'
         working-directory: app
@@ -183,6 +191,7 @@ jobs:
           name: entity-runtime-${{ needs.prepare.outputs.version }}-${{ matrix.os }}
           path: |
             app/test-results/camera-preview
+            app/test-results/project-compatibility
             app/test-results/path-preview
             app/test-results/points
             app/test-results/entity-history

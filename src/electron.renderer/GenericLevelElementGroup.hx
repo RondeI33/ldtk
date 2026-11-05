@@ -11,6 +11,25 @@ private typedef PathPreviewDragSnapshot = {
 	var entitySelected:Bool;
 }
 
+private typedef GridFlipSnapshot = {
+	var elementIdx:Int;
+	var li:data.inst.LayerInstance;
+	var cx:Int;
+	var cy:Int;
+	var targetCx:Int;
+	var targetCy:Int;
+}
+
+private typedef TileFlipSnapshot = {
+	> GridFlipSnapshot,
+	var tiles:Array<data.DataTypes.GridTileInfos>;
+}
+
+private typedef IntGridFlipSnapshot = {
+	> GridFlipSnapshot,
+	var value:Int;
+}
+
 class GenericLevelElementGroup {
 	static var SELECTION_COLOR = 0xffcc00;
 	var editor(get,never): Editor; inline function get_editor() return Editor.ME;
@@ -2004,8 +2023,10 @@ class GenericLevelElementGroup {
 			return [];
 
 		var flipBit = horizontal ? 1 : 2;
-		var pendingTiles : Array<Dynamic> = [];
-		var pendingIntGrid : Array<Dynamic> = [];
+		// Keep layer instances typed so Haxe resolves getters such as li.level.
+		// A Dynamic snapshot reads a nonexistent JavaScript field instead.
+		var pendingTiles : Array<TileFlipSnapshot> = [];
+		var pendingIntGrid : Array<IntGridFlipSnapshot> = [];
 		var pendingShapes:Array<data.inst.EntityInstance>=[];
 
 		inline function getTarget(li:data.inst.LayerInstance, cx:Int, cy:Int) {
@@ -2107,7 +2128,7 @@ class GenericLevelElementGroup {
 
 		// Reinsert mirrored manual tiles and toggle their actual flip bit.
 		for(c in pendingTiles) {
-			var stack : Array<Dynamic> = c.tiles;
+			var stack = c.tiles;
 			var stacking = stack.length>1 || App.ME.settings.v.tileStacking;
 			for(t in stack)
 				c.li.addGridTile(

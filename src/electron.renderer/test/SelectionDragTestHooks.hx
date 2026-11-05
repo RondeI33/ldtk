@@ -18,6 +18,7 @@ class SelectionDragTestHooks {
 	static var caseDx=0;
 	static var caseDy=0;
 	static var testGroup:GenericLevelElementGroup;
+	static var flipDrop:Coords;
 
 	static function editor() {
 		var current=Std.downcast(@:privateAccess App.ME.curPageProcess,page.Editor);
@@ -41,7 +42,11 @@ class SelectionDragTestHooks {
 			&& e.curLevel!=null;
 	}
 
-	public static function setup(path:String):Dynamic {
+	public static function setup(path:String, ?atlasPath:String):Dynamic {
+		if(testGroup!=null) {
+			testGroup.dispose();
+			testGroup=null;
+		}
 		var p=data.Project.createEmpty(path);
 		var a=p.defs.createLayerDef(Tiles,"Tiles_A");
 		var b=p.defs.createLayerDef(Tiles,"Tiles_B");
@@ -59,6 +64,18 @@ class SelectionDragTestHooks {
 			{value:1,identifier:"Keep",color:0x446688,tile:null,groupUid:0},
 			{value:2,identifier:"Move",color:0xcc8844,tile:null,groupUid:0},
 		];
+		if(atlasPath!=null) {
+			if(sharedTileset.importAtlasImage(atlasPath)!=Ok)
+				throw "Could not load the selection flip fixture atlas";
+			ig.tilesetDefUid=sharedTileset.uid;
+			var rules=ig.createEmptyRuleGroup(p.generateUniqueId_int(),"Flip regression");
+			for(value in 1...3) {
+				var rule=new data.def.AutoLayerRuleDef(p.generateUniqueId_int(),1);
+				rule.fill(value);
+				rule.tileRectsIds=[[69+value]];
+				rules.rules.push(rule);
+			}
+		}
 		var ed=p.defs.createEntityDef();
 		ed.identifier="Marker";
 		ed.width=ed.height=16;
@@ -262,6 +279,129 @@ class SelectionDragTestHooks {
 		e.selectionTool.clear();
 		e.selectLayerInstance(ints());
 		e.selectionTool.select([GridCell(ints(),2,2)]);
+	}
+
+
+	public static function prepareFlip(kind:String):Void {
+		var e=editor();
+		e.selectionTool.clear();
+		if(testGroup!=null) testGroup.clear();
+		var a=tilesA(),b=tilesB(),ig=ints();
+		for(li in [a,b,ig,bigTiles()]) clearLayerGrid(li);
+		var selected:Array<GenericLevelElement>=[];
+		if(kind=="tiles" || kind=="mixed") {
+			a.addGridTile(2,2,10,0,false,false);
+			a.addGridTile(2,2,11,1,true,false);
+			a.addGridTile(4,2,20,2,false,false);
+			a.addGridTile(2,4,30,3,false,false);
+			for(c in [{x:2,y:2},{x:4,y:2},{x:2,y:4}])
+				selected.push(GridCell(a,c.x,c.y));
+		}
+		if(kind=="mixed") {
+			b.addGridTile(4,4,40,0,false,false);
+			b.addGridTile(2,3,41,1,false,false);
+			selected.push(GridCell(b,4,4));
+			selected.push(GridCell(b,2,3));
+		}
+		if(kind=="intgrid" || kind=="mixed") {
+			ig.setIntGrid(2,2,1,false);
+			ig.setIntGrid(4,2,2,false);
+			ig.setIntGrid(2,4,2,false);
+			for(c in [{x:2,y:2},{x:4,y:2},{x:2,y:4}])
+				selected.push(GridCell(ig,c.x,c.y));
+		}
+		// The unselected center remains a hole under either reflection. Test
+		// both the source and destination, plus an unrelated different-grid layer.
+		for(c in [{x:3,y:3},{x:11,y:8}]) {
+			a.addGridTile(c.x,c.y,90,0,false,false);
+			b.addGridTile(c.x,c.y,91,0,false,false);
+			ig.setIntGrid(c.x,c.y,1,false);
+		}
+		bigTiles().addGridTile(1,1,95,0,false,false);
+		for(li in [a,b,ig,bigTiles()])
+			e.ge.emit(LayerInstanceChangedGlobally(li));
+		e.selectLayerInstance(kind=="intgrid" ? ig : a);
+		e.curLevelTimeline.clear();
+		e.selectionTool.select(selected);
+		// addSelectionRect stores inclusive pixel edges.
+		e.selectionTool.group.addSelectionRect(32,79,32,79);
+		flipDrop=null;
+	}
+
+
+	public static function flipCommands(axes:String):Void {
+		var tool=editor().selectionTool;
+		if(!tool.canFlipSelection()) throw "Fixture selection is not flippable";
+		for(i in 0...axes.length)
+			switch axes.charAt(i) {
+				case "x": tool.onAppCommand(C_FlipX);
+				case "y": tool.onAppCommand(C_FlipY);
+				case _: throw "Unknown flip axis";
+			}
+	}
+
+
+	public static function startFlipDrag(isCopy:Bool):Dynamic {
+		var e=editor(),tool=e.selectionTool;
+		var origin=Coords.fromLevelCoords(40,40);
+		flipDrop=Coords.fromLevelCoords(40+8*16,40+5*16);
+		var commandKey=App.isMac() ? 91 : K.CTRL;
+		var previousCommand=App.ME.jsKeyDowns.get(commandKey);
+		var previousAlt=App.ME.jsKeyDowns.get(K.ALT);
+		App.ME.jsKeyDowns.set(commandKey,isCopy);
+		App.ME.jsKeyDowns.set(K.ALT,isCopy);
+		try {
+			var push=new hxd.Event(EPush);
+			push.button=0;
+			tool.startUsing(push,origin);
+		}
+		catch(error:Dynamic) {
+			App.ME.jsKeyDowns.set(commandKey,previousCommand);
+			App.ME.jsKeyDowns.set(K.ALT,previousAlt);
+			throw error;
+		}
+		App.ME.jsKeyDowns.set(commandKey,previousCommand);
+		App.ME.jsKeyDowns.set(K.ALT,previousAlt);
+		tool.onMouseMove(new hxd.Event(EMove),flipDrop);
+		if(!tool.isRunning() || !tool.moveStarted || tool.isCopy!=isCopy)
+			throw "SelectionTool did not enter the expected move/copy gesture";
+		return {running:tool.isRunning(),moving:tool.moveStarted,isCopy:tool.isCopy};
+	}
+
+
+	public static function finishFlipDrag():Dynamic {
+		var tool=editor().selectionTool;
+		if(flipDrop==null) throw "No flip drag to finish";
+		// This is the mouse-up path from the reported crash, including useAt,
+		// commitDragSnapshot, both pending flips, and one history transaction.
+		tool.stopUsing(flipDrop);
+		return {running:tool.isRunning(),moving:tool.moveStarted,flipX:tool.dragFlipX,flipY:tool.dragFlipY};
+	}
+
+
+	public static function flipState():Dynamic {
+		// Flush normal pending renders, including the temporary source cut, so
+		// an animation frame between IPC calls cannot look like a flip mutation.
+		editor().levelRender.updateInvalidations();
+		function tiles(li:data.inst.LayerInstance):Array<Dynamic> {
+			var result:Array<Dynamic>=[];
+			for(cy in 0...li.cHei)
+			for(cx in 0...li.cWid)
+				if(li.hasAnyGridTile(cx,cy))
+					result.push({cx:cx,cy:cy,tiles:tileStack(li,cx,cy)});
+			return result;
+		}
+		var ig=ints(),values:Array<Dynamic>=[],autoTiles:Array<Dynamic>=[];
+		for(cy in 0...ig.cHei)
+		for(cx in 0...ig.cWid)
+			if(ig.hasIntGrid(cx,cy)) values.push({cx:cx,cy:cy,value:ig.getIntGrid(cx,cy)});
+		if(ig.autoTilesCache!=null)
+			for(byCell in ig.autoTilesCache)
+			for(stack in byCell)
+			for(tile in stack)
+				autoTiles.push({cx:Std.int(tile.x/16),cy:Std.int(tile.y/16),tileId:tile.tid,flips:tile.flips});
+		autoTiles.sort((a,b)->a.cy==b.cy ? a.cx-b.cx : a.cy-b.cy);
+		return {tilesA:tiles(tilesA()),tilesB:tiles(tilesB()),ints:values,autoTiles:autoTiles,bigTiles:tiles(bigTiles())};
 	}
 
 

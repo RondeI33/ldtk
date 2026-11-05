@@ -6,8 +6,15 @@ const output=path.join(root,'test-results/selection');fs.mkdirSync(output,{recur
 process.chdir(root);app.setPath('userData',tmp);if(app.setAppPath)app.setAppPath(root);else app.getAppPath=()=>root;
 process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
 app.commandLine.appendSwitch('no-sandbox');app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');
-const timer=setTimeout(()=>{console.error('FAIL: selection UI regression timed out');app.exit(1);},90000);
-let running=false,passed=[],checks=0;
+let running=false,passed=[],checks=0,flipChecks=0,currentCase='boot';
+// The 51 flip cases add real editor-frame/history waits. Keep individual frame
+// deadlines unchanged, but allow the complete suite to finish on slower runners.
+const timer=setTimeout(()=>{
+  const progress={passed,variantChecks:checks,flipChecks,currentCase,platform:process.platform,electron:process.versions.electron};
+  fs.writeFileSync(path.join(output,'timeout.json'),JSON.stringify(progress,null,2));
+  console.error(`FAIL: selection UI regression timed out at ${currentCase} (${checks} matrix variants, ${flipChecks}/51 flip cases completed)`);
+  app.exit(1);
+},180000);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 app.on('browser-window-created',(_,win)=>{
   win.webContents.on('did-finish-load',()=>{
@@ -44,6 +51,32 @@ function expectEntities(state,isCopy,dx,dy){
   const has=(v,e)=>v.some(x=>x.x===e.x&&x.y===e.y&&x.points.some(p=>p.cx===e.px&&p.cy===e.py));
   if(isCopy)assert(has(state.entities,src),'Source entity/point missing after copy');
   assert(has(state.entities,dst),'Destination entity/point is not on snapped delta');
+}
+function expectedFlipState(before,kind,axes,isCopy=false,dx=0,dy=0){
+  const result=JSON.parse(JSON.stringify(before));
+  const flipX=[...axes].filter(a=>a==='x').length%2===1;
+  const flipY=[...axes].filter(a=>a==='y').length%2===1;
+  const flipBits=(flipX?1:0)|(flipY?2:0);
+  const selected={
+    tilesA:kind==='tiles'||kind==='mixed'?[[2,2],[4,2],[2,4]]:[],
+    tilesB:kind==='mixed'?[[4,4],[2,3]]:[],
+    ints:kind==='intgrid'||kind==='mixed'?[[2,2],[4,2],[2,4]]:[],
+  };
+  for(const [layer,positions] of Object.entries(selected)){
+    const isSelected=c=>positions.some(([x,y])=>c.cx===x&&c.cy===y);
+    const original=before[layer].filter(isSelected);
+    result[layer]=before[layer].filter(c=>isCopy||!isSelected(c));
+    for(const cell of original){
+      const copy=JSON.parse(JSON.stringify(cell));
+      copy.cx=(flipX?6-cell.cx:cell.cx)+dx;
+      copy.cy=(flipY?6-cell.cy:cell.cy)+dy;
+      if(copy.tiles)for(const tile of copy.tiles)tile.flips^=flipBits;
+      result[layer].push(copy);
+    }
+    result[layer].sort((a,b)=>a.cy-b.cy||a.cx-b.cx);
+  }
+  result.autoTiles=result.ints.map(c=>({cx:c.cx,cy:c.cy,tileId:69+c.value,flips:0}));
+  return result;
 }
 async function run(win){
   win.webContents.on('console-message',(_event,level,message,line,sourceId)=>{
@@ -88,6 +121,7 @@ async function run(win){
 
   // Real history transaction: grab near the top-left edge and release near the
   // bottom-right edge of another cell. Raw pixel deltas would round to +1 tile.
+  currentCase='copy history and cancellation';
   await ev('SelectionDragTestHooks.prepare(5,1,false)');
   const beforeHistory=await ev('SelectionDragTestHooks.state()');
   await ev('SelectionDragTestHooks.drag(true,33,33,127,63,true)');
@@ -111,6 +145,7 @@ async function run(win){
 
   const deltasX=[5,6,7],deltasY=[0,1,2];
   const offsets=[[1,1],[1,15],[8,8],[15,1],[15,15]];
+  currentCase='450 copy/move matrix';
   for(const isCopy of [true,false]){
     for(const dx of deltasX)for(const dy of deltasY)for(const grab of offsets)for(const drop of offsets){
       await ev(`SelectionDragTestHooks.prepare(${dx},${dy},false)`);
@@ -134,6 +169,7 @@ async function run(win){
     a22:s.a22,a32:s.a32,a42:s.a42,a62:s.a62,
     b22:s.b22,b32:s.b32,b42:s.b42,b62:s.b62,
   });
+  currentCase='layer transfer and editor-frame stress';
 
   // Ctrl+Alt+Up moves the exact selected tile stacks to the previous compatible
   // layer in the actual LDtk layer-list order. Empty rectangle cells stay transparent.
@@ -226,8 +262,59 @@ async function run(win){
   }
   pass('16 alternating layer transfers preserve selection and tile stacks after editor-frame processing');
 
-  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,variantChecks:checks,platform:process.platform,electron:process.versions.electron},null,2));
-  console.log(`SUCCESS: ${checks} matrix variants + ${passed.length} grouped selection scenarios passed`);
+  // Use a real atlas and one-cell auto-layer rules for the flip regressions.
+  // The old transfer fixture intentionally has no atlas and cannot verify that
+  // mirrored IntGrid cells regenerate the visuals used in the user's sample.
+  currentCase='flip fixture setup';
+  fs.copyFileSync(path.join(root,'extraFiles/samples/atlas/Cavernas_by_Adam_Saltsman.png'),path.join(tmp,'flip-atlas.png'));
+  await ev(`SelectionDragTestHooks.setup(${JSON.stringify(path.join(tmp,'flip.ldtk'))},"flip-atlas.png")`);
+  await until('SelectionDragTestHooks.ready()','Flip regression project did not open');
+  await settleHistory();
+  for(const kind of ['tiles','intgrid','mixed']){
+    for(const axes of ['x','y','xy','xx','yy']){
+      const label=`${kind} idle ${axes.toUpperCase()}`;
+      currentCase=label;
+      await ev(`SelectionDragTestHooks.prepareFlip(${JSON.stringify(kind)})`);
+      const before=await ev('SelectionDragTestHooks.flipState()');
+      assert.deepStrictEqual(before.autoTiles,before.ints.map(c=>({cx:c.cx,cy:c.cy,tileId:69+c.value,flips:0})),`${label}: fixture auto-layer rules did not run`);
+      await ev(`SelectionDragTestHooks.flipCommands(${JSON.stringify(axes)})`);
+      const after=await ev('SelectionDragTestHooks.flipState()');
+      assert.deepStrictEqual(after,expectedFlipState(before,kind,axes),`${label}: wrong reflected cells, tile bits, stack order, sentinels, or auto-layer visuals`);
+      for(const axis of axes){await ev('SelectionDragTestHooks.undo()');await settleHistory();}
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),before,`${label}: Undo did not restore the complete grid state`);
+      for(const axis of axes){await ev('SelectionDragTestHooks.redo()');await settleHistory();}
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),after,`${label}: Redo did not restore the complete flipped state`);
+      flipChecks++;
+    }
+  }
+  pass('15 idle X/Y combinations preserve tile stacks, IntGrid auto-layer visuals, and exact Undo/Redo');
+
+  for(const kind of ['tiles','intgrid','mixed'])for(const isCopy of [false,true]){
+    for(const axes of ['x','y','xy','xx','yy','xyxy']){
+      const label=`${kind} ${isCopy?'copy':'move'} ${axes.toUpperCase()}`;
+      currentCase=label;
+      await ev(`SelectionDragTestHooks.prepareFlip(${JSON.stringify(kind)})`);
+      const before=await ev('SelectionDragTestHooks.flipState()');
+      assert.deepStrictEqual(await ev(`SelectionDragTestHooks.startFlipDrag(${isCopy})`),{running:true,moving:true,isCopy},`${label}: real SelectionTool gesture did not start`);
+      const whileDragging=await ev('SelectionDragTestHooks.flipState()');
+      await ev(`SelectionDragTestHooks.flipCommands(${JSON.stringify(axes)})`);
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),whileDragging,`${label}: preview flip mutated level data before mouse-up`);
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.finishFlipDrag()'),{running:false,moving:false,flipX:false,flipY:false},`${label}: mouse-up left the tool or flip toggles active`);
+      const after=await ev('SelectionDragTestHooks.flipState()');
+      assert.deepStrictEqual(after,expectedFlipState(before,kind,axes,isCopy,8,5),`${label}: drop produced wrong reflected cells, tile bits, stack order, sentinels, or auto-layer visuals`);
+      await ev('SelectionDragTestHooks.finishFlipDrag()');
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),after,`${label}: repeated mouse-up replayed the drop`);
+      await ev('SelectionDragTestHooks.undo()');await settleHistory();
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),before,`${label}: one Undo did not restore both source and destination`);
+      await ev('SelectionDragTestHooks.redo()');await settleHistory();
+      assert.deepStrictEqual(await ev('SelectionDragTestHooks.flipState()'),after,`${label}: one Redo did not restore the reflected drop`);
+      flipChecks++;
+    }
+  }
+  pass('36 real SelectionTool X/Y drag/drop cases cover move/copy, both axes, cancelled flips, repeated mouse-up, and atomic Undo/Redo');
+
+  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,variantChecks:checks,flipChecks,platform:process.platform,electron:process.versions.electron},null,2));
+  console.log(`SUCCESS: ${checks} matrix variants + ${flipChecks} flip cases + ${passed.length} grouped selection scenarios passed`);
   clearTimeout(timer);app.exit(0);
 }
 require('../assets/main.js');

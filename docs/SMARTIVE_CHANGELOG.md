@@ -1,3 +1,12 @@
+# 1.0.40
+
+## Selection flip crash fix
+
+- Fix the crash when applying an X/Y flip to selected IntGrid or tile content. Keep affected layer references typed as LayerInstance so history resolves the owning level correctly after placement.
+- Preserve selection flip behavior and Undo/Redo history, including repeated flips, moved or duplicated selections, and selections spanning multiple layers.
+- Add native editor regressions for horizontal, vertical and combined flips followed by placement and history restoration. The existing selection and full editor regression gates run before installer packaging.
+- Retain LDtk JSON format 1.5.3 and the existing project compatibility checks.
+
 # 1.0.39
 
 ## Readable camera grid and older-editor compatibility

@@ -22,5 +22,5 @@ jobs:
     uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
     with:
       force_rebuild: false
-      notify_slack: false
+      notify_slack: true
     secrets: inherit

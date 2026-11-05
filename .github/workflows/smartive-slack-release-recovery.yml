@@ -1,0 +1,41 @@
+name: Announce an existing LDTK-Smartive release on Slack
+
+# Recovery path for an already-published release. Does not rebuild packages,
+# replace tags or edit release assets. Normal future releases notify via
+# ldtk-smartive-1.0.0-release.yml, with notify_slack enabled in the wrapper.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/smartive-slack-release-recovery.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing published stable release tag (e.g. v1.0.40)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Announce verified existing Smartive release on Slack
+    # The push trigger is a one-time v1.0.40 backfill. A later edit of this
+    # workflow must NOT post the old announcement again by accident.
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[slack-v1.0.40-backfill]')))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify published release assets and send Slack announcement
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SMARTIVE_TAG: ${{ github.event_name == 'push' && 'v1.0.40' || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          bash app/scripts/notify-smartive-release-slack.sh "$SMARTIVE_TAG"

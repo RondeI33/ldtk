@@ -629,7 +629,7 @@ class Project {
 	}
 
 
-	public function toJson() : ldtk.Json.ProjectJson {
+	public function toJson(includeEditorTransforms=false) : ldtk.Json.ProjectJson {
 		var json : ldtk.Json.ProjectJson = {
 			iid: iid,
 			jsonVersion: jsonVersion,
@@ -679,8 +679,8 @@ class Project {
 			},
 
 			defs: defs.toJson(this),
-			levels: hasFlag(MultiWorlds) ? [] : worlds[0].levels.map( (l)->l.toJson() ),
-			worlds: hasFlag(MultiWorlds) ? worlds.map( (w)->w.toJson() ) : [],
+			levels: hasFlag(MultiWorlds) ? [] : worlds[0].levels.map( (l)->l.toJson(false,includeEditorTransforms) ),
+			worlds: hasFlag(MultiWorlds) ? worlds.map( (w)->w.toJson(includeEditorTransforms) ) : [],
 			dummyWorldIid: dummyWorldIid,
 
 			// toc: {
@@ -702,7 +702,7 @@ class Project {
 	}
 
 	public function clone() : data.Project {
-		return fromJson( filePath.full, toJson() );
+		return fromJson( filePath.full, toJson(true) );
 	}
 
 

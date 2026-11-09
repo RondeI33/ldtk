@@ -121,7 +121,7 @@ class ProjectLoader {
 						}
 					}
 					if( p!=null )
-						p.forkConfig.load();
+						p.forkConfig.load(false); // Tile transforms are applied once all native levels are loaded.
 			}
 		});
 
@@ -217,6 +217,7 @@ class ProjectLoader {
 		// so refresh IID/UID lookup maps again before exposing the completed project.
 		p.resetQuickLevelAccesses();
 		p.forkConfig.applyLevelContentShifts();
+		p.forkConfig.applyTileTransforms();
 
 		if( needReSaving ) {
 			log.add(tag, "Project file was created using an older version of LDtk, re-saving is recommended to upgrade it.");

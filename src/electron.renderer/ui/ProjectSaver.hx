@@ -608,6 +608,9 @@ class ProjectSaver extends dn.Process {
 
 		// List potential external levels
 		var allRelFiles = [ p.filePath.fileWithExt ];
+		var forkRel = p.filePath.fileWithExt+"-fork.json";
+		if( NT.fileExists(p.filePath.directoryWithSlash+forkRel) )
+			allRelFiles.push(forkRel);
 		var templatesRel = p.filePath.fileWithExt+"-templates.json";
 		if( NT.fileExists(p.filePath.directoryWithSlash+templatesRel) )
 			allRelFiles.push(templatesRel);

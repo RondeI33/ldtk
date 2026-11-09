@@ -235,7 +235,7 @@ class LevelTimeline {
 		var s = getState(curStateIdx);
 
 		// Store level JSON
-		s.fullLevelJson = level.toJson(true);
+		s.fullLevelJson = level.toJson(true,true);
 		s.contentShiftX = level.contentShiftX;
 		s.contentShiftY = level.contentShiftY;
 
@@ -269,7 +269,7 @@ class LevelTimeline {
 			// A newly initialized/reset timeline may receive a layer save before
 			// its first full snapshot. Store a complete checkpoint, not a partial
 			// state with undefined layerJsons, and do not invent a pre-edit state.
-			s.fullLevelJson = level.toJson(true);
+			s.fullLevelJson = level.toJson(true,true);
 			s.contentShiftX = level.contentShiftX;
 			s.contentShiftY = level.contentShiftY;
 			for(layerJson in s.fullLevelJson.layerInstances)
@@ -282,7 +282,7 @@ class LevelTimeline {
 		for(li in level.layerInstances)
 			if( !s.layerJsons.exists(li.layerDefUid) ) {
 				var layerJson = previous.layerJsons.get(li.layerDefUid);
-				s.layerJsons.set(li.layerDefUid, layerJson!=null ? layerJson : li.toJson());
+				s.layerJsons.set(li.layerDefUid, layerJson!=null ? layerJson : li.toJson(true));
 			}
 
 		// Level JSON
@@ -321,7 +321,7 @@ class LevelTimeline {
 
 		// Store state
 		var s = getState(curStateIdx);
-		s.layerJsons.set( li.layerDefUid, li.toJson() );
+		s.layerJsons.set( li.layerDefUid, li.toJson(true) );
 
 		invalidatedDebug = true;
 		return true;

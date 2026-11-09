@@ -201,7 +201,7 @@ class LayerInstance {
 		return tdUid==null ? null : _project.defs.getTilesetDef(tdUid);
 	}
 
-	public function toJson() : ldtk.Json.LayerInstanceJson {
+	public function toJson(includeEditorTransforms=false) : ldtk.Json.LayerInstanceJson {
 		var td = getTilesetDef();
 
 		var json : ldtk.Json.LayerInstanceJson = {
@@ -278,7 +278,7 @@ class LayerInstance {
 								td==null ? -1 : td.getTileSourceX(tileInf.tileId),
 								td==null ? -1 : td.getTileSourceY(tileInf.tileId),
 							],
-							f: tileInf.flips,
+							f: includeEditorTransforms ? tileInf.flips : data.TileTransform.nativeFlips(tileInf.flips),
 							t: tileInf.tileId,
 							d: [ e.key ],
 							a: 1,

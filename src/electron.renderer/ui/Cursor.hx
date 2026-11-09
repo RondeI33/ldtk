@@ -232,15 +232,18 @@ class Cursor {
 					var gridDiffScale = M.imax(1, M.round( td.tileGridSize / li.def.gridSize ) );
 					var flipX = M.hasBit(flips,0);
 					var flipY = M.hasBit(flips,1);
+					var transpose = data.TileTransform.isTransposed(flips);
 					for(tid in tileIds) {
-						var cx = td.getTileCx(tid);
-						var cy = td.getTileCy(tid);
-						var bmp = new h2d.Bitmap( td.getTileById(tid), wrapper );
-						bmp.tile.setCenterRatio(li.def.tilePivotX, li.def.tilePivotY);
-						bmp.x = (flipX ? right-cx+1 : cx-left) * li.def.gridSize * gridDiffScale;
-						bmp.y = (flipY ? bottom-cy+1 : cy-top) * li.def.gridSize * gridDiffScale;
-						bmp.scaleX = flipX ? -1 : 1;
-						bmp.scaleY = flipY ? -1 : 1;
+						var u = td.getTileCx(tid)-left, v = td.getTileCy(tid)-top;
+						var x = transpose ? v : u, y = transpose ? u : v;
+						var width = transpose ? bottom-top+1 : right-left+1;
+						var height = transpose ? right-left+1 : bottom-top+1;
+						var grid = li.def.gridSize;
+						var tile = data.TileTransform.withCellPivot(td.getTileById(tid),grid,li.def.tilePivotX,li.def.tilePivotY);
+						var bmp = new h2d.Bitmap(tile, wrapper);
+						data.TileTransform.placeBitmap(bmp,
+							(flipX ? width-1-x : x)*grid*gridDiffScale,
+							(flipY ? height-1-y : y)*grid*gridDiffScale,grid,flips);
 					}
 				}
 

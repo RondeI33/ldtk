@@ -145,7 +145,7 @@ function mount(root, api) {
         if(selected.has('c:'+i))n.classList.add('is-selected');
         try{const k=JSON.stringify([c.layerDefUid,c.kind,c.value,c.tiles]);if(!cellCache.has(k))cellCache.set(k,api.cellImage(c));const v=cellCache.get(k);
           if(v&&v.color)n.style.background=v.color;
-          for(const tile of v&&v.tiles||[]){const img=el('img','',null,n);img.src=tile.url;Object.assign(img.style,{width:g+'px',height:g+'px',transform:`scale(${tile.flips&1?-1:1},${tile.flips&2?-1:1})`});}
+          for(const tile of v&&v.tiles||[]){const img=el('img','',null,n);img.src=tile.url;const sx=tile.flips&1?-1:1,sy=tile.flips&2?-1:1;Object.assign(img.style,{width:g+'px',height:g+'px',transform:tile.flips&4?`matrix(0,${sy},${sx},0,0,0)`:`scale(${sx},${sy})`});}
         }catch(_){n.style.background='#6b7483';}
         n.addEventListener('click',ev=>{ev.stopPropagation();choose('c:'+i,ev.shiftKey);});
       }

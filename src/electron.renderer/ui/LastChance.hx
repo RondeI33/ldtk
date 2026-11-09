@@ -9,9 +9,9 @@ class LastChance extends dn.Process {
 
 		LastChance.end();
 		CUR = this;
-		var backup = project.toJson();
+		var backup = project.toJson(true);
 		var backupPath = project.filePath.full;
-		// LastChance snapshots stock LDtk JSON; capture sidecar-only state by IID.
+		// Tile transforms are in this in-memory snapshot; capture offsets by IID too.
 		var shiftBackup : Map<String,{x:Int,y:Int}> = new Map();
 		for(w in project.worlds)
 		for(l in w.levels)
@@ -26,7 +26,7 @@ class LastChance extends dn.Process {
 				return;
 			App.LOG.general('Restored project using LastChance ("$str")');
 			var restored : data.Project = data.Project.fromJson(backupPath, backup);
-			restored.forkConfig.load();
+			restored.forkConfig.load(false); // In-memory tile orientations belong to this snapshot.
 			for(w in restored.worlds)
 			for(l in w.levels) {
 				var shift = shiftBackup.get(l.iid);

@@ -110,6 +110,77 @@ class ForkConfig {
 		}
 	}
 
+	/** Restore orientations after native layers (including external levels) are loaded. */
+	public function applyTileTransforms() {
+		var layers = getDyn(sidecarRoot,"tileTransforms");
+		for(w in project.worlds)
+		for(l in w.levels)
+		for(li in l.layerInstances) {
+			if( li.def.type!=Tiles )
+				continue;
+			for(stack in li.gridTiles)
+			for(tile in stack)
+				tile.flips = TileTransform.nativeFlips(tile.flips);
+			var entry = getDyn(layers,li.iid);
+			if( !isJsonObject(entry)
+				|| getInt(entry,"layerDefUid")!=li.layerDefUid
+				|| getInt(entry,"tilesetUid")!=li.getTilesetUid()
+				|| getInt(entry,"gridSize")!=li.def.gridSize
+				|| getInt(entry,"gridWidth")!=li.cWid
+				|| getInt(entry,"gridHeight")!=li.cHei )
+				continue;
+			var cells = getDyn(entry,"cells");
+			if( !Std.isOfType(cells,Array) )
+				continue;
+			for(cell in (cast cells:Array<Dynamic>)) {
+				if( !isJsonObject(cell) )
+					continue;
+				var coordId = getInt(cell,"coordId",-1);
+				var index = getInt(cell,"stackIndex",-1);
+				var flips = getInt(cell,"flips",0);
+				var stack = li.gridTiles.get(coordId);
+				// Older editors can alter native cells without updating the sidecar.
+				// Only restore entries whose tile identity and native flips still match.
+				if( stack!=null && index>=0 && index<stack.length
+					&& flips>=4 && flips<=7
+					&& stack[index].tileId==getInt(cell,"tileId")
+					&& TileTransform.nativeFlips(stack[index].flips)==TileTransform.nativeFlips(flips) )
+					stack[index].flips = flips;
+			}
+		}
+	}
+
+	/** Replace only editor-owned orientation data; all other sidecar keys are retained. */
+	function updateTileTransforms(root:Dynamic) {
+		var layers : Dynamic = {};
+		for(w in project.worlds)
+		for(l in w.levels)
+		for(li in l.layerInstances) {
+			if( li.def.type!=Tiles )
+				continue;
+			var cells : Array<Dynamic> = [];
+			var coords = [for(coordId in li.gridTiles.keys()) coordId];
+			coords.sort((a,b)->a-b);
+			for(coordId in coords) {
+				var stack = li.gridTiles.get(coordId);
+				for(i in 0...stack.length) {
+					var tile = stack[i];
+					if( TileTransform.isTransposed(tile.flips) )
+						cells.push({coordId:coordId,stackIndex:i,tileId:tile.tileId,flips:tile.flips});
+				}
+			}
+			if( cells.length>0 )
+				Reflect.setField(layers,li.iid,{
+					layerDefUid:li.layerDefUid, tilesetUid:li.getTilesetUid(), gridSize:li.def.gridSize,
+					gridWidth:li.cWid, gridHeight:li.cHei, cells:cells,
+				});
+		}
+		if( Reflect.fields(layers).length==0 )
+			Reflect.deleteField(root,"tileTransforms");
+		else
+			Reflect.setField(root,"tileTransforms",layers);
+	}
+
 	/** Compare JSON by value so a differently formatted but unchanged sidecar is not rewritten. */
 	static function sameJson(a:Dynamic, b:Dynamic) : Bool {
 		if( a==b )
@@ -299,11 +370,18 @@ class ForkConfig {
 		return null;
 	}
 
-	public function load() {
+	/**
+	 * Reload authoring configuration without replacing live level content.
+	 * Configuration panels call this on an already edited project, so loading
+	 * disk tile transforms here would discard unsaved rotations. ProjectLoader
+	 * applies them explicitly after all native (including external) levels load.
+	 */
+	public function load(restoreTileTransforms=false) {
 		trackedEntities = new Map();
 		sidecarRoot = {};
 		loadedEntityKeys = new Map();
 		applyLevelContentShifts(); // Missing sidecar means zero, including on a subsequent reload.
+		if( restoreTileTransforms ) applyTileTransforms();
 
 		// Clear all sidecar-only runtime state. Legacy embedded autoChildren are intentionally kept
 		// until/unless the sidecar contains an explicit autoChildren entry, allowing one-time migration.
@@ -337,6 +415,7 @@ class ForkConfig {
 				throw "Expected a sidecar object";
 			sidecarRoot = cloneJson(root);
 			applyLevelContentShifts();
+			if( restoreTileTransforms ) applyTileTransforms();
 			var entities = getDyn(root,"entities");
 			if( !isJsonObject(entities) )
 				return;
@@ -601,6 +680,7 @@ class ForkConfig {
 		Reflect.setField(root,"entities",entities);
 
 		updateLevelContentShifts(root);
+		updateTileTransforms(root);
 
 		try {
 			var path = getPath();

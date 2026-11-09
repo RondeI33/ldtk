@@ -5424,7 +5424,8 @@ canvas#webgl {
 				&:hover {
 					border-color: white;
 				}
-				&.cameraPreview:focus-visible {
+				&.cameraPreview:focus-visible,
+				&.selectionRotation:focus-visible {
 					outline: 2px solid #b7ceff;
 					outline-offset: 2px;
 				}

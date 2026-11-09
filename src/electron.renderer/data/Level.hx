@@ -147,8 +147,8 @@ class Level {
 
 
 
-	public function toJson(ignoreCache=false) : ldtk.Json.LevelJson {
-		if( !ignoreCache && hasJsonCache() ) {
+	public function toJson(ignoreCache=false, includeEditorTransforms=false) : ldtk.Json.LevelJson {
+		if( !ignoreCache && !includeEditorTransforms && hasJsonCache() ) {
 			var o = getCacheJsonObject();
 			if( !_project.externalLevels )
 				Reflect.deleteField(o, dn.data.JsonPretty.HEADER_VALUE_NAME);
@@ -207,12 +207,12 @@ class Level {
 					all.push( getFieldInstance(fd,true).toJson() );
 				all;
 			},
-			layerInstances: layerInstances.map( li->li.toJson() ),
+			layerInstances: layerInstances.map( li->li.toJson(includeEditorTransforms) ),
 			__neighbours: ignoreCache ? [] : getNeighboursJson(),
 		}
 
 		// Cache this json
-		if( !ignoreCache )
+		if( !ignoreCache && !includeEditorTransforms )
 			setJsonCache(json, false);
 
 		return json;
@@ -308,10 +308,15 @@ class Level {
 		l.bgPivotY = JsonTools.readFloat(json.bgPivotY, 0.5);
 
 		l.layerInstances = [];
+		var hasEditorTransforms = false;
 		if( json.layerInstances!=null ) // external levels
 			for( layerJson in JsonTools.readArray(json.layerInstances) ) {
 				var li = data.inst.LayerInstance.fromJson(p, layerJson);
 				l.layerInstances.push(li);
+				for(stack in li.gridTiles)
+				for(tile in stack)
+					if( TileTransform.isTransposed(tile.flips) )
+						hasEditorTransforms = true;
 			}
 
 		if( json.fieldInstances!=null )
@@ -322,7 +327,10 @@ class Level {
 
 		// Init cache
 		crawlObjectRec(json); // Because haxe.Json.parse unescapes "\n" chars, we need to re-escape them before caching the JSON object
-		l.setJsonCache(json, true);
+		// In-memory history/clone snapshots may contain the editor-only bit.
+		// They must never become the native on-disk cache used by ProjectSaver.
+		if( !hasEditorTransforms )
+			l.setJsonCache(json, true);
 
 		return l;
 	}

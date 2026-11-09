@@ -136,6 +136,15 @@ class GameMakerStudio2 extends Exporter {
 
 	override function convert() {
 		super.convert();
+		// This exporter writes raw tile IDs and cannot encode orientations yet.
+		// Reject before touching the export directory instead of losing rotations.
+		for(w in p.worlds)
+		for(l in w.levels)
+		for(li in l.layerInstances)
+		for(stack in li.gridTiles)
+		for(tile in stack)
+			if( data.TileTransform.isTransposed(tile.flips) )
+				throw 'GameMaker export cannot preserve 90-degree tile rotations in "${l.identifier}". Use Tiled or PNG export.';
 
 		setOutputPath( projectPath.directory + "/" + p.getRelExternalFilesDir() + "/gms2", true );
 

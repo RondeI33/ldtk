@@ -1,0 +1,14 @@
+{
+  "name": "com.rondei33.ldtk-smartive-unity-tile-rotation",
+  "version": "1.0.0",
+  "displayName": "LDTK-Smartive Unity Tile Rotation",
+  "description": "Applies each LDtk-Smartive tile's 90-degree orientation to its LDtkUnity Tilemap cell after import.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "author": {
+    "name": "RondeI33",
+    "url": "https://github.com/RondeI33/ldtk"
+  }
+}

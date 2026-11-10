@@ -1,0 +1,27 @@
+name: Build LDTK-Smartive 1.0.42 from master
+
+# Never package untested brush rotation edits. The reusable release workflow
+# enforces native Electron regressions on Linux and macOS before installers.
+# Slack is announced only if the tagged release and all assets were published.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.42-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.42-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Brush rotation tests, installers and v1.0.42 Slack announcement
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: true
+    secrets: inherit

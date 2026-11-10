@@ -401,6 +401,17 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 		});
 	}
 
+	/** Rotate the current tile brush, whether it contains one tile or a stamp. */
+	public function rotateBrush(clockwise:Bool) {
+		var flips = data.TileTransform.rotate(M.makeBitsFromBools(flipX, flipY, transpose),clockwise);
+		flipX = M.hasBit(flips,0);
+		flipY = M.hasBit(flips,1);
+		transpose = data.TileTransform.isTransposed(flips);
+		N.quick(clockwise ? "Tile brush rotated 90° clockwise" : "Tile brush rotated 90° counterclockwise");
+		if( lastMouse!=null )
+			customCursor(new hxd.Event(EMove),lastMouse);
+	}
+
 	public function saveSelection() {
 		curTilesetDef.saveSelection( getSelectedValue() );
 		editor.ge.emit( TilesetSelectionSaved(curTilesetDef) );
@@ -411,6 +422,12 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 		super.onAppCommand(cmd);
 
 		switch cmd {
+			case C_RotateSelectionClockwise:
+				rotateBrush(true);
+
+			case C_RotateSelectionCounterClockwise:
+				rotateBrush(false);
+
 			case C_FlipX:
 				flipX = !flipX;
 				N.quick("X-flip: "+L.onOff(flipX));

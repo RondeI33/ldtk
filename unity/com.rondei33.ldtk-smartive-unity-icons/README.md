@@ -26,3 +26,7 @@ The export is stored beside the project: `World.ldtk` produces `World.ldtk-camer
 The camera must be an enabled, unrotated orthographic game camera in a valid loaded scene, using a centered axis-aligned orthographic projection. Automatic selection stays scoped to the active scene; an explicit camera selection can use a persistent output camera from another loaded scene. The exported scene name/path identify the active gameplay scene. The exporter reads the current output projection, including centered size/aspect adjustments such as Pixel Perfect when they are present at sampling time. Perspective, stereo, rotated, skewed and off-center cameras produce an explicit unavailable status instead of an inaccurate rectangle. With Cinemachine or a camera controller, select its final Unity `Camera` output; dynamic lens changes are sampled from that component. This feature previews framing over LDtk content, not Unity lighting, post-processing, runtime prefabs, camera damping or room/zone constraints.
 
 Full contract and verification guidance: [Unity camera preview](../../docs/UNITY_CAMERA_PREVIEW.md).
+
+## 90-degree tile rotation in Unity
+
+The icon and camera integration does not transform tiles. For quarter-turn rotations saved in `<project>.ldtk-fork.json`, install the [optional per-cell LDtkUnity rotation package](../com.rondei33.ldtk-smartive-unity-tile-rotation/README.md). It uses the LDtkUnity post-import callback and applies rotation to each tile's own matrix without rotating the whole tilemap.

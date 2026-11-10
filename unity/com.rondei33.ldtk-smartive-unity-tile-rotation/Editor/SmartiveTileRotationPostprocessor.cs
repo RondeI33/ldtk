@@ -74,7 +74,7 @@ namespace LDTKSmartive.UnityTileRotation
                         layer.GridTiles == null || layer.GridTiles.Tilemap == null)
                         continue;
                     JObject entry = transforms[layer.Iid.Iid] as JObject;
-                    if (entry == null || entry["cells"] is not JArray cells)
+                    if (entry == null || !(entry["cells"] is JArray cells))
                         continue;
 
                     JObject nativeLayer = FindNativeLayer(nativeLevel, layer.Iid.Iid);
@@ -161,7 +161,7 @@ namespace LDTKSmartive.UnityTileRotation
             if (tiles == null) return grouped;
             foreach (JToken item in tiles)
             {
-                if (item is not JObject tile || tile["d"] is not JArray d || d.Count == 0)
+                if (!(item is JObject tile) || !(tile["d"] is JArray d) || d.Count == 0)
                     continue;
                 int coordId = d[0].Value<int>();
                 if (!grouped.TryGetValue(coordId, out List<JObject> stack))

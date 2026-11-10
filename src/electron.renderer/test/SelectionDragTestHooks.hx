@@ -6,6 +6,8 @@ package test;
 @:access(page.Editor)
 @:access(data.def.LayerDef)
 @:access(tool.SelectionTool)
+@:access(tool.lt.TileTool)
+@:access(ui.Cursor)
 @:access(GenericLevelElementGroup)
 class SelectionDragTestHooks {
 	static var tilesAUid:Int;
@@ -656,6 +658,88 @@ class SelectionDragTestHooks {
 		return {runtime:runtimeFlags,native:nativeFlags,json:haxe.Json.stringify(copy.toJson())};
 	}
 	public static function tryUndo():Bool return editor().curLevelTimeline.undo();
+	static function tileBrush():tool.lt.TileTool {
+		var brush=Std.downcast(editor().curTool,tool.lt.TileTool);
+		if(brush==null) throw "Tile brush is not the active tool";
+		return brush;
+	}
+
+	/** A real atlas is supplied by the caller; test selections are rectangular or sparse. */
+	public static function prepareTileBrush(ids:Array<Int>,random=false):Void {
+		var e=editor();
+		e.selectionTool.clear();
+		for(li in [tilesA(),tilesB(),ints(),bigTiles()]) {
+			li.def.pxOffsetX=li.def.pxOffsetY=0;
+			clearLayerGrid(li);
+			e.ge.emit(LayerInstanceChangedGlobally(li));
+		}
+		e.selectLayerInstance(tilesA());
+		var brush=tileBrush();
+		brush.flipX=brush.flipY=brush.transpose=false;
+		brush.selectValue({ids:ids.copy(),mode:random ? Random : Stamp});
+		e.curLevelTimeline.clear();
+	}
+
+	public static function tileBrushState():Dynamic {
+		var brush=tileBrush();
+		return {
+			flips:M.makeBitsFromBools(brush.flipX,brush.flipY,brush.transpose),
+			running:brush.isRunning(),
+			grid:flipState().tilesA,
+		};
+	}
+
+	/** Dispatch through the editor, where the actual selection-vs-brush routing lives. */
+	public static function tileBrushCommands(commands:String):Void {
+		for(i in 0...commands.length)
+			switch commands.charAt(i) {
+				case "r": editor().onAppCommand(C_RotateSelectionClockwise);
+				case "l": editor().onAppCommand(C_RotateSelectionCounterClockwise);
+				case "x": editor().onAppCommand(C_FlipX);
+				case "y": editor().onAppCommand(C_FlipY);
+				case _: throw "Unknown brush transform command";
+			}
+	}
+
+	public static function tileBrushCursor(cx:Int,cy:Int):Dynamic {
+		var brush=tileBrush();
+		var m=Coords.fromLevelCoords(cx*16+8,cy*16+8);
+		brush.onMouseMove(new hxd.Event(EMove),m);
+		brush.onMouseMoveCursor(new hxd.Event(EMove),m);
+		return switch editor().cursor.type {
+			case Tiles(_,ids,x,y,flips): {ids:ids.copy(),cx:x,cy:y,flips:flips};
+			case _: null;
+		}
+	}
+
+	public static function tileBrushStart(cx:Int,cy:Int):Void {
+		var m=Coords.fromLevelCoords(cx*16+8,cy*16+8);
+		var ev=new hxd.Event(EPush);
+		ev.button=0;
+		tileBrush().startUsing(ev,m);
+	}
+
+	public static function tileBrushMove(cx:Int,cy:Int):Void {
+		var m=Coords.fromLevelCoords(cx*16+8,cy*16+8);
+		tileBrush().onMouseMove(new hxd.Event(EMove),m);
+	}
+
+	public static function tileBrushStop(cx:Int,cy:Int):Void {
+		var m=Coords.fromLevelCoords(cx*16+8,cy*16+8);
+		tileBrush().stopUsing(m);
+	}
+
+	public static function tileBrushPaint(cx:Int,cy:Int):Void {
+		tileBrushStart(cx,cy);
+		tileBrushStop(cx,cy);
+	}
+
+	public static function tileBrushRectangle(cx:Int,cy:Int,width:Int,height:Int):Bool {
+		var result=tileBrush().drawSelectionInRectangle(cx,cy,width,height);
+		editor().levelRender.invalidateAll();
+		return result;
+	}
+
 	public static function rotationNavigationKeys(zqsd:Bool):Void App.ME.settings.v.navigationKeys=zqsd ? Settings.NavigationKeys.Zqsd : Settings.NavigationKeys.Wasd;
 	public static function rotationWorldMode(value:Bool):Void editor().setWorldMode(value);
 	public static function clearSelection():Void editor().selectionTool.clear();

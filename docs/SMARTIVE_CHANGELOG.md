@@ -1,3 +1,19 @@
+# 1.0.42
+
+## 90° rotation for held tile brushes and spritesheet stamps
+
+- Reuse Z / Shift+Z (or Alt+R / Alt+Shift+R with ZQSD navigation) to rotate the active Tiles-layer painting brush when no rotatable level selection is active. The two Editing sidebar actions work for either a scene selection or the painting brush.
+- Rotate both single tiles and rectangular or sparse multi-tile stamps selected from a spritesheet. Their preview and placed cells use consistent per-tile artwork orientation and reflow as the stamp changes width/height.
+- Allow changing brush orientation during an active painting stroke. Compose quarter turns with X/Y reflections without breaking normal selection rotation or Ctrl/Cmd+Z history.
+- Extend native editor regression coverage for keyboard, cursor previews, sparse stamps, Undo/Redo, rectangle repetition, active strokes and existing scene selections.
+
+## Optional Unity per-cell orientation integration
+
+- Add the `com.rondei33.ldtk-smartive-unity-tile-rotation` package. When installed alongside Cammin/LDtkUnity, its post-import hook restores 90° orientation for each individual Tilemap cell using the project's `.ldtk-fork.json` metadata. It does not rotate the entire Tilemap, level or prefab.
+- Validate layer IID/dimensions and every tile's ID, stack index and native X/Y flips before applying the cell's transpose matrix, skipping stale metadata.
+- This new optional Unity package is **not automatically installed by the editor**: add the Git URL in Unity Package Manager, keep the sidecar beside your LDtk project, and reimport. Unity batchmode verification in the game's Unity project is still required for visual parity.
+- Native `.ldtk` / `.ldtkl` JSON format and previous-editor compatibility remain unchanged.
+
 # 1.0.41
 
 ## Selection rotation by 90 degrees

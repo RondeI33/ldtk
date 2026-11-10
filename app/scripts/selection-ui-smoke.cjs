@@ -555,10 +555,88 @@ async function run(win){
   await toolbarClick('li.rotateSelectionCounterClockwise');
   assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Toolbar counterclockwise action did not restore state');
   await ev('SelectionDragTestHooks.clearSelection()');await editorFrame();
-  assert.strictEqual(await ev('document.querySelector("li.rotateSelectionClockwise").getAttribute("aria-disabled")'),'true','Empty selection did not disable the rotation toolbar');
+  assert.strictEqual(await ev('document.querySelector("li.rotateSelectionClockwise").getAttribute("aria-disabled")'),'false','Tile brush with no scene selection should enable rotation toolbar');
+  const emptyScene=await ev('SelectionDragTestHooks.rotationState()');
+  const emptyBrush=await ev('SelectionDragTestHooks.tileBrushState()');
   await nativeKey('z');
-  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Empty-selection rotation mutated data');
-  pass('Real Z/Shift+Z and toolbar clicks rotate; Ctrl/Cmd+Z, input typing, ZQSD navigation and empty-selection guards remain correct');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),emptyScene,'Rotating an unplaced brush changed the map');
+  assert.strictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).flips,cwOrientation[emptyBrush.flips],'Z did not rotate idle brush');
+  pass('Native selection controls preserve Ctrl/Cmd+Z, typing, ZQSD and switch to brush when selection is empty');
+
+
+  // Independent atlas-cell oracle for an asymmetric sparse 3x2 tile stamp.
+  function expectedBrushCells(ids,commands,x,y){
+    const pts=ids.map(id=>({id,x:id%10,y:Math.floor(id/10)}));
+    const left=Math.min(...pts.map(p=>p.x)),top=Math.min(...pts.map(p=>p.y));
+    let width=Math.max(...pts.map(p=>p.x))-left+1;
+    let height=Math.max(...pts.map(p=>p.y))-top+1;
+    let positions=pts.map(p=>({...p,x:p.x-left,y:p.y-top})),flips=0;
+    for(const command of commands){
+      positions=positions.map(p=>({...p,...transformPoint(p.x,p.y,width,height,command)}));
+      if(command==='r'){flips=cwOrientation[flips];[width,height]=[height,width];}
+      else if(command==='l'){flips=ccwOrientation[flips];[width,height]=[height,width];}
+      else flips^=command==='x'?1:2;
+    }
+    return positions.map(p=>({cx:x+p.x,cy:y+p.y,tiles:[{tileId:p.id,flips}]}))
+      .sort((a,b)=>a.cy-b.cy||a.cx-b.cx);
+  }
+
+  currentCase='single-tile brush rotation via native keyboard';
+  await ev('SelectionDragTestHooks.prepareTileBrush([10])');await settleHistory();
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.tileBrushCursor(7,5)'),{ids:[10],cx:7,cy:5,flips:0});
+  await nativeKey('z');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.tileBrushCursor(7,5)'),{ids:[10],cx:7,cy:5,flips:5},'Preview did not rotate a held single tile');
+  await ev('SelectionDragTestHooks.tileBrushPaint(7,5)');
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,expectedBrushCells([10],'r',7,5),'Single tile painted without its rotated artwork flags');
+  await ev('SelectionDragTestHooks.undo()');await settleHistory();
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,[],'Undo did not restore the empty single-tile stroke');
+  await ev('SelectionDragTestHooks.redo()');await settleHistory();
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,expectedBrushCells([10],'r',7,5),'Redo lost rotated single tile');
+  await nativeKey('z',['shift']);
+  assert.strictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).flips,0,'Shift+Z did not reverse brush rotation');
+  pass('Native keyboard updates one-tile preview, paint output and Undo/Redo');
+
+  currentCase='multi-tile atlas brush rotations and mirrors';
+  const stamp=[1,2,3,11,13];
+  for(const commands of ['r','l','rr','rl','rrrr','rx','xr','ry','yr','rxy','xyrl']){
+    await ev(`SelectionDragTestHooks.prepareTileBrush(${JSON.stringify(stamp)})`);
+    await ev(`SelectionDragTestHooks.tileBrushCommands(${JSON.stringify(commands)})`);
+    const target=expectedBrushCells(stamp,commands,7,5);
+    const preview=await ev('SelectionDragTestHooks.tileBrushCursor(7,5)');
+    assert.strictEqual(preview.flips,target[0].tiles[0].flips,`Wrong preview orientation for ${commands}`);
+    assert.deepStrictEqual(preview.ids,stamp,`Atlas brush ids changed during ${commands}`);
+    await ev('SelectionDragTestHooks.tileBrushPaint(7,5)');
+    assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,target,`Sparse 3x2 atlas brush ${commands} placed incorrectly`);
+    await ev('SelectionDragTestHooks.undo()');await settleHistory();
+    assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,[],`Undo after ${commands} did not remove the stamp`);
+    await ev('SelectionDragTestHooks.redo()');await settleHistory();
+    assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,target,`Redo lost stamp orientation ${commands}`);
+  }
+  pass('11 sparse 3x2 atlas brush rotations verify both directions, inverse turns, X/Y order, cursor and Undo/Redo');
+
+  currentCase='rotated rectangle brush repetition';
+  await ev(`SelectionDragTestHooks.prepareTileBrush(${JSON.stringify(stamp)})`);
+  await ev('SelectionDragTestHooks.tileBrushCommands("r")');
+  assert.strictEqual(await ev('SelectionDragTestHooks.tileBrushRectangle(6,5,4,6)'),true,'Rotated tiled rectangle did not draw');
+  const pattern=expectedBrushCells(stamp,'r',0,0);
+  const rectangleExpected=[];
+  for(let yy=0;yy<2;yy++)for(let xx=0;xx<2;xx++)
+    for(const cell of pattern)rectangleExpected.push({...cell,cx:6+xx*2+cell.cx,cy:5+yy*3+cell.cy});
+  rectangleExpected.sort((a,b)=>a.cy-b.cy||a.cx-b.cx);
+  assert.deepStrictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).grid,rectangleExpected,'Rotated rectangle repeat distorted atlas cells');
+  pass('Rectangle stamping repeats the rotated 2x3 sprite-sheet pattern without filling its sparse holes');
+
+  currentCase='rotate while painting';
+  await ev(`SelectionDragTestHooks.prepareTileBrush(${JSON.stringify(stamp)})`);
+  await ev('SelectionDragTestHooks.tileBrushStart(3,3)');
+  assert.strictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).running,true,'Brush stroke did not start');
+  await ev('SelectionDragTestHooks.tileBrushCommands("r")');
+  assert.strictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).flips,5,'Rotation was rejected during active stroke');
+  await ev('SelectionDragTestHooks.tileBrushMove(12,9)');
+  await ev('SelectionDragTestHooks.tileBrushStop(12,9)');
+  assert.strictEqual((await ev('SelectionDragTestHooks.tileBrushState()')).running,false,'Rotated stroke did not finish');
+  assert((await ev('SelectionDragTestHooks.tileBrushState()')).grid.some(c=>c.tiles.some(t=>t.flips===5)),'Painting continued with unrotated sprite tiles');
+  pass('Active tile brush can rotate during a stroke without aborting the gesture');
 
   currentCase='native tile artwork pixels';
   win.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});

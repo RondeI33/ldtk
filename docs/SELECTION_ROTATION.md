@@ -9,7 +9,7 @@ Select contents in the level with **Alt+click** or **Alt+Shift+drag**, then use:
 | Mirror horizontally | X | Shift+H |
 | Mirror vertically | Y | Shift+V |
 
-The two curved-arrow buttons in the **Editing** sidebar perform the same rotation commands. Their tooltips show the shortcut for the active navigation layout. They are unavailable when there is no supported level selection. Both buttons support keyboard focus and activation with Enter or Space. The Help panel lists the rotation shortcuts.
+The two curved-arrow buttons in the **Editing** sidebar perform the same rotation commands. Their tooltips show the shortcut for the active navigation layout. When no supported level selection exists, they rotate the currently held tile brush (single tiles or multi-tile stamps). Both buttons support keyboard focus and activation with Enter or Space. The Help panel lists the rotation shortcuts.
 
 In the ZQSD navigation layout, **Z** remains the upward movement key. Use the alternative clockwise shortcut or the sidebar button. Rotation does not replace Ctrl/Cmd+Z for Undo, the existing X/Y mirrors, or the R shortcut for tile randomization.
 
@@ -25,10 +25,10 @@ The commands also work while dragging a supported selection: the preview shows t
 
 A direct rotation that would put selected content outside a layer or off its grid is rejected as a whole, with a message explaining why.
 
-Rotation is available during level editing. Text fields, modal dialogs, world view, camera-placement mode and other active placement tools retain their own input behavior.
+The same clockwise/counterclockwise commands also rotate the active Tiles-layer painting brush. A brush selected from the spritesheet keeps its original tile IDs but the preview and placement rotate each tile's artwork and the multi-cell layout. Brush rotation also works mid-stroke; brush X/Y flips continue to compose with the quarter turn. Tile brushes paint with ordinary per-cell Undo/Redo history.\n\nRotation is available during level editing. Text fields, modal dialogs, world view, camera-placement mode and other active placement tools retain their own input behavior.
 
 ## File compatibility
 
 The standard `.ldtk` and external `.ldtkl` files retain LDtk's native tile flip values. Smartive saves the additional diagonal tile orientation needed for quarter turns in the existing `<project>.ldtk-fork.json` file. Keep this companion file with the project when moving or sharing it.
 
-Older LDtk editors and importers can still read the native project. Readers that do not use Smartive's orientation metadata see the saved cell positions and native X/Y flips, but do not reproduce the additional quarter-turn orientation. A game importer needs to read that metadata to reproduce those manual tile rotations.
+Older LDtk editors and importers can still read the native project. Readers that do not use Smartive's orientation metadata see the saved cell positions and native X/Y flips, but do not reproduce the additional quarter-turn orientation. For Unity projects using Cammin/LDtkUnity, install the optional [per-tile rotation postprocessor](../unity/com.rondei33.ldtk-smartive-unity-tile-rotation/README.md). It reads the sidecar and applies an individual transform matrix to each imported Tilemap cell, rather than rotating the entire Tilemap or level. Unity projects must install this companion package and keep the sidecar in sync; this does not happen automatically from the editor release alone.

@@ -9,6 +9,7 @@ function run(command,args,cwd=repo){
 }
 let status=1;
 try{
+  if(run(process.execPath,['--test','scripts/unity-tile-orientation.test.cjs'],appDir)!==0)throw Error('Unity per-cell transform model tests failed');
   if(run('haxe',['main.hxml'])!==0)throw Error('Main-process compilation failed');
   if(run('haxe',['renderer.hxml','-D','selection_drag_tests','--macro',"include('test')"])!==0)throw Error('Instrumented renderer compilation failed');
   status=run(require('electron'),['--no-sandbox','scripts/selection-ui-smoke.cjs'],appDir);

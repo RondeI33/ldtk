@@ -575,6 +575,22 @@ class Editor extends Page {
 	}
 
 
+	/** Brush rotation shares selection shortcuts but remains available during painting. */
+	public function canUseTileBrushRotation():Bool {
+		if( project==null || curLevel==null || curLayerInstance==null || curTool==null
+			|| !Std.isOfType(curTool,tool.lt.TileTool) || worldMode || project.isBackup()
+			|| isLocked() || isCameraPreviewPlacing() || isSpecialToolActive()
+			|| !App.ME.focused || !App.ME.hasGlContext || hasInputFocus()
+			|| ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists() )
+			return false;
+		var focused = new J(js.Browser.document.activeElement);
+		if( focused.is("input,textarea,select") || focused.closest('[contenteditable]:not([contenteditable="false"])').length>0 )
+			return false;
+		return !panTool.isRunning() && !selectionTool.isRunning()
+			&& (resizeTool==null || !resizeTool.isRunning()) && curTool.canEdit();
+	}
+
+
 
 	var spaceKeyTime = 0.;
 	override function onKeyDown(keyCode:Int) {
@@ -692,6 +708,8 @@ class Editor extends Page {
 			case C_RotateSelectionClockwise, C_RotateSelectionCounterClockwise:
 				if( canUseSelectionRotation() && selectionTool.canRotateSelection() )
 					selectionTool.onAppCommand(cmd);
+				else if( canUseTileBrushRotation() )
+					curTool.onAppCommand(cmd);
 				return;
 
 			case C_Back:
@@ -1747,7 +1765,8 @@ class Editor extends Page {
 	}
 
 	function updateSelectionRotationActions() {
-		var enabled = selectionTool!=null && selectionTool.any() && canUseSelectionRotation() && selectionTool.canRotateSelection();
+		var enabled = selectionTool!=null && selectionTool.any() && canUseSelectionRotation() && selectionTool.canRotateSelection()
+			|| canUseTileBrushRotation();
 		if( rotationActionsEnabled==enabled )
 			return;
 		rotationActionsEnabled = enabled;

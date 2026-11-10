@@ -1,0 +1,27 @@
+name: Build LDTK-Smartive 1.0.41 from master
+
+# This release is triggered by merging the validated selection-rotation changes.
+# The called release workflow runs native Linux/macOS editor regressions before
+# packaging and only announces on Slack after publication succeeds.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/smartive-1.0.41-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smartive-1.0.41-master-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    name: Selection rotation tests, installers and v1.0.41 Slack announcement
+    uses: ./.github/workflows/ldtk-smartive-1.0.0-release.yml
+    with:
+      force_rebuild: false
+      notify_slack: true
+    secrets: inherit

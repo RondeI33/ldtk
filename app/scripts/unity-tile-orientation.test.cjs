@@ -7,10 +7,13 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'../..');
 const source=fs.readFileSync(path.join(root,'unity/com.rondei33.ldtk-smartive-unity-tile-rotation/Editor/SmartiveTileRotationPostprocessor.cs'),'utf8');
 
-const multiply=(a,b)=>[
-  [a[0][0]*b[0][0]+a[0][1]*b[1][0],a[0][0]*b[0][1]+a[0][1]*b[1][1]],
-  [a[1][0]*b[0][0]+a[1][1]*b[1][0],a[1][0]*b[0][1]+a[1][1]*b[1][1]],
-];
+const multiply=(a,b)=>{
+  const canonical=value=>value===0?0:value;
+  return [
+    [canonical(a[0][0]*b[0][0]+a[0][1]*b[1][0]),canonical(a[0][0]*b[0][1]+a[0][1]*b[1][1])],
+    [canonical(a[1][0]*b[0][0]+a[1][1]*b[1][0]),canonical(a[1][0]*b[0][1]+a[1][1]*b[1][1])],
+  ];
+};
 const transpose=[[0,-1],[-1,0]];
 const unityYUp=[[1,0],[0,-1]];
 const native=(bits)=>[[(bits&1)?-1:1,0],[0,(bits&2)?-1:1]];

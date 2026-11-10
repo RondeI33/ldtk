@@ -1,3 +1,17 @@
+# 1.0.41
+
+## Selection rotation by 90 degrees
+
+- Rotate a tile or IntGrid selection clockwise with Z and counterclockwise with Shift+Z; use Alt+R / Alt+Shift+R when ZQSD navigation is active. Keep X/Y mirroring shortcuts and add accessible toolbar rotation actions.
+- Rotate rectangular and sparse selections without overwriting empty cells, including during move/copy dragging; reject out-of-bounds and misaligned placement without partial data loss.
+- Rotate drawable shapes and directional facings. Keep regular entity positions and point fields unchanged during in-place selection rotation.
+- Preserve tile artwork orientation, selection history, Undo/Redo, templates, and project reloads. Store additional quarter-turn orientation metadata in the existing .ldtk-fork.json companion file; the native LDtk JSON format remains unchanged.
+- Extend selection regression coverage for rotation shortcuts, pixels, copy/move, cancellation, persistence, Undo/Redo and legacy compatibility. Run real Electron selection and editor regression gates before building Windows, universal macOS and Linux installers.
+
+## Compatibility note
+
+- Older LDtk editors can still read the native project JSON, but cannot reproduce quarter-turned artwork without the companion .ldtk-fork.json metadata. The Unity importer has not been changed to handle that companion orientation metadata.
+
 # 1.0.40
 
 ## Selection flip crash fix

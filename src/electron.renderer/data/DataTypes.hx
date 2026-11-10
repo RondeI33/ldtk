@@ -40,6 +40,7 @@ typedef EnumDefValue = {
 
 typedef GridTileInfos = {
 	var tileId : Int;
+	/** X/Y mirrors (bits 0/1), plus the fork's runtime/sidecar transpose bit (2). */
 	var flips : Int;
 }
 

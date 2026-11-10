@@ -10,6 +10,7 @@ class Editor extends Page {
 	public var jPalette(get,never) : J; inline function get_jPalette() return jMainPanel.find("#mainPaletteWrapper");
 	var jMouseCoords : js.jquery.JQuery;
 	var jDepths : js.jquery.JQuery;
+	var rotationActionsEnabled : Null<Bool>;
 
 
 	public var curWorld(get,never) : data.World;
@@ -560,6 +561,19 @@ class Editor extends Page {
 			&& (specialTool==null || !specialTool.isRunning());
 	}
 
+	/** Rotation belongs to the level selection, including its live drag preview. */
+	public function canUseSelectionRotation():Bool {
+		if( project==null || curLevel==null || curLayerInstance==null || selectionTool==null
+			|| worldMode || project.isBackup() || isLocked() || isCameraPreviewPlacing() || isSpecialToolActive()
+			|| !App.ME.focused || !App.ME.hasGlContext || hasInputFocus()
+			|| ui.Modal.hasAnyOpen() || ui.ValuePicker.exists() || ui.CommandPalette.exists() )
+			return false;
+		var focused = new J(js.Browser.document.activeElement);
+		if( focused.is("input,textarea,select") || focused.closest('[contenteditable]:not([contenteditable="false"])').length>0 )
+			return false;
+		return !panTool.isRunning() && !curTool.isRunning() && (resizeTool==null || !resizeTool.isRunning());
+	}
+
 
 
 	var spaceKeyTime = 0.;
@@ -658,6 +672,7 @@ class Editor extends Page {
 			switch cmd {
 				case C_Undo, C_Redo, C_SelectAll, C_CopySelection, C_PasteSelection,
 					C_FlipX, C_FlipY, C_MoveLevelToPreviousWorldLayer, C_MoveLevelToNextWorldLayer,
+					C_RotateSelectionClockwise, C_RotateSelectionCounterClockwise,
 					C_SaveTileSelection, C_LoadTileSelection, C_RunCommand:
 					return;
 				case _:
@@ -673,6 +688,11 @@ class Editor extends Page {
 			case C_ToggleTileRandomMode:
 			case C_SaveTileSelection:
 			case C_LoadTileSelection:
+
+			case C_RotateSelectionClockwise, C_RotateSelectionCounterClockwise:
+				if( canUseSelectionRotation() && selectionTool.canRotateSelection() )
+					selectionTool.onAppCommand(cmd);
+				return;
 
 			case C_Back:
 				if( hasInputFocus() ) {
@@ -1699,7 +1719,42 @@ class Editor extends Page {
 			(v)->setTileEnumOverlays(v),
 			()->curLayerDef!=null && curLayerDef.type==Tiles
 		);
+		for(action in [
+			{ selector:"li.rotateSelectionClockwise", command:C_RotateSelectionClockwise },
+			{ selector:"li.rotateSelectionCounterClockwise", command:C_RotateSelectionCounterClockwise },
+		]) {
+			var jAction = jEditOptions.find(action.selector);
+			var command = action.command;
+			var binding = App.ME.getFirstRelevantKeyBinding(command);
+			if( binding!=null )
+				jAction.attr("keys", ~/\s+/g.replace(StringTools.trim(binding.jsDisplayText), "+"));
+			jAction.on("click.selectionRotation", (ev:js.jquery.Event)->{
+				ev.preventDefault();
+				ev.stopPropagation();
+				App.ME.executeAppCommand(command);
+			});
+			jAction.on("keydown.selectionRotation", (ev:js.jquery.Event)->{
+				if( ev.keyCode==K.ENTER || ev.keyCode==K.SPACE ) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					App.ME.executeAppCommand(command);
+				}
+			});
+		}
+		rotationActionsEnabled = null;
+		updateSelectionRotationActions();
 		JsTools.parseComponents(jEditOptions);
+	}
+
+	function updateSelectionRotationActions() {
+		var enabled = selectionTool!=null && selectionTool.any() && canUseSelectionRotation() && selectionTool.canRotateSelection();
+		if( rotationActionsEnabled==enabled )
+			return;
+		rotationActionsEnabled = enabled;
+		jEditOptions.find("li.selectionRotation")
+			.toggleClass("active", enabled)
+			.toggleClass("unsupported", !enabled)
+			.attr("aria-disabled", Std.string(!enabled));
 	}
 
 	inline function applyEditOption( jOpt:js.jquery.JQuery, getter:()->Bool, setter:Bool->Void, ?isSupported:Void->Bool ) {
@@ -2433,6 +2488,7 @@ class Editor extends Page {
 				LevelTimeline.garbageCollectTimelines();
 
 			case AppSettingsChanged:
+				updateEditOptions();
 
 			case WorldMode(active):
 				if( !active && curWorldDepth!=curLevel.worldDepth )
@@ -3137,6 +3193,7 @@ class Editor extends Page {
 	override function postUpdate() {
 		super.postUpdate();
 		ge.onEndOfFrame();
+		updateSelectionRotationActions();
 		cursor.update();
 	}
 

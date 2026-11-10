@@ -247,6 +247,9 @@ class Tiled extends Exporter {
 				if( M.hasBit(flips,1) )
 					gid = M.setUnsignedBit(gid, 30);
 
+				if( data.TileTransform.isTransposed(flips) )
+					gid = M.setUnsignedBit(gid, 29);
+
 				return gid;
 			}
 		}

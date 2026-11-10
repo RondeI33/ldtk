@@ -34,6 +34,12 @@ Install or update the Unity package above, open **Tools > LDTK-Smartive > Camera
 
 See [setup, controls and supported camera framing](docs/UNITY_CAMERA_PREVIEW.md). This previews LDtk artwork within the camera frame; Unity-only rendering and runtime camera behavior remain in Unity.
 
+## Rotate a level selection
+
+Select level contents and press **Z** for a 90° clockwise turn or **Shift+Z** for a 90° counterclockwise turn. The **Editing** sidebar also provides both rotation buttons. **X/Y** keep their existing mirror behavior. **Alt+R / Alt+Shift+R** work on every navigation layout, including ZQSD where **Z** remains a movement key.
+
+See [selection rotation, grid alignment and file compatibility](docs/SELECTION_ROTATION.md).
+
 # Building from source
 
 ## Requirements

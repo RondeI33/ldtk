@@ -7,6 +7,7 @@ class SelectionTool extends Tool<Int> {
 	var isCopy = false;
 	var dragFlipX = false;
 	var dragFlipY = false;
+	var dragTranspose = false;
 	var group : GenericLevelElementGroup;
 
 	public function new() {
@@ -68,7 +69,7 @@ class SelectionTool extends Tool<Int> {
 		}
 
 		if( settings.v.emptySpaceSelection && !group.isEmpty() )
-			group.addSelectionRect(0, level.pxWid, 0, level.pxHei);
+			group.addSelectionRect(0, level.pxWid-1, 0, level.pxHei-1);
 		ui.MultiEntityInstanceEditor.sync(group.allElements());
 	}
 
@@ -122,6 +123,7 @@ class SelectionTool extends Tool<Int> {
 										t.selectValue( { ids:[tileInf.tileId], mode:t.getMode() } );
 									t.flipX = M.hasBit(tileInf.flips,0);
 									t.flipY = M.hasBit(tileInf.flips,1);
+									t.transpose = M.hasBit(tileInf.flips,2);
 								}
 
 								editor.levelRender.bleepLayerRectCase( li, cx, cy, 1,1, 0xffcc00 );
@@ -229,6 +231,7 @@ class SelectionTool extends Tool<Int> {
 		isCopy = App.ME.isCtrlCmdDown() && App.ME.isAltDown();
 		dragFlipX = false;
 		dragFlipY = false;
+		dragTranspose = false;
 		group.resetGhostFlip();
 		moveStarted = false;
 		startedOverSelecton = false;
@@ -437,9 +440,46 @@ class SelectionTool extends Tool<Int> {
 
 
 	public inline function canFlipSelection() return group.hasFlippableGridContent() && ( !isRunning() || moveStarted );
+	public inline function canRotateSelection() return group.hasRotatableContent() && ( !isRunning() || moveStarted );
+
+	inline function getDragTransform() : Int {
+		return (dragFlipX ? 1 : 0) | (dragFlipY ? 2 : 0) | (dragTranspose ? 4 : 0);
+	}
+
+	function setDragTransform(transform:Int) {
+		dragFlipX = (transform & 1)!=0;
+		dragFlipY = (transform & 2)!=0;
+		dragTranspose = (transform & 4)!=0;
+		group.setGhostTransform(transform);
+	}
+
+	public function rotateSelection(clockwise:Bool) : Bool {
+		if( !canRotateSelection() )
+			return false;
+		if( isRunning() && moveStarted ) {
+			setDragTransform(data.TileTransform.rotate(getDragTransform(),clockwise));
+			return true;
+		}
+		var changedLayers = group.rotateSelectedContent(clockwise);
+		if( changedLayers.length==0 )
+			return false;
+		editor.saveLayerStatesByLevel(changedLayers);
+		editor.invalidateResizeTool();
+		N.quick(clockwise ? "Selection rotated 90° clockwise" : "Selection rotated 90° counterclockwise");
+		return true;
+	}
 
 	override function onAppCommand(cmd:AppCommand) {
 		super.onAppCommand(cmd);
+		switch cmd {
+			case C_RotateSelectionClockwise:
+				rotateSelection(true);
+				return;
+			case C_RotateSelectionCounterClockwise:
+				rotateSelection(false);
+				return;
+			case _:
+		}
 
 		var horizontal : Null<Bool> = switch cmd {
 			case C_FlipX: true;
@@ -452,12 +492,7 @@ class SelectionTool extends Tool<Int> {
 		// While actively dragging, flip only the live ghost. The actual level
 		// data is transformed at drop time so move/copy + Undo remain atomic.
 		if( isRunning() && moveStarted ) {
-			if( horizontal )
-				dragFlipX = !dragFlipX;
-			else
-				dragFlipY = !dragFlipY;
-
-			group.setGhostFlip(dragFlipX, dragFlipY);
+			setDragTransform(getDragTransform() ^ (horizontal ? 1 : 2));
 			return;
 		}
 
@@ -536,6 +571,7 @@ class SelectionTool extends Tool<Int> {
 			group.onMoveEnd();
 			dragFlipX = false;
 			dragFlipY = false;
+			dragTranspose = false;
 		}
 		else {
 			if( startedOverSelecton && group.isOveringSelection(m) ) {
@@ -580,17 +616,8 @@ class SelectionTool extends Tool<Int> {
 				// The source may already be temporarily cut for live move preview.
 				var changedLayers = group.commitDragSnapshot(origin, m, isCopy);
 
-				function addChanged(lis:Array<data.inst.LayerInstance>) {
-					for(li in lis)
-						if( li!=null && changedLayers.indexOf(li)<0 )
-							changedLayers.push(li);
-				}
-
-				// Commit the same transient flips that were shown by the live ghost.
-				if( dragFlipX )
-					addChanged( group.flipSelectedGridContent(true) );
-				if( dragFlipY )
-					addChanged( group.flipSelectedGridContent(false) );
+				// commitDragSnapshot applies the preview transform before writing any
+				// destinations. A temporary unrotated placement would erase nearby data.
 
 				for(li in changedLayers)
 					if( li.level==editor.curLevel )

@@ -6,6 +6,7 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 
 	public var flipX = false;
 	public var flipY = false;
+	public var transpose = false;
 	var paintedCells : Map<Int,Bool> = new Map();
 
 	public function new() {
@@ -100,7 +101,7 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 	override function useFloodfillAt(m:Coords):Bool {
 		var topTile = curLayerInstance.getTopMostGridTile(m.cx, m.cy);
 		var initialTileId : Null<Int> = topTile!=null ? topTile.tileId : null;
-		var flips = M.makeBitsFromBools(flipX, flipY);
+		var flips = M.makeBitsFromBools(flipX, flipY, transpose);
 
 		return _floodFillImpl(
 			m,
@@ -173,7 +174,7 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 
 	function drawSelectionInRectangle(cx:Int, cy:Int, wid:Int, hei:Int, ?onlyCoordsMask:Map<Int,Bool>) {
 		var anyChange = false;
-		var flips = M.makeBitsFromBools(flipX, flipY);
+		var flips = M.makeBitsFromBools(flipX, flipY, transpose);
 		var sel = getSelectedValue();
 		var selMap = new Map();
 
@@ -203,10 +204,14 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 			var x = cx+dx;
 			var y = cy+dy;
 
-			var tid = curTilesetDef.getTileId(
-				selLeft + Std.int(dx/gridDiffScale)%selWid,
-				selTop + Std.int(dy/gridDiffScale)%selHei
-			);
+			var u = Std.int(dx/gridDiffScale) % (transpose ? selHei : selWid);
+			var v = Std.int(dy/gridDiffScale) % (transpose ? selWid : selHei);
+			// Preserve existing rectangle-stamp behavior for ordinary X/Y brushes.
+			if( transpose ) {
+				if( flipX ) u = selHei-1-u;
+				if( flipY ) v = selWid-1-v;
+			}
+			var tid = curTilesetDef.getTileId(selLeft+(transpose ? v : u),selTop+(transpose ? u : v));
 
 			if( onlyCoordsMask==null || onlyCoordsMask.exists(curLayerInstance.coordId(x,y)) )
 			if( curLayerInstance.isValid(x,y) && selMap.exists(tid) ) {
@@ -222,7 +227,7 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 	function drawSelectionAt(cx:Int, cy:Int) {
 		var anyChange = false;
 		var sel = getSelectedValue();
-		var flips = M.makeBitsFromBools(flipX, flipY);
+		var flips = M.makeBitsFromBools(flipX, flipY, transpose);
 		var li = curLayerInstance;
 
 		if( isRandomMode() ) {
@@ -253,8 +258,12 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 			for(tid in sel.ids) {
 				var tdCx = curTilesetDef.getTileCx(tid);
 				var tdCy = curTilesetDef.getTileCy(tid);
-				var tcx = cx + ( flipX ? right-tdCx : tdCx-left ) * gridDiffScale;
-				var tcy = cy + ( flipY ? bottom-tdCy : tdCy-top ) * gridDiffScale;
+				var u = transpose ? tdCy-top : tdCx-left;
+				var v = transpose ? tdCx-left : tdCy-top;
+				var width = transpose ? bottom-top+1 : right-left+1;
+				var height = transpose ? right-left+1 : bottom-top+1;
+				var tcx = cx + ( flipX ? width-1-u : u ) * gridDiffScale;
+				var tcy = cy + ( flipY ? height-1-v : v ) * gridDiffScale;
 				if( li.isValid(tcx,tcy) && !hasAlreadyPaintedAt(tcx,tcy	) ) {
 					li.addGridTile(tcx,tcy, tid, flips, settings.v.tileStacking && !curTilesetDef.isTileOpaque(tid));
 					if( settings.v.tileStacking )
@@ -329,7 +338,7 @@ class TileTool extends tool.LayerTool<data.DataTypes.TilesetSelection> {
 		}
 		else if( curLayerInstance.isValid(m.cx,m.cy) ) {
 			var sel = getSelectedValue();
-			var flips = M.makeBitsFromBools(flipX, flipY);
+			var flips = M.makeBitsFromBools(flipX, flipY, transpose);
 			if( isRandomMode() )
 				editor.cursor.set(
 					Tiles(curLayerInstance, [ sel.ids[Std.random(sel.ids.length)] ], m.cx, m.cy, flips)

@@ -426,12 +426,9 @@ class LayerRender {
 
 	public static inline function renderGridTile(li:data.inst.LayerInstance, td:data.def.TilesetDef, tileInf:data.DataTypes.GridTileInfos, cx:Int, cy:Int, tg:h2d.TileGroup, previewAnimatedTiles=false) {
 		var t = _getPreviewTileById(td, tileInf.tileId, previewAnimatedTiles);
-		t.setCenterRatio(li.def.tilePivotX, li.def.tilePivotY);
-		var sx = M.hasBit(tileInf.flips, 0) ? -1 : 1;
-		var sy = M.hasBit(tileInf.flips, 1) ? -1 : 1;
-		var tx = (cx + li.def.tilePivotX + (sx<0?1:0)) * li.def.gridSize + li.pxTotalOffsetX;
-		var ty = (cy + li.def.tilePivotX + (sy<0?1:0)) * li.def.gridSize + li.pxTotalOffsetY;
-		tg.addTransform(tx, ty, sx, sy, 0, t);
+		var grid = li.def.gridSize;
+		var renderTile = data.TileTransform.withCellPivot(t,grid,li.def.tilePivotX,li.def.tilePivotY);
+		data.TileTransform.render(tg,renderTile,cx*grid+li.pxTotalOffsetX,cy*grid+li.pxTotalOffsetY,grid,tileInf.flips);
 	}
 
 	public function render(li:data.inst.LayerInstance, renderAutoLayers=true, ?target:h2d.Object, previewAnimatedTiles=true) {

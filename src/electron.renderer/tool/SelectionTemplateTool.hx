@@ -128,16 +128,10 @@ class SelectionTemplateTool extends Tool<Int> {
 						var tile=td.getTileById(intVal(field(t,"tileId")));
 						if(tile==null)
 							continue;
-						var renderTile=tile.sub(0,0,tile.width,tile.height);
-						renderTile.setCenterRatio(li.def.tilePivotX,li.def.tilePivotY);
+						var renderTile=data.TileTransform.withCellPivot(tile,grid,li.def.tilePivotX,li.def.tilePivotY);
 						var flips=intVal(field(t,"flips")) ^ (flipX?1:0) ^ (flipY?2:0);
-						var sx=M.hasBit(flips,0) ? -1 : 1;
-						var sy=M.hasBit(flips,1) ? -1 : 1;
 						var bmp=new h2d.Bitmap(renderTile,getLayerRoot(li));
-						bmp.x=x + (li.def.tilePivotX + (sx<0?1:0))*grid;
-						bmp.y=y + (li.def.tilePivotY + (sy<0?1:0))*grid;
-						bmp.scaleX=sx;
-						bmp.scaleY=sy;
+						data.TileTransform.placeBitmap(bmp,x,y,grid,flips);
 						previewTiles++;
 					}
 

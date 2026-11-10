@@ -1,20 +1,21 @@
 'use strict';
-const {app}=require('electron');
+const {app,nativeImage}=require('electron');
 const fs=require('fs'),os=require('os'),path=require('path'),assert=require('assert');
 const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'smartive-selection-'));
 const output=path.join(root,'test-results/selection');fs.mkdirSync(output,{recursive:true});
 process.chdir(root);app.setPath('userData',tmp);if(app.setAppPath)app.setAppPath(root);else app.getAppPath=()=>root;
 process.env.LDTK_SMARTIVE_CONTROL_DIR=path.join(tmp,'control');
 app.commandLine.appendSwitch('no-sandbox');app.commandLine.appendSwitch('use-gl','angle');app.commandLine.appendSwitch('use-angle','swiftshader');
-let running=false,passed=[],checks=0,flipChecks=0,currentCase='boot';
-// The 51 flip cases add real editor-frame/history waits. Keep individual frame
-// deadlines unchanged, but allow the complete suite to finish on slower runners.
+let running=false,passed=[],checks=0,flipChecks=0,rotationChecks=0,currentCase='boot';
+// Flip and rotation cases use real editor-frame/history waits, not sleeps.
+// Keep individual frame deadlines unchanged while allowing the full suite to
+// complete, including native pixels, keyboard guards and disk round-trips.
 const timer=setTimeout(()=>{
-  const progress={passed,variantChecks:checks,flipChecks,currentCase,platform:process.platform,electron:process.versions.electron};
+  const progress={passed,variantChecks:checks,flipChecks,rotationChecks,currentCase,platform:process.platform,electron:process.versions.electron};
   fs.writeFileSync(path.join(output,'timeout.json'),JSON.stringify(progress,null,2));
-  console.error(`FAIL: selection UI regression timed out at ${currentCase} (${checks} matrix variants, ${flipChecks}/51 flip cases completed)`);
+  console.error(`FAIL: selection UI regression timed out at ${currentCase} (${checks} matrix variants, ${flipChecks} flip cases, ${rotationChecks} rotation cases completed)`);
   app.exit(1);
-},180000);
+},360000);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 app.on('browser-window-created',(_,win)=>{
   win.webContents.on('did-finish-load',()=>{
@@ -77,6 +78,99 @@ function expectedFlipState(before,kind,axes,isCopy=false,dx=0,dy=0){
   }
   result.autoTiles=result.ints.map(c=>({cx:c.cx,cy:c.cy,tileId:69+c.value,flips:0}));
   return result;
+}
+
+// An independent cell/pixel oracle. These eight orientations describe transpose
+// followed by screen-space X/Y reflection; it never calls the production helper.
+const cwOrientation=[5,7,4,6,1,3,0,2],ccwOrientation=[6,4,7,5,2,0,3,1];
+const clone=value=>JSON.parse(JSON.stringify(value));
+function transformPoint(x,y,width,height,command){
+  switch(command){
+    case 'r':return {x:height-1-y,y:x,width:height,height:width};
+    case 'l':return {x:y,y:width-1-x,width:height,height:width};
+    case 'x':return {x:width-1-x,y,width,height};
+    case 'y':return {x,y:height-1-y,width,height};
+    default:throw Error('Unknown test transform '+command);
+  }
+}
+function withoutEntityIds(value){
+  const result=clone(value);
+  for(const list of [result.entities,result.shapes])for(const item of list)delete item.iid;
+  return result;
+}
+function expectedRotationState(before,kind,commands,isCopy=false,dx=0,dy=0){
+  const result=clone(before);
+  const selected={
+    tilesA:kind==='tiles'||kind==='mixed'?[[2,2],[4,2],[2,3]]:[],
+    tilesB:kind==='mixed'?[[4,3],[4,2]]:[],
+    ints:kind==='intgrid'||kind==='mixed'?[[2,2],[4,2],[2,3]]:[],
+  };
+  for(const [layer,positions] of Object.entries(selected)){
+    const isSelected=c=>positions.some(([x,y])=>c.cx===x&&c.cy===y);
+    const original=before.grid[layer].filter(isSelected);
+    result.grid[layer]=before.grid[layer].filter(c=>isCopy||!isSelected(c));
+    for(const cell of original){
+      const copy=clone(cell);
+      let p={x:cell.cx-2,y:cell.cy-2,width:3,height:2};
+      for(const command of commands){
+        p=transformPoint(p.x,p.y,p.width,p.height,command);
+        if(copy.tiles)for(const tile of copy.tiles){
+          tile.flips=command==='r'?cwOrientation[tile.flips]
+            :command==='l'?ccwOrientation[tile.flips]:tile.flips^(command==='x'?1:2);
+        }
+      }
+      copy.cx=2+p.x+dx;copy.cy=2+p.y+dy;
+      result.grid[layer].push(copy);
+    }
+    result.grid[layer].sort((a,b)=>a.cy-b.cy||a.cx-b.cx);
+  }
+  result.grid.autoTiles=result.grid.ints.map(c=>({cx:c.cx,cy:c.cy,tileId:69+c.value,flips:0}));
+  if(dx||dy){
+    result.entities=isCopy?clone(before.entities):[];
+    for(const item of before.entities){
+      const copy=clone(item);copy.x+=dx*16;copy.y+=dy*16;
+      // Only the first point is selected; the second must remain authored.
+      copy.points[0].cx+=dx;copy.points[0].cy+=dy;
+      result.entities.push(copy);
+    }
+    result.entities.sort((a,b)=>a.x-b.x||a.y-b.y);
+  }
+  if(kind==='shapes'){
+    result.shapes=isCopy?clone(before.shapes):[];
+    for(const original of before.shapes){
+      const shape=clone(original);
+      let cells=[];
+      for(let i=0;i<shape.cells.length;i+=2)cells.push({x:shape.cells[i],y:shape.cells[i+1]});
+      let width=shape.width/16,height=shape.height/16;
+      for(const command of commands){
+        cells=cells.map(c=>transformPoint(c.x,c.y,width,height,command));
+        if(command==='r'||command==='l'){
+          [width,height]=[height,width];
+          const facing=['Up','Right','Down','Left'];
+          shape.facing=facing[(facing.indexOf(shape.facing)+(command==='r'?1:3))%4];
+        }else if(command==='x')shape.facing=({Left:'Right',Right:'Left'})[shape.facing]||shape.facing;
+        else shape.facing=({Up:'Down',Down:'Up'})[shape.facing]||shape.facing;
+      }
+      cells.sort((a,b)=>a.y-b.y||a.x-b.x);
+      shape.cells=cells.flatMap(c=>[c.x,c.y]);shape.width=width*16;shape.height=height*16;
+      shape.x+=dx*16;shape.y+=dy*16;shape.left+=dx*16;shape.top+=dy*16;
+      result.shapes.push(shape);
+    }
+    result.shapes.sort((a,b)=>a.x-b.x||a.y-b.y);
+  }
+  return withoutEntityIds(result);
+}
+
+function writeRotationAtlas(file){
+  // Every tile has four asymmetric opaque quadrants. Native screenshots can
+  // prove the tile artwork rotated, independently of positions and flip bits.
+  const width=160,height=160,pixels=Buffer.alloc(width*height*4);
+  const colors=[[235,40,50],[25,210,70],[35,85,235],[245,210,35]];
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const [r,g,b]=colors[(y%16>=8?2:0)+(x%16>=8?1:0)],i=(y*width+x)*4;
+    pixels[i]=b;pixels[i+1]=g;pixels[i+2]=r;pixels[i+3]=255;
+  }
+  fs.writeFileSync(file,nativeImage.createFromBitmap(pixels,{width,height}).toPNG());
 }
 async function run(win){
   win.webContents.on('console-message',(_event,level,message,line,sourceId)=>{
@@ -313,8 +407,230 @@ async function run(win){
   }
   pass('36 real SelectionTool X/Y drag/drop cases cover move/copy, both axes, cancelled flips, repeated mouse-up, and atomic Undo/Redo');
 
-  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,variantChecks:checks,flipChecks,platform:process.platform,electron:process.versions.electron},null,2));
-  console.log(`SUCCESS: ${checks} matrix variants + ${flipChecks} flip cases + ${passed.length} grouped selection scenarios passed`);
+  currentCase='rotation fixture setup';
+  const rotationFile=path.join(tmp,'rotation.ldtk');
+  writeRotationAtlas(path.join(tmp,'rotation-atlas.png'));
+  await ev(`SelectionDragTestHooks.setup(${JSON.stringify(rotationFile)},"rotation-atlas.png")`);
+  await until('SelectionDragTestHooks.ready()','Rotation regression project did not open');
+  await settleHistory();
+
+  currentCase='unsaved rotation across configuration reload';
+  await ev('SelectionDragTestHooks.prepareRotation("tiles")');
+  await ev('SelectionDragTestHooks.saveRotationProject(false)');
+  await until('SelectionDragTestHooks.rotationIoState().done','Initial rotation fixture save did not complete');
+  assert.strictEqual((await ev('SelectionDragTestHooks.rotationIoState()')).error,null);
+  await ev('SelectionDragTestHooks.rotationCommands("r")');
+  const unsavedWithoutMetadata=await ev('SelectionDragTestHooks.rotationState()');
+  await ev('SelectionDragTestHooks.reloadRotationConfig()');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),unsavedWithoutMetadata,'Reloading a configuration without saved tile transforms discarded unsaved rotation');
+
+  const rotateCases=[];
+  for(const kind of ['tiles','intgrid','mixed','shapes'])for(const commands of ['r','l','rrrr','rl'])rotateCases.push({kind,commands,offset:false});
+  for(const commands of ['r','l','rx','xr','ry','yr'])rotateCases.push({kind:'mixed',commands,offset:true});
+  for(const {kind,commands,offset} of rotateCases){
+    const label=`${kind} idle ${commands} offset=${offset}`;currentCase=label;
+    await ev(`SelectionDragTestHooks.prepareRotation(${JSON.stringify(kind)},${offset})`);
+    const before=await ev('SelectionDragTestHooks.rotationState()');
+    const membership=await ev('SelectionDragTestHooks.selectionCounts()');
+    await ev(`SelectionDragTestHooks.rotationCommands(${JSON.stringify(commands)})`);
+    const after=await ev('SelectionDragTestHooks.rotationState()');
+    assert.deepStrictEqual(withoutEntityIds(after),expectedRotationState(before,kind,commands),`${label}: wrong rotated cells, artwork, shape facing or surrounding data`);
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.selectionCounts()'),membership,`${label}: selection membership was lost`);
+    if(commands==='rrrr'||commands==='rl')assert.deepStrictEqual(after,before,`${label}: inverse turns did not restore exact state`);
+    for(const command of commands){await ev('SelectionDragTestHooks.undo()');await settleHistory();}
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),before,`${label}: Undo lost original data or orientation`);
+    for(const command of commands){await ev('SelectionDragTestHooks.redo()');await settleHistory();}
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),after,`${label}: Redo lost rotated data or orientation`);
+    rotationChecks++;
+  }
+  pass('22 non-square quarter-turn cases cover both directions, inverse/four-turn restoration, X/Y order, layer offsets, shapes and exact Undo/Redo');
+
+  for(const kind of ['tiles','intgrid','mixed','shapes'])for(const isCopy of [false,true])for(const commands of ['r','l','rx','xr','rrrr']){
+    const label=`${kind} ${isCopy?'copy':'move'} ${commands}`;currentCase=label;
+    await ev(`SelectionDragTestHooks.prepareRotation(${JSON.stringify(kind)},true)`);
+    const before=await ev('SelectionDragTestHooks.rotationState()');
+    const membership=await ev('SelectionDragTestHooks.selectionCounts()');
+    assert.deepStrictEqual(await ev(`SelectionDragTestHooks.startRotationDrag(${isCopy})`),{running:true,moving:true,isCopy},`${label}: real gesture did not start`);
+    const during=await ev('SelectionDragTestHooks.rotationState()');
+    await ev(`SelectionDragTestHooks.rotationCommands(${JSON.stringify(commands)})`);
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),during,`${label}: ghost transform changed level data before mouse-up`);
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.finishRotationDrag()'),{running:false,moving:false},`${label}: gesture remained active`);
+    const after=await ev('SelectionDragTestHooks.rotationState()');
+    assert.deepStrictEqual(withoutEntityIds(after),expectedRotationState(before,kind,commands,isCopy,8,5),`${label}: committed geometry differs from expected rotated drop`);
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.selectionCounts()'),membership,`${label}: drop lost selected members`);
+    await ev('SelectionDragTestHooks.finishRotationDrag()');
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),after,`${label}: repeated mouse-up replayed rotation`);
+    await ev('SelectionDragTestHooks.undo()');await settleHistory();
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),before,`${label}: one Undo did not restore the whole gesture`);
+    await ev('SelectionDragTestHooks.redo()');await settleHistory();
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),after,`${label}: one Redo did not restore the whole gesture`);
+    rotationChecks++;
+  }
+  pass('40 native move/copy quarter-turn gestures preserve sparse holes, stacks, normal entities/points, shape geometry and one-step Undo/Redo');
+
+  currentCase='rotation cancellation and boundaries';
+  for(const isCopy of [false,true]){
+    await ev('SelectionDragTestHooks.prepareRotation("mixed",true)');
+    const before=await ev('SelectionDragTestHooks.rotationState()');
+    await ev(`SelectionDragTestHooks.startRotationDrag(${isCopy})`);
+    await ev('SelectionDragTestHooks.rotationCommands("rx")');
+    await ev('SelectionDragTestHooks.cancelRotationDrag()');await editorFrame();
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),before,'Cancelling a rotated gesture changed source or destination');
+  }
+  await ev('SelectionDragTestHooks.prepareRotationBoundary()');
+  const boundaryBefore=await ev('SelectionDragTestHooks.rotationState()');
+  const boundaryMembers=await ev('SelectionDragTestHooks.selectionCounts()');
+  await ev('SelectionDragTestHooks.rotationCommands("r")');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),boundaryBefore,'Out-of-bounds rotation erased or partially moved cells');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.selectionCounts()'),boundaryMembers,'Rejected rotation changed the selection');
+  assert.strictEqual(await ev('SelectionDragTestHooks.tryUndo()'),false,'Rejected rotation created a history transaction');
+  await ev('SelectionDragTestHooks.prepareRotationMisaligned()');
+  const misalignedBefore=await ev('SelectionDragTestHooks.rotationState()');
+  await ev('SelectionDragTestHooks.rotationCommands("r")');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),misalignedBefore,'Incompatible layer offset rounded cells or partially transformed data');
+  assert.strictEqual(await ev('SelectionDragTestHooks.tryUndo()'),false,'Misaligned rotation created a history transaction');
+  pass('Cancelled move/copy restores the exact source; out-of-bounds and misaligned-layer rotation reject atomically without history entries');
+
+  currentCase='select-all inclusive bounds';
+  await ev('SelectionDragTestHooks.prepareRotationSelectAll()');
+  const selectAllBefore=await ev('SelectionDragTestHooks.rotationState()');
+  await ev('SelectionDragTestHooks.rotationCommands("r")');
+  const selectAllAfter=await ev('SelectionDragTestHooks.rotationState()');
+  assert.deepStrictEqual(selectAllAfter.grid.tilesA,[
+    {cx:13,cy:2,tiles:[{tileId:10,flips:5}]},
+    {cx:12,cy:4,tiles:[{tileId:20,flips:4}]},
+  ],'Select All plus empty-space selection used an off-by-one rectangle');
+  await ev('SelectionDragTestHooks.rotationCommands("rrr")');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),selectAllBefore,'Four turns of Select All did not restore the square level exactly');
+  pass('Select All with empty-space selection uses inclusive bounds correctly and survives four turns');
+
+  const nativeKey=async(keyCode,modifiers=[])=>{
+    const names={shift:'Shift',alt:'Alt',control:'Control',meta:'Meta'};
+    for(const modifier of modifiers)win.webContents.sendInputEvent({type:'keyDown',keyCode:names[modifier],modifiers});
+    if(modifiers.length)await editorFrame();
+    win.webContents.sendInputEvent({type:'keyDown',keyCode,modifiers});await editorFrame();
+    win.webContents.sendInputEvent({type:'keyUp',keyCode,modifiers});
+    for(const modifier of [...modifiers].reverse())win.webContents.sendInputEvent({type:'keyUp',keyCode:names[modifier]});
+    await settleHistory();
+  };
+  currentCase='native rotation keyboard and toolbar';
+  win.focus();win.webContents.focus();
+  await ev('SelectionDragTestHooks.rotationNavigationKeys(false)');
+  await ev('SelectionDragTestHooks.prepareRotation("tiles")');await settleHistory();
+  await ev('document.activeElement && document.activeElement.blur()');
+  let keyboardBefore=await ev('SelectionDragTestHooks.rotationState()');
+  await nativeKey('z');
+  assert.deepStrictEqual(withoutEntityIds(await ev('SelectionDragTestHooks.rotationState()')),expectedRotationState(keyboardBefore,'tiles','r'),'Native Z did not rotate clockwise');
+  await nativeKey('z',['shift']);
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Native Shift+Z did not rotate counterclockwise');
+  await nativeKey('z');
+  await nativeKey('z',[process.platform==='darwin'?'meta':'control']);
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Ctrl/Cmd+Z no longer performs Undo');
+
+  await ev('SelectionDragTestHooks.prepareRotation("tiles")');await editorFrame();
+  keyboardBefore=await ev('SelectionDragTestHooks.rotationState()');
+  await ev('(()=>{const input=document.createElement("input");input.id="rotation-typing-guard";document.body.appendChild(input);input.focus();return true;})()');
+  await nativeKey('z');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Typing Z into a form rotated the selection');
+  await ev('document.getElementById("rotation-typing-guard").remove()');
+  await ev('SelectionDragTestHooks.rotationNavigationKeys(true)');
+  await nativeKey('z');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'ZQSD navigation Z was stolen by rotation');
+  await nativeKey('r',['alt']);
+  assert.deepStrictEqual(withoutEntityIds(await ev('SelectionDragTestHooks.rotationState()')),expectedRotationState(keyboardBefore,'tiles','r'),'Alt+R did not rotate in ZQSD mode');
+  await nativeKey('r',['alt','shift']);
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Alt+Shift+R did not rotate counterclockwise in ZQSD mode');
+  await ev('SelectionDragTestHooks.rotationNavigationKeys(false)');
+
+  const toolbarClick=async selector=>{
+    const target=await ev(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)throw Error("Missing rotation toolbar action");const r=el.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2),width:r.width,height:r.height};})()`);
+    assert(target.width>0&&target.height>0,'Rotation toolbar action is not visible');
+    const point={x:target.x,y:target.y};
+    win.webContents.sendInputEvent({type:'mouseMove',...point});await editorFrame();
+    win.webContents.sendInputEvent({type:'mouseDown',...point,button:'left',clickCount:1});
+    win.webContents.sendInputEvent({type:'mouseUp',...point,button:'left',clickCount:1});await settleHistory();
+  };
+  await toolbarClick('li.rotateSelectionClockwise');
+  assert.deepStrictEqual(withoutEntityIds(await ev('SelectionDragTestHooks.rotationState()')),expectedRotationState(keyboardBefore,'tiles','r'),'Toolbar clockwise action did not rotate');
+  await toolbarClick('li.rotateSelectionCounterClockwise');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Toolbar counterclockwise action did not restore state');
+  await ev('SelectionDragTestHooks.clearSelection()');await editorFrame();
+  assert.strictEqual(await ev('document.querySelector("li.rotateSelectionClockwise").getAttribute("aria-disabled")'),'true','Empty selection did not disable the rotation toolbar');
+  await nativeKey('z');
+  assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),keyboardBefore,'Empty-selection rotation mutated data');
+  pass('Real Z/Shift+Z and toolbar clicks rotate; Ctrl/Cmd+Z, input typing, ZQSD navigation and empty-selection guards remain correct');
+
+  currentCase='native tile artwork pixels';
+  win.webContents.sendInputEvent({type:'mouseMove',x:2,y:2});
+  let referencePixels=null;
+  for(const largeCell of [false,true])for(const initial of [0,1,2,3])for(const commands of ['', 'r']){
+    await ev(`SelectionDragTestHooks.prepareRotationVisual(${initial},${largeCell})`);
+    if(commands)await ev(`SelectionDragTestHooks.rotationCommands(${JSON.stringify(commands)})`);
+    const samples=await ev('SelectionDragTestHooks.rotationVisualSamples()');await settleHistory();
+    const screenshot=await win.webContents.capturePage(),size=screenshot.getSize(),pixels=screenshot.toBitmap();
+    const cssWidth=await ev('window.innerWidth'),scale=size.width/cssWidth;
+    const samplePixels=samples.map(p=>{
+      const x=Math.floor(p.x*scale),y=Math.floor(p.y*scale);
+      assert(x>=0&&x<size.width&&y>=0&&y<size.height,'Artwork sample fell outside the viewport');
+      const at=(y*size.width+x)*4;return [...pixels.subarray(at,at+3)];
+    });
+    const orientation=commands?cwOrientation[initial]:initial;
+    if(referencePixels===null){
+      referencePixels=samplePixels;
+      assert.strictEqual(new Set(referencePixels.map(p=>p.join(','))).size,4,'Asymmetric atlas quadrants are not visibly distinct');
+    }
+    for(let i=0;i<4;i++){
+      let x=i%2,y=Math.floor(i/2);
+      if(orientation&1)x=1-x;if(orientation&2)y=1-y;
+      if(orientation&4)[x,y]=[y,x];
+      const expected=referencePixels[y*2+x];
+      assert(samplePixels[i].every((channel,n)=>Math.abs(channel-expected[n])<=6),`Artwork orientation ${orientation}, quadrant ${i}: ${samplePixels[i]} != ${expected}`);
+    }
+    if(!largeCell&&initial===0&&commands==='r')fs.writeFileSync(path.join(output,'rotation-artwork-clockwise.png'),screenshot.toPNG());
+  }
+  pass('Native screenshots verify all eight tile orientations on 16px and 32px cells, including asymmetric tile pivots');
+
+  currentCase='rotation save and reopen';
+  for(const external of [false,true]){
+    await ev('SelectionDragTestHooks.prepareRotation("mixed",true)');
+    await ev('SelectionDragTestHooks.rotationCommands("r")');
+    const before=await ev('SelectionDragTestHooks.rotationState()');
+    const cloneFlags=await ev('SelectionDragTestHooks.rotationCloneFlags()');
+    assert(cloneFlags.runtime.some(f=>(f&4)!==0),'Project clone discarded quarter-turn orientation');
+    assert(cloneFlags.native.every(f=>f>=0&&f<=3),'Cloned project leaked editor orientation bits into native JSON');
+    const assertNativeFlags=value=>{
+      if(!value||typeof value!=='object')return;
+      if(Array.isArray(value.gridTiles))for(const tile of value.gridTiles)assert(tile.f>=0&&tile.f<=3,'Cached clone JSON leaked editor orientation bits');
+      for(const child of Object.values(value))assertNativeFlags(child);
+    };
+    assertNativeFlags(JSON.parse(cloneFlags.json));
+    await ev(`SelectionDragTestHooks.saveRotationProject(${external})`);
+    await until('SelectionDragTestHooks.rotationIoState().done','ProjectSaver did not finish rotation fixture');
+    assert.strictEqual((await ev('SelectionDragTestHooks.rotationIoState()')).error,null,'Saving rotation failed');
+    const native=JSON.parse(fs.readFileSync(rotationFile,'utf8'));
+    const levels=native.levels.concat((native.worlds||[]).flatMap(w=>w.levels));
+    for(const metadata of levels){
+      const level=metadata.externalRelPath?JSON.parse(fs.readFileSync(path.resolve(path.dirname(rotationFile),metadata.externalRelPath),'utf8')):metadata;
+      for(const layer of level.layerInstances||[])for(const tile of [...layer.gridTiles,...layer.autoLayerTiles])
+        assert(Number.isInteger(tile.f)&&tile.f>=0&&tile.f<=3,'Stock LDtk JSON contains an unsupported orientation flag');
+    }
+    const sidecar=JSON.parse(fs.readFileSync(rotationFile+'-fork.json','utf8'));
+    assert(Object.values(sidecar.tileTransforms||{}).some(layer=>layer.cells.some(cell=>(cell.flips&4)!==0)),'Rotated tile orientation was not persisted in the companion file');
+    await ev('SelectionDragTestHooks.rotationCommands("r")');
+    const unsavedWithMetadata=await ev('SelectionDragTestHooks.rotationState()');
+    assert.notDeepStrictEqual(unsavedWithMetadata,before,'Unsaved edit fixture did not rotate after saving');
+    await ev('SelectionDragTestHooks.reloadRotationConfig()');
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),unsavedWithMetadata,'Configuration reload replaced unsaved orientation with the disk copy');
+    await ev('SelectionDragTestHooks.reloadRotationProject()');
+    await until('SelectionDragTestHooks.rotationIoState().done','ProjectLoader did not reopen rotation fixture');
+    assert.strictEqual((await ev('SelectionDragTestHooks.rotationIoState()')).error,null,'Reopening rotation failed');
+    await until('SelectionDragTestHooks.ready()','Reopened rotation editor is not ready');await settleHistory();
+    assert.deepStrictEqual(await ev('SelectionDragTestHooks.rotationState()'),before,`${external?'External':'Embedded'} project lost rotation, stacks, offsets, entities or points on disk round-trip`);
+  }
+  pass('ProjectSaver/ProjectLoader retain rotated stacks for embedded/external levels; configuration reloads preserve unsaved edits and native JSON flags stay stock-compatible');
+
+  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({passed,variantChecks:checks,flipChecks,rotationChecks,platform:process.platform,electron:process.versions.electron},null,2));
+  console.log(`SUCCESS: ${checks} matrix variants + ${flipChecks} flip cases + ${rotationChecks} rotation cases + ${passed.length} grouped selection scenarios passed`);
   clearTimeout(timer);app.exit(0);
 }
 require('../assets/main.js');

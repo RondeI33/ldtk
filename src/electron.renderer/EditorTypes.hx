@@ -302,6 +302,8 @@ enum AppCommand {
 	@k("ctrl f, ctrl shift p, ctrl k, ctrl shift k") @input C_CommandPalette;
 	@k("x, shift h") C_FlipX;
 	@k("y, shift V") C_FlipY;
+	@k("[wasd] z, [arrows] z, alt r") C_RotateSelectionClockwise;
+	@k("shift z, alt shift r") C_RotateSelectionCounterClockwise;
 	@k("r") C_ToggleTileRandomMode;
 	@k("[arrows] s, shift s") C_SaveTileSelection;
 	@k("shift l") C_LoadTileSelection;
